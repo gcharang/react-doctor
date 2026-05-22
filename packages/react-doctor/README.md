@@ -70,7 +70,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-When `github-token` is set on `pull_request` events, findings are posted (and updated) as a sticky PR comment. The action also exposes a `score` output (0–100) you can use in subsequent steps.
+When `github-token` is set on `pull_request` events, findings are posted (and updated) as a sticky PR comment. The action also exposes a `score` output (0–100) you can read in subsequent steps — see [PR blocking and exit codes](#pr-blocking-and-exit-codes) for a score-floor recipe.
 
 **Inputs:** `directory`, `verbose`, `project`, `diff`, `github-token`, `fail-on` (`error` / `warning` / `none`), `offline`, `annotations`, `node-version`. See [`action.yml`](https://github.com/millionco/react-doctor/blob/main/action.yml) for full descriptions.
 
@@ -143,7 +143,13 @@ Combine `--fail-on` with `--diff <base>` to scope the gate to the PR's changed f
     SCORE: ${{ steps.doctor.outputs.score }}
     FLOOR: "80"
   run: |
-    if [ -n "$SCORE" ] && [ "$SCORE" -lt "$FLOOR" ]; then
+    # `score` is best-effort and may be empty (e.g. when offline is on).
+    # Skip the floor when it's empty so unrelated PRs aren't blocked.
+    if [ -z "$SCORE" ]; then
+      echo "::notice::React Doctor score unavailable — skipping floor check"
+      exit 0
+    fi
+    if [ "$SCORE" -lt "$FLOOR" ]; then
       echo "::error::React Doctor score $SCORE is below floor $FLOOR"
       exit 1
     fi
@@ -356,7 +362,7 @@ When a suppression isn't working, `--explain <file:line>` (or its alias `--why <
 
 `ignore.tags` suppresses entire categories of rules by tag. For example, `"tags": ["design"]` disables all opinionated design rules (gradient text, pure black backgrounds, side tab borders, default Tailwind palettes). Available tags: `"design"`.
 
-`offline` skips the score API entirely — no score is shown and no share URL is generated. Automatically enabled in CI environments (GitHub Actions, GitLab CI, CircleCI) so CI runs don't depend on the network.
+`offline` skips the score API entirely — no score is shown and no share URL is generated. CI runs (GitHub Actions, GitLab CI, CircleCI) are not offline by default; only the share URL is suppressed. Set `offline: true` (or `--offline`) explicitly when you want zero network.
 
 ### React Native rules in mixed monorepos
 
@@ -384,7 +390,7 @@ The walker stops at function and `Program` boundaries — JSX defined inside a c
 
 The health score formula: `100 - (unique_error_rules x 1.5) - (unique_warning_rules x 0.75)`.
 
-Scoring runs on react.doctor's API and is **network-dependent**: without a successful API round-trip (or under `--offline`) the score is omitted and the rest of the report still renders normally. Key details:
+Scoring runs on react.doctor's API and is **network-dependent**: without a successful API round-trip (or under `--offline`) the score is omitted and the rest of the report still renders normally. Score-based automation must treat an empty value as a no-op (see the strict-threshold example above). Key details:
 
 - The score counts **unique rules triggered**, not total instances. Fixing 49 of 50 `no-barrel-import` violations does not change the score; fixing all 50 removes the 0.75 penalty for that rule.
 - Error-severity rules cost 1.5 points each. Warning-severity rules cost 0.75 points each.
@@ -417,7 +423,7 @@ React Doctor detects 50+ coding agents (Claude Code, Cursor, Codex, OpenCode, Wi
 - **Exit codes**: `--fail-on error` (default) exits non-zero when error-severity diagnostics are found. Use `--fail-on warning` or `--fail-on none` to tune CI gating. See [PR blocking and exit codes](#pr-blocking-and-exit-codes) for the full model — including how to fail only on new regressions vs. fail on the baseline score.
 - **Programmatic API**: `import { diagnose } from "react-doctor/api"` for direct integration in scripts and automation.
 
-In CI environments, prompts are automatically skipped and `--offline` is implied (no network round-trip; score is omitted from the output).
+In CI environments, prompts are automatically skipped. Pass `--offline` explicitly when you need zero network.
 
 ## Node.js API
 

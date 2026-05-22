@@ -1,8 +1,6 @@
-// HACK: only flip --offline by default for the narrowest set of CI signals
-// where we're confident the run is automated and a share URL would be
-// useless. Other tools that set non-interactive env vars (Jenkins agents,
-// Azure DevOps tasks running interactively, agentic coding sessions) still
-// get telemetry-on-by-default; users can pass --offline explicitly.
+// Narrow on canonical CI signals only. Used to suppress the share
+// URL (noise in CI logs) and to mark the run as CI-originated for
+// the score path. Does not imply `--offline`.
 const CI_ENVIRONMENT_VARIABLES = ["GITHUB_ACTIONS", "GITLAB_CI", "CIRCLECI"];
 
 export const isCiEnvironment = (): boolean =>

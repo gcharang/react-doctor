@@ -84,6 +84,23 @@ describe("calculateScore", () => {
     });
   });
 
+  it("issue #302: tags the score request with ?ci=1 when isCi is true", async () => {
+    let capturedUrl: string | URL | Request | undefined;
+    stubFetch(async (url) => {
+      capturedUrl = url;
+      return new Response(JSON.stringify(apiScoreResponse), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    await calculateScore(sampleDiagnostics);
+    expect(String(capturedUrl)).not.toContain("ci=1");
+
+    await calculateScore(sampleDiagnostics, { isCi: true });
+    expect(String(capturedUrl)).toContain("?ci=1");
+  });
+
   it("returns null when the API response shape is invalid", async () => {
     stubFetch(
       async () =>

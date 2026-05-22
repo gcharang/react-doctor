@@ -60,7 +60,7 @@ Use `--fail-on <level>` to control exit codes (`error`, `warning`, `none`):
 npx react-doctor@latest --fail-on error
 ```
 
-Use `--offline` to skip the score API (computes score locally):
+Use `--offline` to skip the score API and the share URL. Offline runs print no score; the rest of the report renders normally:
 
 ```bash
 npx react-doctor@latest --offline
@@ -88,7 +88,7 @@ Options:
   --full             skip prompts, always run a full scan (decline diff-only)
   --project <name>   select workspace project (comma-separated for multiple)
   --diff [base]      scan only files changed vs base branch or uncommitted changes
-  --offline          skip telemetry (anonymous, not stored, only used to calculate score)
+  --offline          skip the score API and share URL (no score is shown)
   --staged           scan only staged (git index) files for pre-commit hooks
   --fail-on <level>  exit with error code on diagnostics: error, warning, none
   --annotations      output diagnostics as GitHub Actions annotations

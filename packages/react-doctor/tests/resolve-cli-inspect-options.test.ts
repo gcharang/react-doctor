@@ -1,0 +1,55 @@
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { resolveCliInspectOptions } from "../src/cli/utils/resolve-cli-inspect-options.js";
+
+const CI_ENVIRONMENT_VARIABLES = ["CI", "GITHUB_ACTIONS", "GITLAB_CI", "CIRCLECI"] as const;
+
+describe("resolveCliInspectOptions: CI behavior (issue #302)", () => {
+  let savedEnvironment: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    savedEnvironment = {};
+    for (const envVariable of CI_ENVIRONMENT_VARIABLES) {
+      savedEnvironment[envVariable] = process.env[envVariable];
+      delete process.env[envVariable];
+    }
+  });
+
+  afterEach(() => {
+    for (const envVariable of CI_ENVIRONMENT_VARIABLES) {
+      const previousValue = savedEnvironment[envVariable];
+      if (previousValue === undefined) {
+        delete process.env[envVariable];
+      } else {
+        process.env[envVariable] = previousValue;
+      }
+    }
+  });
+
+  it("does not auto-flip offline in CI; the score path still runs", () => {
+    process.env.GITHUB_ACTIONS = "true";
+
+    const resolved = resolveCliInspectOptions({}, null);
+
+    expect(resolved.offline).toBe(false);
+    expect(resolved.isCi).toBe(true);
+  });
+
+  it("respects an explicit user opt-out (CLI flag or config) in CI", () => {
+    process.env.GITHUB_ACTIONS = "true";
+
+    expect(resolveCliInspectOptions({ offline: true }, null).offline).toBe(true);
+    expect(resolveCliInspectOptions({}, { offline: true }).offline).toBe(true);
+  });
+
+  it("leaves isCi false outside CI", () => {
+    expect(resolveCliInspectOptions({}, null).isCi).toBe(false);
+  });
+
+  it("detects GITHUB_ACTIONS, GITLAB_CI, and CIRCLECI", () => {
+    for (const envVariable of ["GITHUB_ACTIONS", "GITLAB_CI", "CIRCLECI"] as const) {
+      process.env[envVariable] = "true";
+      expect(resolveCliInspectOptions({}, null).isCi).toBe(true);
+      delete process.env[envVariable];
+    }
+  });
+});

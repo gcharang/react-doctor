@@ -27,6 +27,11 @@ export interface InspectOptions {
   verbose?: boolean;
   scoreOnly?: boolean;
   offline?: boolean;
+  /**
+   * Marks the run as CI-originated. Suppresses the share URL in the
+   * printed summary; does not imply `--offline`.
+   */
+  isCi?: boolean;
   silent?: boolean;
   includePaths?: string[];
   configOverride?: ReactDoctorConfig | null;
