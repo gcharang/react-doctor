@@ -37,6 +37,7 @@ describe("installAction (Commander action wrapper)", () => {
     expect(runInstallSkill).toHaveBeenCalledWith({
       yes: true,
       dryRun: true,
+      agentHooks: undefined,
       projectRoot: "/tmp/some-project",
     });
   });
@@ -47,6 +48,7 @@ describe("installAction (Commander action wrapper)", () => {
     expect(runInstallSkill).toHaveBeenCalledWith({
       yes: true,
       dryRun: undefined,
+      agentHooks: undefined,
       projectRoot: process.cwd(),
     });
   });
@@ -56,7 +58,80 @@ describe("installAction (Commander action wrapper)", () => {
     expect(runInstallSkill).toHaveBeenCalledWith({
       yes: false,
       dryRun: true,
+      agentHooks: undefined,
       projectRoot: "/tmp/other",
+    });
+  });
+
+  it("forwards --agent-hooks to runInstallSkill", async () => {
+    await installAction({ yes: true, agentHooks: true, cwd: "/tmp/agent-hooks" });
+    expect(runInstallSkill).toHaveBeenCalledWith({
+      yes: true,
+      dryRun: undefined,
+      agentHooks: true,
+      projectRoot: "/tmp/agent-hooks",
+    });
+  });
+
+  it("uses the parent --yes value when Commander stores it on the root command", async () => {
+    await installAction(
+      {
+        dryRun: true,
+        cwd: "/tmp/root-yes",
+      },
+      {
+        parent: {
+          opts: () => ({ yes: true }),
+        },
+      },
+    );
+    expect(runInstallSkill).toHaveBeenCalledWith({
+      yes: true,
+      dryRun: true,
+      agentHooks: undefined,
+      projectRoot: "/tmp/root-yes",
+    });
+  });
+
+  it("keeps an explicit child yes value ahead of the parent value", async () => {
+    await installAction(
+      {
+        yes: false,
+        dryRun: true,
+        cwd: "/tmp/child-yes",
+      },
+      {
+        parent: {
+          opts: () => ({ yes: true }),
+        },
+      },
+    );
+    expect(runInstallSkill).toHaveBeenCalledWith({
+      yes: false,
+      dryRun: true,
+      agentHooks: undefined,
+      projectRoot: "/tmp/child-yes",
+    });
+  });
+
+  it("forwards --yes from Commander-shaped command arguments", async () => {
+    await installAction(
+      {
+        dryRun: true,
+        agentHooks: true,
+        cwd: "/tmp/commander-shape",
+      },
+      {
+        parent: {
+          opts: () => ({ yes: true }),
+        },
+      },
+    );
+    expect(runInstallSkill).toHaveBeenCalledWith({
+      yes: true,
+      dryRun: true,
+      agentHooks: true,
+      projectRoot: "/tmp/commander-shape",
     });
   });
 

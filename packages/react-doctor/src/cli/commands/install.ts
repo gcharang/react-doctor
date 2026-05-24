@@ -6,18 +6,32 @@ import { printBrandedHeader } from "../utils/print-branded-header.js";
 interface InstallCommandOptions {
   yes?: boolean;
   dryRun?: boolean;
+  agentHooks?: boolean;
   // Commander's `--cwd` always supplies `process.cwd()` as the default,
   // so this is defined when invoked via the CLI. The fallback is for
   // direct callers (tests) that construct the options object manually.
   cwd?: string;
 }
 
-export const installAction = async (options: InstallCommandOptions): Promise<void> => {
+interface InstallCommand {
+  parent?: {
+    opts?: () => {
+      yes?: boolean;
+    };
+  };
+}
+
+export const installAction = async (
+  options: InstallCommandOptions,
+  command?: InstallCommand,
+): Promise<void> => {
   Effect.runSync(printBrandedHeader);
   try {
+    const parentOptions = command?.parent?.opts?.();
     await runInstallSkill({
-      yes: options.yes,
+      yes: options.yes ?? parentOptions?.yes,
       dryRun: options.dryRun,
+      agentHooks: options.agentHooks,
       projectRoot: options.cwd ?? process.cwd(),
     });
   } catch (error) {
