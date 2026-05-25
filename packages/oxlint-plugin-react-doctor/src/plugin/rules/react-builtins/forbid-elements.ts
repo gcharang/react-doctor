@@ -1,5 +1,4 @@
 import { defineRule } from "../../utils/define-rule.js";
-import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { flattenCalleeName } from "../../utils/flatten-callee-name.js";
 import { flattenJsxName } from "../../utils/flatten-jsx-name.js";
