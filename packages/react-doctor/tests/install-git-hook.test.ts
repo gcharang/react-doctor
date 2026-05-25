@@ -10,7 +10,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
@@ -70,7 +70,8 @@ describe("installReactDoctorGitHook", () => {
     expect(hookContent).toContain(
       "npx --yes react-doctor@latest --staged --fail-on warning",
     );
-    expect(hookContent).toContain("react_doctor_prompt_to_fix");
+    expect(hookContent).toContain("Want them fixed?");
+    expect(hookContent).not.toContain("Stop commit");
     expect(hookContent).not.toContain(".react-doctor/hooks/pre-commit");
     expect(hookContent).not.toContain("husky");
     expect(existsSync(fixture.hookPath)).toBe(true);
@@ -738,7 +739,7 @@ describe("installReactDoctorGitHook", () => {
     );
   });
 
-  it("runs the inline pre-commit hook during a real git commit", () => {
+  it("prints a minimal non-invasive prompt during a real git commit", () => {
     execFileSync("git", ["init"], { cwd: fixture.projectRoot, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "doctor@example.com"], {
       cwd: fixture.projectRoot,
@@ -763,17 +764,33 @@ describe("installReactDoctorGitHook", () => {
     mkdirSync(path.dirname(localBinaryPath), { recursive: true });
     writeFileSync(
       localBinaryPath,
-      ["#!/bin/sh", "printf '%s\\n' \"$@\" > hook-invocation.txt", "exit 1", ""].join("\n"),
+      [
+        "#!/bin/sh",
+        "printf '%s\\n' \"$@\" > hook-invocation.txt",
+        "printf '%s\\n' 'noisy stdout diagnostic'",
+        "printf '%s\\n' 'noisy stderr diagnostic' >&2",
+        "exit 1",
+        "",
+      ].join("\n"),
     );
     chmodSync(localBinaryPath, fsConstants.S_IRWXU);
 
     writeFileSync(path.join(packageDirectory, "app.tsx"), "export const App = () => null;\n");
     execFileSync("git", ["add", "packages/app/app.tsx"], { cwd: fixture.projectRoot });
-    execFileSync("git", ["commit", "-m", "test hook"], {
+    const commitResult = spawnSync("git", ["commit", "-m", "test hook"], {
       cwd: packageDirectory,
       encoding: "utf8",
     });
 
+    expect(commitResult.status).toBe(0);
+    expect(commitResult.stderr).toContain("React Doctor found staged regressions.");
+    expect(commitResult.stderr).toContain("Run react-doctor --staged --fail-on warning to inspect.");
+    expect(commitResult.stderr).toContain(
+      "Want them fixed? Ask your agent to run that command and resolve the findings.",
+    );
+    expect(commitResult.stderr).not.toContain("noisy stdout diagnostic");
+    expect(commitResult.stderr).not.toContain("noisy stderr diagnostic");
+    expect(commitResult.stderr).not.toContain("Stop commit");
     expect(readFileSync(invocationPath, "utf8")).toBe(
       "--staged\n--fail-on\nwarning\n",
     );
