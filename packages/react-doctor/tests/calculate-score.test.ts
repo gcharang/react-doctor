@@ -74,6 +74,9 @@ describe("calculateScore", () => {
         sourceFileCount: 42,
         defaultBranch: "main",
         doctorVersion: "0.2.5",
+        githubEventName: "pull_request",
+        githubActorAssociation: "CONTRIBUTOR",
+        githubViewerPermission: "write",
       },
     });
 
@@ -100,6 +103,9 @@ describe("calculateScore", () => {
       sourceFileCount: 42,
       defaultBranch: "main",
       doctorVersion: "0.2.5",
+      githubEventName: "pull_request",
+      githubActorAssociation: "CONTRIBUTOR",
+      githubViewerPermission: "write",
     });
   });
 

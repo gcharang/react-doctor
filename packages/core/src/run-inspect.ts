@@ -20,6 +20,7 @@ import { Project } from "./services/project.js";
 import { Reporter } from "./services/reporter.js";
 import { Score } from "./services/score.js";
 import type { ScoreRequestMetadata } from "./calculate-score.js";
+import { resolveGithubActionsScoreMetadata } from "./utils/resolve-github-actions-score-metadata.js";
 
 export interface InspectInput {
   readonly directory: string;
@@ -35,6 +36,8 @@ export interface InspectInput {
   readonly isCi: boolean;
   /** react-doctor release version sent with score requests. */
   readonly doctorVersion?: string;
+  /** Enables best-effort authenticated local GitHub permission lookup for score metadata. */
+  readonly resolveLocalGithubViewerPermission?: boolean;
 }
 
 export interface InspectOutput {
@@ -172,6 +175,13 @@ export const runInspect = <HooksR = never>(
       ],
       { concurrency: 3 },
     );
+    const githubActionsScoreMetadata = input.isCi ? resolveGithubActionsScoreMetadata() : {};
+    const githubViewerPermission =
+      input.resolveLocalGithubViewerPermission === true && !input.isCi && repo !== null
+        ? yield* gitService
+            .githubViewerPermission({ directory: scanDirectory, repo })
+            .pipe(Effect.orElseSucceed(() => null as string | null))
+        : null;
     const scoreMetadata: ScoreRequestMetadata = {
       ...(repo !== null ? { repo } : {}),
       ...(sha !== null ? { sha } : {}),
@@ -180,6 +190,8 @@ export const runInspect = <HooksR = never>(
       sourceFileCount: project.sourceFileCount,
       ...(defaultBranch !== null ? { defaultBranch } : {}),
       ...(input.doctorVersion !== undefined ? { doctorVersion: input.doctorVersion } : {}),
+      ...githubActionsScoreMetadata,
+      ...(githubViewerPermission !== null ? { githubViewerPermission } : {}),
     };
 
     const jsxIncludePaths = computeJsxIncludePaths([...input.includePaths]);

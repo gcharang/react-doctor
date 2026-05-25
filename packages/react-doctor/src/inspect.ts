@@ -241,6 +241,7 @@ const runInspectWithRuntime = async (
         runDeadCode: options.deadCode,
         isCi: options.isCi,
         doctorVersion: VERSION,
+        resolveLocalGithubViewerPermission: !options.noScore,
       },
       {
         beforeLint: (projectInfo, lintIncludePaths) =>
