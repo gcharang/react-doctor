@@ -3,6 +3,7 @@ import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isNamespacedApiCallee } from "../../utils/is-namespaced-api-call.js";
 import { DATA_SINK_METHOD_NAMES } from "../../constants/data-sink-method-names.js";
+import { getCallMethodName } from "../../utils/get-call-method-name.js";
 import type { Rule } from "../../utils/rule.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import {
@@ -29,17 +30,6 @@ import { isNodeOfType } from "../../utils/is-node-of-type.js";
 
 // 1:1 port of upstream `src/rules/no-pass-data-to-parent.js`.
 
-
-const getCallMethodName = (callee: EsTreeNode): string | null => {
-  if (
-    isNodeOfType(callee, "MemberExpression") &&
-    !callee.computed &&
-    isNodeOfType(callee.property, "Identifier")
-  ) {
-    return callee.property.name;
-  }
-  return null;
-};
 
 // Local mirror of upstream's inline `isUseState`/`isUseRef` checks
 // that work on the *identifier* of an upstream ref (not on a ref).

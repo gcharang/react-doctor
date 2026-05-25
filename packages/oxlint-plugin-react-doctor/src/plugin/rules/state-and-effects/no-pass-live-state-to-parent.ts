@@ -4,6 +4,7 @@ import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isNamespacedApiCallee } from "../../utils/is-namespaced-api-call.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import { DATA_SINK_METHOD_NAMES } from "../../constants/data-sink-method-names.js";
+import { getCallMethodName } from "../../utils/get-call-method-name.js";
 import type { Rule } from "../../utils/rule.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { getArgsUpstreamRefs, getCallExpr, isSynchronous } from "./utils/effect/ast.js";
@@ -18,17 +19,6 @@ import {
   isUseEffect,
 } from "./utils/effect/react.js";
 
-
-const getCallMethodName = (callee: EsTreeNode): string | null => {
-  if (
-    isNodeOfType(callee, "MemberExpression") &&
-    !callee.computed &&
-    isNodeOfType(callee.property, "Identifier")
-  ) {
-    return callee.property.name;
-  }
-  return null;
-};
 
 export const noPassLiveStateToParent = defineRule<Rule>({
   id: "no-pass-live-state-to-parent",
