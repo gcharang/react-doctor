@@ -2,6 +2,7 @@ import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isNamespacedApiCallee } from "../../utils/is-namespaced-api-call.js";
+import { DATA_SINK_METHOD_NAMES } from "../../constants/data-sink-method-names.js";
 import type { Rule } from "../../utils/rule.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import {
@@ -28,115 +29,6 @@ import { isNodeOfType } from "../../utils/is-node-of-type.js";
 
 // 1:1 port of upstream `src/rules/no-pass-data-to-parent.js`.
 
-// Method names that are clearly NOT "callbacks that pass data to a
-// parent" even when called on a prop value — JS prototype iterators,
-// observer-pattern subscriptions, promise chaining, native Set/Map/
-// EventEmitter methods. The rule's intent is to catch
-// `props.onDataLoaded(data)` style callbacks; `props.items.forEach(fn)`,
-// `props.store.subscribe(fn)`, `props.fetcher.then(fn)` aren't that.
-const ITERATOR_METHOD_NAMES: ReadonlySet<string> = new Set([
-  // Array.prototype iterators
-  "forEach",
-  "map",
-  "filter",
-  "reduce",
-  "reduceRight",
-  "flatMap",
-  "some",
-  "every",
-  "find",
-  "findIndex",
-  "findLast",
-  "findLastIndex",
-  // Observer / EventEmitter / event bus patterns — these are
-  // hand-off calls (the consumer keeps a subscription / dispatches
-  // to subscribers) not the "pass derived data to a parent"
-  // anti-pattern the rule targets.
-  "subscribe",
-  "unsubscribe",
-  "addEventListener",
-  "addListener",
-  "removeEventListener",
-  "removeListener",
-  "on",
-  "once",
-  "off",
-  "emit",
-  "dispatch",
-  "publish",
-  "notify",
-  "trigger",
-  "fire",
-  "broadcast",
-  "send",
-  // Promise
-  "then",
-  "catch",
-  "finally",
-  // Set / Map / cache
-  "add",
-  "delete",
-  "has",
-  "get",
-  "set",
-  "clear",
-  "put",
-  "push",
-  "pop",
-  "shift",
-  "unshift",
-  // Logger / telemetry shapes — `props.logger.info(...)` is reporting,
-  // not data hand-off.
-  "log",
-  "info",
-  "warn",
-  "error",
-  "debug",
-  "trace",
-  "track",
-  "capture",
-  // Imperative action methods on stateful objects — `animationLoop.start()`,
-  // `subscription.cancel()`, `controller.abort()`. The arg (if any) is
-  // a configuration value, not the child's derived state.
-  "start",
-  "stop",
-  "play",
-  "pause",
-  "resume",
-  "cancel",
-  "abort",
-  "commit",
-  "rollback",
-  "reset",
-  "focus",
-  "blur",
-  "scroll",
-  "scrollTo",
-  "scrollIntoView",
-  "close",
-  "open",
-  "show",
-  "hide",
-  "expand",
-  "collapse",
-  "toggle",
-  "refresh",
-  "reload",
-  "rerender",
-  "refetch",
-  "invalidate",
-  "select",
-  "deselect",
-  "click",
-  "press",
-  "tap",
-  "submit",
-  "validate",
-  "format",
-  "parse",
-  "serialize",
-  "deserialize",
-]);
 
 const getCallMethodName = (callee: EsTreeNode): string | null => {
   if (
@@ -218,7 +110,7 @@ export const noPassDataToParent = defineRule<Rule>({
         // which never uses these method names.
         const calleeNode = (callExpr as unknown as { callee?: EsTreeNode }).callee;
         const methodName = calleeNode ? getCallMethodName(calleeNode) : null;
-        if (methodName && ITERATOR_METHOD_NAMES.has(methodName)) continue;
+        if (methodName && DATA_SINK_METHOD_NAMES.has(methodName)) continue;
         // `editor.commands.setSelection(...)`, `props.store.dispatch(...)`,
         // `props.queryClient.invalidate(...)` etc. — calling a method
         // on a namespaced API object, not handing data back to a parent.

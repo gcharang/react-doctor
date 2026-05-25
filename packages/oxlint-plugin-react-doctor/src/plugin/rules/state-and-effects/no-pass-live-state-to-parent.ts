@@ -3,6 +3,7 @@ import type { EsTreeNode } from "../../utils/es-tree-node.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { isNamespacedApiCallee } from "../../utils/is-namespaced-api-call.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { DATA_SINK_METHOD_NAMES } from "../../constants/data-sink-method-names.js";
 import type { Rule } from "../../utils/rule.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { getArgsUpstreamRefs, getCallExpr, isSynchronous } from "./utils/effect/ast.js";
@@ -17,109 +18,6 @@ import {
   isUseEffect,
 } from "./utils/effect/react.js";
 
-// 1:1 port of upstream `src/rules/no-pass-live-state-to-parent.js`.
-
-// Method names that are clearly NOT "callbacks that pass state to a
-// parent" — JS prototype iterators, observer subscriptions, promise
-// chaining, native Set/Map, event-bus dispatch, logger/telemetry, and
-// imperative actions on stateful objects. Mirrors `no-pass-data-to-parent`.
-const ITERATOR_METHOD_NAMES: ReadonlySet<string> = new Set([
-  // Array.prototype iterators
-  "forEach",
-  "map",
-  "filter",
-  "reduce",
-  "reduceRight",
-  "flatMap",
-  "some",
-  "every",
-  "find",
-  "findIndex",
-  "findLast",
-  "findLastIndex",
-  // Observer / EventEmitter / event bus
-  "subscribe",
-  "unsubscribe",
-  "addEventListener",
-  "addListener",
-  "removeEventListener",
-  "removeListener",
-  "on",
-  "once",
-  "off",
-  "emit",
-  "dispatch",
-  "publish",
-  "notify",
-  "trigger",
-  "fire",
-  "broadcast",
-  "send",
-  // Promise
-  "then",
-  "catch",
-  "finally",
-  // Set / Map / cache
-  "add",
-  "delete",
-  "has",
-  "get",
-  "set",
-  "clear",
-  "put",
-  "push",
-  "pop",
-  "shift",
-  "unshift",
-  // Logger / telemetry
-  "log",
-  "info",
-  "warn",
-  "error",
-  "debug",
-  "trace",
-  "track",
-  "capture",
-  // Imperative actions on stateful objects
-  "start",
-  "stop",
-  "play",
-  "pause",
-  "resume",
-  "cancel",
-  "abort",
-  "commit",
-  "rollback",
-  "reset",
-  "focus",
-  "blur",
-  "scroll",
-  "scrollTo",
-  "scrollIntoView",
-  "close",
-  "open",
-  "show",
-  "hide",
-  "expand",
-  "collapse",
-  "toggle",
-  "refresh",
-  "reload",
-  "rerender",
-  "refetch",
-  "invalidate",
-  "select",
-  "deselect",
-  "click",
-  "press",
-  "tap",
-  "submit",
-  "validate",
-  "format",
-  "parse",
-  "serialize",
-  "deserialize",
-]);
 
 const getCallMethodName = (callee: EsTreeNode): string | null => {
   if (
@@ -158,7 +56,7 @@ export const noPassLiveStateToParent = defineRule<Rule>({
         // `no-pass-data-to-parent` for the full rationale.
         const calleeNode = (callExpr as unknown as { callee?: EsTreeNode }).callee;
         const methodName = calleeNode ? getCallMethodName(calleeNode) : null;
-        if (methodName && ITERATOR_METHOD_NAMES.has(methodName)) continue;
+        if (methodName && DATA_SINK_METHOD_NAMES.has(methodName)) continue;
         if (calleeNode && isNamespacedApiCallee(calleeNode)) continue;
 
         const isStateInArgs = getArgsUpstreamRefs(analysis, ref).some((argRef) =>
