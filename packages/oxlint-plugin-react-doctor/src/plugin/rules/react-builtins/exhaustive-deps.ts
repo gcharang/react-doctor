@@ -14,6 +14,12 @@ import { isReactComponentOrHookName } from "../../utils/is-react-component-or-ho
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import type { Rule } from "../../utils/rule.js";
 import {
+  getHookName,
+  isOutsideAllFunctions,
+  TRANSPARENT_WRAPPER_TYPES,
+  unwrapExpression,
+} from "./exhaustive-deps-low-level.js";
+import {
   buildAssignmentMessage,
   buildAsyncEffectMessage,
   buildComplexDepMessage,
@@ -33,6 +39,13 @@ import {
   buildUnstableDepMessage,
 } from "./exhaustive-deps-messages.js";
 import { resolveExhaustiveDepsSettings } from "./exhaustive-deps-settings.js";
+import {
+  getFunctionValueNode,
+  isRecursiveInitializerCapture,
+  symbolHasStableHookOrigin,
+  symbolHasStableValue,
+  symbolHasUseEffectEventOrigin,
+} from "./exhaustive-deps-symbol-stability.js";
 
 // Port of `oxc_linter::rules::react::exhaustive_deps`. Diffs the
 // closure-captured set of an effect / memo callback against its
@@ -71,17 +84,6 @@ const buildAdditionalHooksRegex = (additional: string): RegExp | null => {
   }
 };
 
-const getHookName = (callee: EsTreeNode): string | null => {
-  if (isNodeOfType(callee, "Identifier")) return callee.name;
-  if (
-    isNodeOfType(callee, "MemberExpression") &&
-    !callee.computed &&
-    isNodeOfType(callee.property, "Identifier")
-  ) {
-    return callee.property.name;
-  }
-  return null;
-};
 
 const getCallExpressionCalleeName = (
   callExpression: EsTreeNodeOfType<"CallExpression">,
@@ -152,140 +154,6 @@ const getCallbackArgumentIndex = (hookName: string): number =>
 const getDepsArgumentIndex = (hookName: string): number =>
   hookName === "useImperativeHandle" ? 2 : 1;
 
-// True for symbols whose returned value (or destructured pieces) are
-// stable across re-renders and don't need to live in deps arrays:
-//   useState's setter (`setX`)
-//   useReducer's dispatch
-//   useRef's ref object
-//   useEffectEvent's return value
-//   primitive-literal local consts (the value never changes between
-//     renders unless the literal does)
-const symbolHasStableHookOrigin = (symbol: SymbolDescriptor): boolean => {
-  if (symbol.references.some((reference) => reference.flag !== "read")) return false;
-  // We need the binding's parent context. The symbol's
-  // declarationNode is the VariableDeclarator (when destructured) or
-  // the binding identifier itself.
-  let declarator: EsTreeNode | null | undefined = symbol.declarationNode;
-  while (declarator && declarator.type !== "VariableDeclarator") {
-    declarator = declarator.parent ?? null;
-  }
-  if (!declarator || !isNodeOfType(declarator, "VariableDeclarator")) return false;
-  const initializerRaw = declarator.init;
-  if (!initializerRaw) return false;
-  const initializer = unwrapExpression(initializerRaw);
-
-  // Primitive literal initializer of a `const` binding — the value
-  // cannot change between renders, so the captured reference is
-  // structurally stable for dep-array purposes. `let` / `var` could
-  // be reassigned and don't qualify.
-  if (symbol.kind === "const") {
-    if (
-      isNodeOfType(initializer, "Literal") &&
-      (initializer.value === null ||
-        typeof initializer.value === "number" ||
-        typeof initializer.value === "string" ||
-        typeof initializer.value === "boolean")
-    ) {
-      return true;
-    }
-    if (
-      isNodeOfType(initializer, "TemplateLiteral") &&
-      getStaticTemplateLiteralValue(initializer) !== null
-    ) {
-      return true;
-    }
-  }
-
-  if (!isNodeOfType(initializer, "CallExpression")) return false;
-  const initializerHookName = getHookName(initializer.callee);
-  if (!initializerHookName) return false;
-  // useRef returns a stable ref; the binding itself is the ref.
-  if (initializerHookName === "useRef") return true;
-  // useEffectEvent returns a stable callback (React's RFC).
-  if (initializerHookName === "useEffectEvent") return true;
-  // useState / useReducer: the SECOND destructure element (setter /
-  // dispatch) is stable; the first is mutable.
-  if (
-    initializerHookName === "useState" ||
-    initializerHookName === "useReducer" ||
-    initializerHookName === "useActionState" ||
-    initializerHookName === "useTransition"
-  ) {
-    if (!isNodeOfType(declarator.id, "ArrayPattern")) return false;
-    const STABLE_RETURN_INDEX = 1;
-    const elements = declarator.id.elements;
-    const stableElement = elements[STABLE_RETURN_INDEX];
-    if (!stableElement) return false;
-    const innerBinding = isNodeOfType(stableElement as EsTreeNode, "AssignmentPattern")
-      ? (stableElement as EsTreeNodeOfType<"AssignmentPattern">).left
-      : (stableElement as EsTreeNode);
-    return isNodeOfType(innerBinding, "Identifier") && symbol.bindingIdentifier === innerBinding;
-  }
-  return false;
-};
-
-const symbolHasUseEffectEventOrigin = (symbol: SymbolDescriptor): boolean => {
-  const initializer = symbol.initializer ? unwrapExpression(symbol.initializer) : null;
-  if (!initializer || !isNodeOfType(initializer, "CallExpression")) return false;
-  return getHookName(initializer.callee) === "useEffectEvent";
-};
-
-const getFunctionValueNode = (symbol: SymbolDescriptor): EsTreeNode | null => {
-  if (symbol.kind === "function" && isNodeOfType(symbol.declarationNode, "FunctionDeclaration")) {
-    return symbol.declarationNode;
-  }
-  const initializer = symbol.initializer ? unwrapExpression(symbol.initializer) : null;
-  if (
-    initializer &&
-    (isNodeOfType(initializer, "FunctionExpression") ||
-      isNodeOfType(initializer, "ArrowFunctionExpression"))
-  ) {
-    return initializer;
-  }
-  return null;
-};
-
-const isAstDescendant = (inner: EsTreeNode, outer: EsTreeNode): boolean => {
-  let current: EsTreeNode | null | undefined = inner;
-  while (current) {
-    if (current === outer) return true;
-    current = current.parent ?? null;
-  }
-  return false;
-};
-
-const isRecursiveInitializerCapture = (symbol: SymbolDescriptor, callback: EsTreeNode): boolean => {
-  const initializer = symbol.initializer;
-  return Boolean(initializer && isAstDescendant(callback, initializer));
-};
-
-const symbolHasStableFunctionOrigin = (
-  symbol: SymbolDescriptor,
-  scopes: ScopeAnalysis,
-  visitedSymbolIds: Set<number>,
-): boolean => {
-  if (visitedSymbolIds.has(symbol.id)) return true;
-  const functionNode = getFunctionValueNode(symbol);
-  if (!functionNode) return false;
-  visitedSymbolIds.add(symbol.id);
-  for (const reference of closureCaptures(functionNode, scopes)) {
-    const capturedSymbol = reference.resolvedSymbol;
-    if (!capturedSymbol) continue;
-    if (capturedSymbol.id === symbol.id) continue;
-    if (isOutsideAllFunctions(capturedSymbol)) continue;
-    if (symbolHasStableValue(capturedSymbol, scopes, visitedSymbolIds)) continue;
-    return false;
-  }
-  return true;
-};
-
-const symbolHasStableValue = (
-  symbol: SymbolDescriptor,
-  scopes: ScopeAnalysis,
-  visitedSymbolIds: Set<number> = new Set(),
-): boolean =>
-  symbolHasStableHookOrigin(symbol) ||
-  symbolHasStableFunctionOrigin(symbol, scopes, visitedSymbolIds);
 
 const getDestructuredPropertyPath = (pattern: EsTreeNode): string | null => {
   if (!isNodeOfType(pattern, "ObjectPattern")) return null;
@@ -389,30 +257,6 @@ const computeDepKey = (reference: ReferenceDescriptor): string => {
   return fullName;
 };
 
-// Strip TypeScript expression wrappers transparently — `(x as T)`,
-// `x satisfies T`, `x!`, `(x)` — so they don't change the dep key.
-const TRANSPARENT_WRAPPER_TYPES: ReadonlySet<string> = new Set([
-  "TSAsExpression",
-  "TSSatisfiesExpression",
-  "TSNonNullExpression",
-  "TSTypeAssertion",
-  "ParenthesizedExpression",
-  "ChainExpression",
-]);
-
-// Locally-scoped because `TRANSPARENT_WRAPPER_TYPES.has` is also read
-// directly by the member-chain walker below; reusing the shared
-// `stripParenExpression` util would split the same intent across two
-// modules. Same six wrapper types either way.
-const unwrapExpression = (node: EsTreeNode): EsTreeNode => {
-  let current = node;
-  while (TRANSPARENT_WRAPPER_TYPES.has(current.type)) {
-    const inner = (current as { expression?: EsTreeNode | null }).expression;
-    if (!inner) return current;
-    current = inner;
-  }
-  return current;
-};
 
 const computeDeclaredDepKey = (entry: EsTreeNode): string | null => {
   const stripped = unwrapExpression(entry);
@@ -522,17 +366,6 @@ const collectCaptureDepKeys = (callback: EsTreeNode, scopes: ScopeAnalysis): Cap
   return { keys, stableCapturedNames };
 };
 
-const FUNCTION_SCOPE_KINDS: ReadonlySet<string> = new Set(["function", "arrow-function", "method"]);
-
-const isOutsideAllFunctions = (symbol: SymbolDescriptor): boolean => {
-  let scope: SymbolDescriptor["scope"] | null = symbol.scope;
-  while (scope) {
-    if (FUNCTION_SCOPE_KINDS.has(scope.kind)) return false;
-    if (scope.kind === "module") return true;
-    scope = scope.parent ?? null;
-  }
-  return true;
-};
 
 const isLiteralOrEmptyTemplate = (node: EsTreeNode): boolean =>
   isNodeOfType(node, "Literal") ||
