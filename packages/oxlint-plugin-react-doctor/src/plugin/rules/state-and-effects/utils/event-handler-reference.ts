@@ -2,10 +2,6 @@ import type { EsTreeNode } from "../../../utils/es-tree-node.js";
 import { isInlineFunctionExpression } from "../../../utils/is-inline-function-expression.js";
 import { isNodeOfType } from "../../../utils/is-node-of-type.js";
 
-// Re-exported so existing consumers in this directory keep the same
-// import path without churn.
-export { isInlineFunctionExpression };
-
 export const isEventHandlerName = (name: string): boolean => /^on[A-Z]/.test(name);
 
 export const getStaticMemberPropertyName = (node: EsTreeNode): string | null => {

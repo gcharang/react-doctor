@@ -1,10 +1,10 @@
 import type { EsTreeNode } from "../../../utils/es-tree-node.js";
+import { isInlineFunctionExpression } from "../../../utils/is-inline-function-expression.js";
 import { isNodeOfType } from "../../../utils/is-node-of-type.js";
 import {
   getStaticMemberPropertyName,
   getStaticMemberReferenceName,
   getStaticPropertyKeyName,
-  isInlineFunctionExpression,
 } from "./event-handler-reference.js";
 import {
   addPatternBindings,
