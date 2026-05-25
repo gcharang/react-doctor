@@ -10,6 +10,7 @@ import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { getJsxAttributeName } from "../../utils/get-jsx-attribute-name.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
+import { NON_REACT_JSX_DIALECT_PACKAGES } from "../../utils/non-react-jsx-dialect.js";
 import type { Rule } from "../../utils/rule.js";
 
 interface NoUnknownPropertySettings {
@@ -73,24 +74,9 @@ const UNKNOWN_PROP_GENERIC = "Unknown property — remove it.";
 //   - Tag-restricted attrs (`fetchPriority`, `viewBox`, `download`, …)
 //     are flagged on tags outside their allowed set.
 // Custom elements (`<my-elem>`, anything with `is="..."`) are skipped.
-// Non-React JSX dialects that use raw HTML attribute names (`class`,
-// `for`, `tabindex`, etc.) — flagging them as "use React-cased prop"
-// would be wrong because the file isn't React. Detected by:
-//   1. an import from the dialect's runtime package, OR
-//   2. distinctively-Solid syntax in the file (`classList={…}`, which
-//      only Solid's JSX recognises)
-const NON_REACT_JSX_DIALECT_PACKAGES: ReadonlySet<string> = new Set([
-  "solid-js",
-  "solid-js/web",
-  "solid-js/store",
-  "solid-js/h",
-  "solid-js/html",
-  "@builder.io/qwik",
-  "@builder.io/qwik-city",
-  "@builder.io/qwik-react",
-  "voby",
-  "vidode",
-]);
+// Non-React JSX dialect detection — see
+// `utils/non-react-jsx-dialect.ts` for the canonical package list +
+// the import / attribute markers we recognise.
 
 const startsWithAny = (source: string, prefixes: ReadonlyArray<string>): boolean =>
   prefixes.some((prefix) => source === prefix || source.startsWith(`${prefix}/`));
