@@ -20,6 +20,7 @@ import type {
   ReactDoctorConfig,
   ScoreResult,
 } from "@react-doctor/core";
+import { makeNoopConsole } from "./cli/utils/noop-console.js";
 import { printAgentGuidance } from "./cli/utils/render-agent-guidance.js";
 import { printDiagnostics } from "./cli/utils/render-diagnostics.js";
 import { isNonInteractiveEnvironment } from "./cli/utils/is-non-interactive-environment.js";
@@ -34,17 +35,7 @@ import { resolveOxlintNode } from "./cli/utils/resolve-oxlint-node.js";
 import { isSpinnerSilent, setSpinnerSilent } from "./cli/utils/spinner.js";
 import { VERSION } from "./cli/utils/version.js";
 
-// HACK: console object whose methods are no-ops. Provided via
-// `Effect.provideService(Console.Console, silentConsole)` to suppress
-// every `Console.log` / `error` / `warn` under `--silent`. Leans on
-// Effect's built-in Console reference (`ConsoleRef`, default value
-// `globalThis.console`) instead of a parallel logger abstraction.
-// `globalThis.console` exposes ~30 methods (count, table, time, …);
-// the cast says "this object covers the usage that Effect's Console
-// module routes through" without stubbing every one.
-const silentConsole = new Proxy({} as Console.Console, {
-  get: () => () => undefined,
-});
+const silentConsole = makeNoopConsole();
 
 const runConsole = (effect: Effect.Effect<void>): void => {
   Effect.runSync(effect);
