@@ -1,37 +1,13 @@
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import {
-  Config,
-  DeadCode,
-  Files,
-  Git,
+  layerInspectLive,
   layerOtlp,
-  Linter,
-  LintPartialFailures,
-  Progress,
-  Project,
-  Reporter,
   resolveScanTarget,
   restoreLegacyThrow,
   runInspect,
-  Score,
   type InspectOutput,
 } from "@react-doctor/core";
 import type { DiagnoseOptions, DiagnoseResult } from "@react-doctor/core";
-
-const buildLayerStack = () =>
-  Layer.mergeAll(
-    Project.layerNode,
-    Config.layerNode,
-    Files.layerNode,
-    Git.layerNode,
-    Linter.layerOxlint,
-    LintPartialFailures.layerLive,
-    DeadCode.layerNode,
-    Progress.layerNoop,
-    Score.layerHttp,
-    Reporter.layerNoop,
-  );
 
 export const diagnose = async (
   directory: string,
@@ -65,7 +41,7 @@ export const diagnose = async (
   const output: InspectOutput = await Effect.runPromise(
     restoreLegacyThrow(
       program.pipe(
-        Effect.provide(buildLayerStack()),
+        Effect.provide(layerInspectLive),
         // Opt-in OTLP exporter. No-op unless REACT_DOCTOR_OTLP_ENDPOINT
         // + REACT_DOCTOR_OTLP_AUTH_HEADER are set in the environment;
         // see `core/observability.ts` for the env-driven config.
