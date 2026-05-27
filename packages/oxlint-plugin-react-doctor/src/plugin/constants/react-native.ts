@@ -56,6 +56,12 @@ export const LEGACY_EXPO_PACKAGE_REPLACEMENTS = new Map<string, string>([
     "expo-permissions",
     "the permissions API in each module (e.g. Camera.requestPermissionsAsync())",
   ],
+  ["expo-app-loading", "expo-splash-screen"],
+  [
+    "expo-linear-gradient",
+    "the `backgroundImage` CSS gradient style prop (New Architecture) or expo-linear-gradient's successor",
+  ],
+  ["react-native-fast-image", "expo-image (drop-in with caching, placeholders, and crossfades)"],
 ]);
 
 export const REACT_NATIVE_LIST_COMPONENTS = new Set([
