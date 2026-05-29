@@ -6,10 +6,12 @@ import { exitGracefully } from "./utils/exit-gracefully.js";
 import { handleError } from "./utils/handle-error.js";
 import { isJsonModeActive, writeJsonErrorReport } from "./utils/json-mode.js";
 import { stripUnknownCliFlags } from "./utils/strip-unknown-cli-flags.js";
+import { unrefStdin } from "./utils/unref-stdin.js";
 import { VERSION } from "./utils/version.js";
 
 process.on("SIGINT", exitGracefully);
 process.on("SIGTERM", exitGracefully);
+unrefStdin();
 
 const program = new Command()
   .name("react-doctor")
