@@ -11,12 +11,17 @@ import { findMonorepoRoot, isMonorepoRoot } from "./find-monorepo-root.js";
 import { findReactInWorkspaces } from "./find-react-in-workspaces.js";
 import { getDependencyDeclaration } from "./utils/get-dependency-declaration.js";
 import { hasReactNativeWorkspaceAnywhere } from "./has-react-native-workspace-anywhere.js";
+import { findExpoVersion } from "./find-expo-version.js";
 import { getPreactVersion } from "./get-preact-version.js";
 import { hasTanStackQuery } from "./has-tanstack-query.js";
 import { someWorkspacePackageJson } from "./some-workspace-package-json.js";
 import { isPackageJsonReanimatedAware } from "./utils/is-package-json-reanimated-aware.js";
 import { readPackageJson } from "./read-package-json.js";
-import { isCatalogReference, resolveCatalogVersion } from "./resolve-catalog-version.js";
+import {
+  extractCatalogName,
+  isCatalogReference,
+  resolveCatalogVersion,
+} from "./resolve-catalog-version.js";
 import { parseReactMajor } from "./parse-react-major.js";
 import { parseZodMajor } from "./parse-zod-major.js";
 import { resolveEffectiveReactMajor } from "./resolve-effective-react-major.js";
@@ -186,6 +191,37 @@ export const discoverProject = (directory: string): ProjectInfo => {
     framework === "react-native" ||
     hasReactNativeWorkspaceAnywhere(directory, packageJson);
 
+  // Expo implies React Native, so a project that isn't RN-aware anywhere
+  // can never be Expo — skip the (root + workspace) `expo` version lookup
+  // entirely in that case.
+  let expoVersion = hasReactNativeWorkspace ? findExpoVersion(directory, packageJson) : null;
+
+  // `findExpoVersion` returns the raw `expo` spec, which can be a `catalog:`
+  // reference in pnpm-catalog monorepos. Resolve it the same way `react` /
+  // `tailwind` / `zod` are resolved above, so the Expo SDK major can be
+  // parsed — an unresolved `catalog:` spec would leave `expoVersion` non-null
+  // (Expo checks still run) yet leave the SDK unresolvable, silently disabling
+  // every SDK-gated Expo rule.
+  if (expoVersion !== null && isCatalogReference(expoVersion)) {
+    const catalogName = extractCatalogName(expoVersion);
+    let resolvedExpoVersion = resolveCatalogVersion(packageJson, "expo", directory, catalogName);
+    if (!resolvedExpoVersion) {
+      const monorepoRoot = findMonorepoRoot(directory);
+      if (monorepoRoot) {
+        const monorepoPackageJsonPath = path.join(monorepoRoot, "package.json");
+        if (isFile(monorepoPackageJsonPath)) {
+          resolvedExpoVersion = resolveCatalogVersion(
+            readPackageJson(monorepoPackageJsonPath),
+            "expo",
+            monorepoRoot,
+            catalogName,
+          );
+        }
+      }
+    }
+    expoVersion = resolvedExpoVersion ?? expoVersion;
+  }
+
   // Only walk for reanimated once we already know it's an RN project —
   // reanimated implies React Native, so a web project can never declare
   // it, and this skips the workspace walk entirely for web monorepos.
@@ -210,6 +246,7 @@ export const discoverProject = (directory: string): ProjectInfo => {
     preactVersion,
     preactMajorVersion: parseReactMajor(preactVersion),
     hasReactNativeWorkspace,
+    expoVersion,
     hasReanimated,
     sourceFileCount,
   };
