@@ -131,8 +131,8 @@ const program = new Command()
     "--no-respect-inline-disables",
     "audit mode: neutralize inline lint suppressions before scanning",
   )
-  .option("--warnings", "show warning-severity diagnostics (errors always show)")
-  .option("--no-warnings", "hide warning-severity diagnostics (default)")
+  .option("--warnings", "show warning-severity diagnostics (default)")
+  .option("--no-warnings", "hide warning-severity diagnostics (errors only)")
   .option("--color", "force colored output")
   .option("--no-color", "disable colored output (also honors NO_COLOR)")
   .addHelpText("after", renderRootHelpEpilog);
