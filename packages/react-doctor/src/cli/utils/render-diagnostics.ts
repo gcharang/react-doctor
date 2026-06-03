@@ -262,8 +262,9 @@ const formatClusterLocation = (cluster: DiagnosticCluster): string => {
 // directly above the frame so it's obvious which file the frame belongs to.
 // A multi-site cluster marks the whole line span; a single site keeps its
 // precise caret column. `renderCodeFrame` is false for warning blocks —
-// they keep their `file:line` locations but drop the boxed source frame so
-// the costlier errors stay the visual focus.
+// they keep their `file:line` locations but drop the boxed source frame
+// (in both the default summary and `--verbose`) so the costlier errors
+// stay the visual focus and a long warning tail doesn't drown the report.
 const buildDiagnosticClusterLines = (
   cluster: DiagnosticCluster,
   resolveSourceRoot: SourceRootResolver,
@@ -368,11 +369,11 @@ const buildRuleDetailBlock = (
     }
   }
 
-  // Errors always get the boxed code frame; in verbose every rule does
-  // (warnings included) so the exhaustive view renders warnings in the same
-  // format as errors. The default summary keeps frames error-only so a long
-  // warning tail doesn't drown the report.
-  const renderCodeFrame = severity === "error" || renderEverySite;
+  // Errors always get the boxed code frame; warnings never do — even in
+  // `--verbose`, where listing every warning site with its own frame would
+  // drown the report. Warnings keep their `file:line` locations so they're
+  // still navigable, just without the inline source preview.
+  const renderCodeFrame = severity === "error";
   const sites = renderEverySite ? ruleDiagnostics : [representative];
   for (const cluster of clusterNearbyDiagnostics(sites)) {
     lines.push(...buildDiagnosticClusterLines(cluster, resolveSourceRoot, renderCodeFrame));
