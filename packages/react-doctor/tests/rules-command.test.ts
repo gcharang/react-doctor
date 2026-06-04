@@ -76,7 +76,9 @@ describe("rules disable / set / enable", () => {
 
     expect(existsSync(fixture.configPath)).toBe(true);
     const config = readJsonFile(fixture.configPath);
-    expect(config.$schema).toBe("https://react.doctor/schema/config.json");
+    expect(config.$schema).toBe(
+      "https://raw.githubusercontent.com/gcharang/react-doctor/pinned/packages/website/public/schema/config.json",
+    );
     expect(config.rules).toEqual({ "react-doctor/no-danger": "off" });
     expect(process.exitCode).toBe(0);
   });
@@ -303,7 +305,7 @@ describe("rules list / explain JSON output", () => {
     );
     const payload = JSON.parse(output) as { key: string; learnMoreUrl: string };
     expect(payload.key).toBe("react-doctor/no-danger");
-    expect(payload.learnMoreUrl).toContain("/docs/rules/react-doctor/no-danger");
+    expect(payload.learnMoreUrl).toContain("/prompts/rules/react-doctor/no-danger.md");
   });
 
   it("reports an unknown rule for explain", async () => {

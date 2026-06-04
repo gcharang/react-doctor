@@ -71,30 +71,50 @@ export const SCORE_OK_THRESHOLD = 50;
 
 export const SCORE_BAR_WIDTH_CHARS = 50;
 
-export const SCORE_API_URL = "https://www.react.doctor/api/score";
+// ─── Fork identity (the `pinned` hardened branch) ──────────────────────
+// Centralized so every output URL and agent-fetch target resolves to this
+// auditable fork instead of react.doctor. `main` keeps the upstream values;
+// only the `pinned` branch carries these. The agent playbook and per-rule
+// fix recipes are vendored into `prompts/` on the branch and served from
+// raw GitHub, so nothing is fetched from react.doctor at runtime. To
+// re-point the fork (different owner/branch), change these three.
+export const FORK_OWNER = "gcharang";
+export const FORK_REPO = "react-doctor";
+export const FORK_BRANCH = "pinned";
+export const FORK_REPO_URL = `https://github.com/${FORK_OWNER}/${FORK_REPO}`;
+// GitHub-rendered blob base — human "Learn more" links land on the vendored
+// recipe rendered as markdown. Internal: callers use the derived
+// `DOCS_RULES_BASE_URL` / `buildRuleDocsUrl`, not this base directly.
+const FORK_BLOB_BASE_URL = `${FORK_REPO_URL}/blob/${FORK_BRANCH}`;
+// Raw-markdown base — the agent `curl` directive and any programmatic fetch
+// pull the vendored playbook/recipes from here. Internal: callers use the
+// derived `RECIPE_RULES_RAW_BASE_URL` / `CONFIG_SCHEMA_URL`.
+const FORK_RAW_BASE_URL = `https://raw.githubusercontent.com/${FORK_OWNER}/${FORK_REPO}/${FORK_BRANCH}`;
+// Pinned launch spec the CLI tells agents/hooks to re-invoke, replacing the
+// published `react-doctor@latest` so every self-re-run uses this fork.
+export const FORK_PACKAGE_SPEC = `github:${FORK_OWNER}/${FORK_REPO}#${FORK_BRANCH}`;
 
-export const ENTERPRISE_CONTACT_URL = "https://react.doctor/enterprise";
+export const ENTERPRISE_CONTACT_URL = FORK_REPO_URL;
 
-export const SHARE_BASE_URL = "https://react.doctor/share";
+export const SHARE_BASE_URL = FORK_REPO_URL;
 
-// Root of the documentation site. Guides for CI/CD setup, config files (to
-// suppress rules), and diff/PR scanning live under it; the CLI links here
-// from its closing "learn more" note.
-export const DOCS_URL = "https://react.doctor/docs";
+// Root of the project docs. On the fork this is the repo itself (README
+// covers CI/CD setup, config files, and diff/PR scanning); the CLI links
+// here from its closing "learn more" footer note.
+export const DOCS_URL = FORK_REPO_URL;
 
-// Base URL for the per-rule documentation pages. The canonical,
-// human-readable fix recipe for one rule lives at `<base>/<plugin>/<rule>`
-// (see `buildRuleDocsUrl`) — the CLI links here from its fix-recipe
-// directive. The raw `.md` prompts the `/doctor` playbook fetches on demand
-// live under `https://www.react.doctor/prompts/rules/<plugin>/<rule>.md`.
-export const DOCS_RULES_BASE_URL = `${DOCS_URL}/rules`;
+// Base URLs for per-rule documentation. The canonical fix recipe for one
+// rule is vendored into `prompts/rules/<plugin>/<rule>.md` on the `pinned`
+// branch and served two ways: as a GitHub-rendered blob for humans
+// (`buildRuleDocsUrl`) and as raw markdown for the agent `curl` directive
+// (`buildRuleRecipeUrl`).
+export const DOCS_RULES_BASE_URL = `${FORK_BLOB_BASE_URL}/prompts/rules`;
+export const RECIPE_RULES_RAW_BASE_URL = `${FORK_RAW_BASE_URL}/prompts/rules`;
 
-// Canonical JSON Schema for `doctor.config.json`. Stamped as the
-// `$schema` field when the rule-config CLI creates a config file so
-// editors get autocomplete + hover docs (matches the README guidance).
-export const CONFIG_SCHEMA_URL = "https://react.doctor/schema/config.json";
-
-export const FETCH_TIMEOUT_MS = 10_000;
+// Canonical JSON Schema for `doctor.config.json`, served from the fork.
+// Stamped as the `$schema` field when the rule-config CLI creates a config
+// file so editors get autocomplete + hover docs (matches the README).
+export const CONFIG_SCHEMA_URL = `${FORK_RAW_BASE_URL}/packages/website/public/schema/config.json`;
 
 export const GITHUB_VIEWER_PERMISSION_TIMEOUT_MS = 2_000;
 
@@ -162,9 +182,11 @@ export const STAGED_FILES_PROJECT_CONFIG_FILENAMES = [
   ".oxlintrc.json",
 ] as const;
 
-export const CANONICAL_GITHUB_URL = "https://github.com/millionco/react-doctor";
+export const CANONICAL_GITHUB_URL = FORK_REPO_URL;
 
-export const CANONICAL_DISCORD_URL = "https://react.doctor/discord";
+// Where the error handler points users for help. Upstream uses a Discord; the
+// fork has none, so this lands on the repo's issues tracker.
+export const CANONICAL_SUPPORT_URL = `${FORK_REPO_URL}/issues`;
 
 export const SKILL_NAME = "react-doctor";
 

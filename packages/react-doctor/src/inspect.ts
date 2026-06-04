@@ -5,6 +5,7 @@ import {
   buildSkippedChecks,
   DEFAULT_SHOW_WARNINGS,
   filterDiagnosticsForSurface,
+  FORK_PACKAGE_SPEC,
   highlighter,
   OXLINT_NODE_REQUIREMENT,
   resolveScanTarget,
@@ -358,7 +359,7 @@ const runInspectWithRuntime = async (
       runConsole(
         Console.log(
           highlighter.gray(
-            `  Upgrade to Node ${OXLINT_NODE_REQUIREMENT} or run: npx -p oxlint@latest react-doctor@latest`,
+            `  Upgrade to Node ${OXLINT_NODE_REQUIREMENT} or run: npx -p oxlint@latest ${FORK_PACKAGE_SPEC}`,
           ),
         ),
       );
@@ -597,7 +598,7 @@ const finalizeAndRender = (input: FinalizeInput): Effect.Effect<InspectResult> =
     if (demotedDiagnosticCount > 0) {
       yield* Console.log(
         highlighter.gray(
-          `  ${demotedDiagnosticCount} demoted from the ${options.outputSurface} surface (e.g. design cleanup) — run \`npx react-doctor@latest .\` locally for the full list.`,
+          `  ${demotedDiagnosticCount} demoted from the ${options.outputSurface} surface (e.g. design cleanup) — run \`npx ${FORK_PACKAGE_SPEC} .\` locally for the full list.`,
         ),
       );
       yield* Console.log("");

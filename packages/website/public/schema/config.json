@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://react.doctor/schema/config.json",
+  "$id": "https://raw.githubusercontent.com/gcharang/react-doctor/pinned/packages/website/public/schema/config.json",
   "title": "React Doctor configuration",
   "description": "Schema for doctor.config.* and the reactDoctor key inside package.json.",
   "$ref": "#/definitions/ReactDoctorConfig",

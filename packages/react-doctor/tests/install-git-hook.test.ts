@@ -64,8 +64,12 @@ describe.skipIf(process.platform === "win32")("installReactDoctorGitHook", () =>
     expect(result.kind).toBe("git");
     expect(hookContent).toContain("#!/bin/sh");
     expect(hookContent).toContain("react-doctor --staged --fail-on warning");
-    expect(hookContent).toContain("pnpm dlx react-doctor@latest --staged --fail-on warning");
-    expect(hookContent).toContain("npx --yes react-doctor@latest --staged --fail-on warning");
+    expect(hookContent).toContain(
+      "pnpm dlx github:gcharang/react-doctor#pinned --staged --fail-on warning",
+    );
+    expect(hookContent).toContain(
+      "npx --yes github:gcharang/react-doctor#pinned --staged --fail-on warning",
+    );
     expect(hookContent).toContain("Want them fixed?");
     expect(hookContent).not.toContain("Stop commit");
     expect(hookContent).not.toContain(".react-doctor/hooks/pre-commit");

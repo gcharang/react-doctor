@@ -1,6 +1,7 @@
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import {
+  FORK_REPO_URL,
   highlighter,
   PERFECT_SCORE,
   SCORE_BAR_WIDTH_CHARS,
@@ -162,8 +163,8 @@ const getDoctorFace = (score: number): string[] => {
   return ["x x", " ▽ "];
 };
 
-const BRANDING_LINE = `React Doctor ${highlighter.dim("(https://react.doctor)")}`;
-const RAW_BRANDING_LINE = "React Doctor (https://react.doctor)";
+const BRANDING_LINE = `React Doctor ${highlighter.dim(`(${FORK_REPO_URL})`)}`;
+const RAW_BRANDING_LINE = `React Doctor (${FORK_REPO_URL})`;
 
 const buildRawFaceLines = (score: number): string[] => {
   const [eyes, mouth] = getDoctorFace(score);

@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { SkillAgentType } from "agent-install";
+import { FORK_PACKAGE_SPEC } from "@react-doctor/core";
 import { AGENT_HOOK_TIMEOUT_SECONDS, GIT_HOOK_EXECUTABLE_MODE } from "./constants.js";
 
 interface InstallAgentHooksOptions {
@@ -184,12 +185,12 @@ const buildAgentHookScript = (): string =>
     "  fi",
     "",
     "  if command -v pnpm >/dev/null 2>&1; then",
-    "    pnpm dlx react-doctor@latest --verbose --diff --fail-on warning --no-score",
+    `    pnpm dlx ${FORK_PACKAGE_SPEC} --verbose --diff --fail-on warning --no-score`,
     "    return",
     "  fi",
     "",
     "  if command -v npx >/dev/null 2>&1; then",
-    "    npx --yes react-doctor@latest --verbose --diff --fail-on warning --no-score",
+    `    npx --yes ${FORK_PACKAGE_SPEC} --verbose --diff --fail-on warning --no-score`,
     "    return",
     "  fi",
     "",

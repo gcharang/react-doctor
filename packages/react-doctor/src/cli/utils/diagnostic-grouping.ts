@@ -1,4 +1,9 @@
-import { buildRuleDocsUrl, groupBy, hasPublishedFixRecipe } from "@react-doctor/core";
+import {
+  buildRuleDocsUrl,
+  buildRuleRecipeUrl,
+  groupBy,
+  hasPublishedFixRecipe,
+} from "@react-doctor/core";
 import type { Diagnostic, ScoreResult } from "@react-doctor/core";
 
 // Ordering / formatting helpers shared by the diagnostics renderer, the
@@ -81,7 +86,7 @@ const FIX_RECIPE_DIRECTIVE_LABEL =
 // linking to a 404.
 export const formatFixRecipeLine = (diagnostic: Diagnostic): string | null =>
   hasPublishedFixRecipe(diagnostic)
-    ? `${FIX_RECIPE_DIRECTIVE_LABEL}: ${buildRuleDocsUrl(diagnostic.plugin, diagnostic.rule)}`
+    ? `${FIX_RECIPE_DIRECTIVE_LABEL}: ${buildRuleRecipeUrl(diagnostic.plugin, diagnostic.rule)}`
     : null;
 
 // Human-facing variant: a short, prominent pointer to the rule's docs page.

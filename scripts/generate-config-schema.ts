@@ -9,7 +9,10 @@ const SOURCE_TYPE_FILE = resolve(REPOSITORY_ROOT, "packages/core/src/types/confi
 const SOURCE_TSCONFIG = resolve(REPOSITORY_ROOT, "packages/core/tsconfig.json");
 const OUTPUT_FILE = resolve(REPOSITORY_ROOT, "packages/website/public/schema/config.json");
 
-const SCHEMA_ID = "https://react.doctor/schema/config.json";
+// Pinned fork: the schema is served from the branch's raw GitHub URL (matches
+// `CONFIG_SCHEMA_URL` in @react-doctor/core, which the CLI stamps into configs).
+const SCHEMA_ID =
+  "https://raw.githubusercontent.com/gcharang/react-doctor/pinned/packages/website/public/schema/config.json";
 const SCHEMA_TITLE = "React Doctor configuration";
 const SCHEMA_DESCRIPTION =
   "Schema for doctor.config.* and the reactDoctor key inside package.json.";

@@ -5,6 +5,7 @@ import {
   CODE_FRAME_BATCH_MAX_SPAN_LINES,
   CODE_FRAME_LINES_ABOVE,
   CODE_FRAME_LINES_BELOW,
+  FORK_PACKAGE_SPEC,
   groupBy,
   highlighter,
   MILLISECONDS_PER_SECOND,
@@ -428,7 +429,7 @@ const buildOverflowSummaryLine = (
     parts.push(highlighter.bold(highlighter.warn(`+${warningCount} optional ${warningNoun}`)));
   }
 
-  const command = highlighter.bold(highlighter.info("npx react-doctor@latest --verbose"));
+  const command = highlighter.bold(highlighter.info(`npx ${FORK_PACKAGE_SPEC} --verbose`));
   const lead =
     parts.length > 0
       ? `${parts.join(highlighter.dim(" and "))} ${highlighter.dim("- run")}`

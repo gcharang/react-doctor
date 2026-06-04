@@ -1,7 +1,7 @@
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import {
-  CANONICAL_DISCORD_URL,
+  CANONICAL_SUPPORT_URL,
   CANONICAL_GITHUB_URL,
   formatErrorChain,
   formatReactDoctorError,
@@ -120,7 +120,7 @@ const handleErrorEffect = (
       ),
     );
     yield* Console.error(
-      highlighter.error(`You can also ask for help in Discord: ${CANONICAL_DISCORD_URL}`),
+      highlighter.error(`You can also ask for help by opening an issue: ${CANONICAL_SUPPORT_URL}`),
     );
     if (sentryEventId) {
       yield* Console.error(

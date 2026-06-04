@@ -47,7 +47,7 @@ const buildDiagnoseLayer = (configLayer: typeof Config.layerNode = Config.layerN
     LintPartialFailures.layerLive,
     Progress.layerNoop,
     Reporter.layerNoop,
-    Score.layerHttp,
+    Score.layerLocal,
   );
 
 const buildInspectProgram = (

@@ -30,8 +30,8 @@ export interface BuildRuntimeLayersInput {
   readonly shouldSkipLint: boolean;
   readonly shouldRunDeadCode: boolean;
   /**
-   * Whether the run should request a score from the hosted API.
-   * `false` swaps `Score.layerHttp` for `Score.layerOf(null)` so the
+   * Whether the run should compute a score.
+   * `false` swaps `Score.layerLocal` for `Score.layerOf(null)` so the
    * orchestrator's Score service is a no-op for `--no-score` runs.
    */
   readonly shouldComputeScore: boolean;
@@ -84,7 +84,7 @@ const buildSpinnerProgressHandle = (text: string): ProgressHandle => {
  *   of re-loading from disk; `configSourceDirectory` is threaded
  *   through so `userConfig.plugins` resolution still anchors at
  *   the original config file location.
- * - **Score**: `layerHttp` for normal runs; `layerOf(null)` only when
+ * - **Score**: `layerLocal` for normal runs; `layerOf(null)` only when
  *   the caller passed `--no-score`. The orchestrator applies the
  *   `"score"` surface filter to the diagnostic set before calling
  *   `Score.compute`, so the in-band score matches what the public-API
@@ -96,7 +96,7 @@ const buildSpinnerProgressHandle = (text: string): ProgressHandle => {
 export const buildRuntimeLayers = (input: BuildRuntimeLayersInput) => {
   const linterLayer = input.shouldSkipLint ? Linter.layerOf([]) : Linter.layerOxlint;
   const deadCodeLayer = input.shouldRunDeadCode ? DeadCode.layerNode : DeadCode.layerOf([]);
-  const scoreLayer = input.shouldComputeScore ? Score.layerHttp : Score.layerOf(null);
+  const scoreLayer = input.shouldComputeScore ? Score.layerLocal : Score.layerOf(null);
   const progressLayer = input.shouldShowProgressSpinners
     ? Progress.layerOra(buildSpinnerProgressHandle)
     : Progress.layerNoop;

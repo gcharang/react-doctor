@@ -13,7 +13,9 @@ React Doctor deterministically scans your codebase and finds issues across state
 
 Works for all React frameworks and libraries - Next.js, Vite, TanStack, React Native, Expo, you name it.
 
-[Website →](https://react.doctor/docs)
+[Source & rule recipes →](https://github.com/gcharang/react-doctor)
+
+> **This is a hardened fork.** It runs from the pinned source in this branch instead of the npm-published package, and every doc/recipe link, agent playbook, score, and telemetry path is served from (or computed inside) this repo rather than the react.doctor website — see the `pinned` branch. `main` tracks upstream.
 
 ## Install
 
@@ -22,7 +24,7 @@ Works for all React frameworks and libraries - Next.js, Vite, TanStack, React Na
 Run this at your project root to get an audit.
 
 ```bash
-npx react-doctor@latest
+npx github:gcharang/react-doctor#pinned
 ```
 
 https://github.com/user-attachments/assets/07cc88d9-9589-44c3-aa73-5d603cb1c570
@@ -32,7 +34,7 @@ https://github.com/user-attachments/assets/07cc88d9-9589-44c3-aa73-5d603cb1c570
 Once you have an audit, you can install the skill for your coding agent to learn from the issues and fix them in the future.
 
 ```bash
-npx react-doctor@latest install
+npx github:gcharang/react-doctor#pinned install
 ```
 
 Works with Claude Code, Cursor, Codex, OpenCode, and many more.
@@ -64,16 +66,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: millionco/react-doctor@v1
+      - uses: gcharang/react-doctor@pinned
 ```
 
-`@v1` always resolves to the latest `v1.x` release of the Action. For hardened CI — recommended whenever the workflow is granted `pull-requests: write` — pin to a full commit SHA instead and let Dependabot or Renovate keep it current:
+`@pinned` tracks this fork's hardened branch (the Action defaults to running `github:gcharang/react-doctor#pinned`). For maximum immutability, pin to a full commit SHA on `pinned` instead:
 
 ```yaml
-- uses: millionco/react-doctor@b612664043a9be414166e3c6a69b355e39a8dcf4 # v1.1.1
+- uses: gcharang/react-doctor@<commit-sha-on-pinned>
 ```
-
-[Add GitHub Action →](https://github.com/marketplace/actions/react-doctor)
 
 ### 4. Configure rules in `doctor.config.ts`
 
@@ -95,27 +95,17 @@ Prefer JSON? Use `doctor.config.json`:
 
 ```jsonc
 {
-  "$schema": "https://react.doctor/schema/config.json",
+  "$schema": "https://raw.githubusercontent.com/gcharang/react-doctor/pinned/packages/website/public/schema/config.json",
   "lint": true,
 }
 ```
 
 ## Telemetry
 
-The CLI reports crashes, basic run traces, and anonymous usage counters to [Sentry](https://sentry.io/) to help us fix bugs and prioritize work.
-
-We collect:
-
-- Environment: CLI version, platform, Node version
-- Invocation: which command, package manager, and run context (whether it's local vs. CI vs. coding agent)
-- Project shape: framework, React version, TypeScript, project size NO file contents)
-- Rules fired: rule names and counts only (e.g. `react-doctor/no-array-index-as-key`) (NO code or specific findings)
-- De-minified React Doctor CLI stack traces
-
-To opt out, run: `npx react-doctor@latest --no-telemetry`
+Disabled on this fork. The upstream CLI reports crashes and anonymous usage counters to Sentry; the `pinned` branch blanks the Sentry DSN, so nothing leaves your machine. Scoring is also computed locally (no diagnostics are sent anywhere). To opt back in to your _own_ Sentry project, set the `SENTRY_DSN` env var.
 
 ## Contributing
 
-[Issues welcome!](https://github.com/millionco/react-doctor/issues)
+[Issues welcome!](https://github.com/gcharang/react-doctor/issues)
 
 MIT-licensed

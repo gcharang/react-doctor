@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import Conf from "conf";
+import { FORK_PACKAGE_SPEC } from "@react-doctor/core";
 import { findNearestPackageDirectory, hasDoctorScript } from "./install-doctor-script.js";
 import { isCodingAgentEnvironment } from "./is-ci-environment.js";
 
@@ -134,7 +135,7 @@ export const AGENT_INSTALL_HINT_LINES = [
   "React Doctor is not installed in this project.",
   "Ask the user if they would like to set it up, then run:",
   "",
-  "  npx react-doctor install --yes",
+  `  npx ${FORK_PACKAGE_SPEC} install --yes`,
   "",
   "This adds agent skill files, a `doctor` package script, and react-doctor as a dev dependency.",
 ] as const;

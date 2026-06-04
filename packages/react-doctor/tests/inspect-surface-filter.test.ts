@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { calculateScore, filterDiagnosticsForSurface } from "@react-doctor/core";
 import { inspect } from "../src/inspect.js";
 import path from "node:path";
-import { gunzipSync } from "node:zlib";
 import reactDoctorPlugin from "oxlint-plugin-react-doctor";
 
 vi.mock("ora", () => ({
@@ -27,47 +27,31 @@ const FIXTURES_DIRECTORY = path.resolve(
   "fixtures",
 );
 
-interface CapturedFetchCall {
-  url: string;
-  body: string;
-}
+const hasDesignTag = (ruleId: string): boolean =>
+  reactDoctorPlugin.rules[ruleId]?.tags?.includes("design") ?? false;
 
-const decodeRequestBody = (init: RequestInit | undefined): string => {
-  const rawBody = init?.body;
-  if (!rawBody) return "";
-  const encoding = new Headers(init?.headers ?? {}).get("content-encoding")?.toLowerCase() ?? "";
-  if (rawBody instanceof Uint8Array) {
-    return encoding === "gzip"
-      ? gunzipSync(rawBody).toString("utf8")
-      : Buffer.from(rawBody).toString("utf8");
-  }
-  return String(rawBody);
-};
-
-const stubScoreFetchAndCapture = (): { captured: CapturedFetchCall[] } => {
-  const captured: CapturedFetchCall[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string, init?: RequestInit) => {
-      captured.push({ url, body: decodeRequestBody(init) });
-      return new Response(JSON.stringify({ score: 90, label: "Great" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }),
-  );
-  return { captured };
-};
+const isReactDoctorDesign = (diagnostic: { plugin: string; rule: string }): boolean =>
+  diagnostic.plugin === "react-doctor" && hasDesignTag(diagnostic.rule);
 
 describe("inspect — score surface filter", () => {
+  beforeEach(() => {
+    // Scoring is computed locally on the `pinned` fork, so a scan must never
+    // reach the network. Fail loudly if anything tries.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        throw new Error("unexpected network access during inspect");
+      }),
+    );
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("strips `design`-tagged diagnostics before they are sent to the score API", async () => {
+  it("strips `design`-tagged diagnostics from the score surface but keeps them in the output", async () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { captured } = stubScoreFetchAndCapture();
 
     try {
       const result = await inspect(path.join(FIXTURES_DIRECTORY, "basic-react"), {
@@ -77,24 +61,20 @@ describe("inspect — score surface filter", () => {
         warnings: true,
       });
 
-      const scoreCall = captured.find(({ url }) => url.includes("score"));
-      expect(scoreCall).toBeDefined();
-      const scorePayload: { diagnostics: Array<{ rule: string; plugin: string }> } = JSON.parse(
-        scoreCall?.body ?? "{}",
-      );
+      // #then a score was computed (offline — no network)
+      expect(result.score).not.toBeNull();
 
-      const hasDesignTag = (ruleId: string): boolean =>
-        reactDoctorPlugin.rules[ruleId]?.tags?.includes("design") ?? false;
+      // #and design-tagged diagnostics are excluded from the score surface
+      const scoreSurface = filterDiagnosticsForSurface([...result.diagnostics], "score", null);
+      expect(scoreSurface.filter(isReactDoctorDesign)).toEqual([]);
 
-      const sentDesignDiagnostics = scorePayload.diagnostics.filter(
-        (diagnostic) => diagnostic.plugin === "react-doctor" && hasDesignTag(diagnostic.rule),
-      );
-      expect(sentDesignDiagnostics).toEqual([]);
+      // #and the reported score is exactly the score of that design-excluded
+      // surface (integration: the filtered set is what actually got scored)
+      const expectedScore = await calculateScore([...scoreSurface]);
+      expect(result.score?.score).toBe(expectedScore.score);
 
-      const returnedDesignDiagnostics = result.diagnostics.filter(
-        (diagnostic) => diagnostic.plugin === "react-doctor" && hasDesignTag(diagnostic.rule),
-      );
-      expect(returnedDesignDiagnostics.length).toBeGreaterThan(0);
+      // #but they remain in the full returned diagnostics
+      expect(result.diagnostics.filter(isReactDoctorDesign).length).toBeGreaterThan(0);
     } finally {
       consoleSpy.mockRestore();
     }
@@ -110,7 +90,6 @@ describe("inspect — score surface filter", () => {
     { timeout: 60_000 },
     async () => {
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-      stubScoreFetchAndCapture();
       const printedLines: string[] = [];
       consoleSpy.mockImplementation((...args: unknown[]) => {
         printedLines.push(args.map(String).join(" "));
@@ -123,11 +102,7 @@ describe("inspect — score surface filter", () => {
           noScore: true,
           warnings: true,
         });
-        const baselineDesignCount = baselineResult.diagnostics.filter(
-          (diagnostic) =>
-            diagnostic.plugin === "react-doctor" &&
-            (reactDoctorPlugin.rules[diagnostic.rule]?.tags?.includes("design") ?? false),
-        ).length;
+        const baselineDesignCount = baselineResult.diagnostics.filter(isReactDoctorDesign).length;
         expect(baselineDesignCount).toBeGreaterThan(0);
         printedLines.length = 0;
 

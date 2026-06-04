@@ -17,11 +17,10 @@ export class Score extends Context.Service<
   }
 >()("react-doctor/Score") {
   /**
-   * Hosted score API. Network failures collapse to `null` rather than
-   * propagating through the error channel — score isn't load-bearing
-   * for the linter contract, and the renderer distinguishes "user
-   * opted out" from "we tried and failed" via a separate `noScoreMessage`
-   * the caller picks based on `--no-score`.
+   * Computes the score offline (the `pinned` fork's local scorer; upstream
+   * POSTed diagnostics to a hosted API). The scorer is infallible — it never
+   * rejects and never returns `null` — so there is no network failure to
+   * collapse; `--no-score` swaps in `layerOf(null)` instead.
    *
    * `Effect.fn("Score.compute")` wraps the body so the effect carries
    * an OpenTelemetry-compatible span name out of the box (canonical
@@ -29,7 +28,7 @@ export class Score extends Context.Service<
    * cost when no tracing layer is provided; surfaces in
    * `Otlp.layerJson` traces when one is.
    */
-  static readonly layerHttp = Layer.succeed(
+  static readonly layerLocal = Layer.succeed(
     Score,
     Score.of({
       compute: Effect.fn("Score.compute")(function* (input: ComputeInput) {
@@ -37,7 +36,7 @@ export class Score extends Context.Service<
           calculateScore([...input.diagnostics], {
             isCi: input.isCi,
             metadata: input.metadata,
-          }).catch((): ScoreResult | null => null),
+          }),
         );
       }),
     }),

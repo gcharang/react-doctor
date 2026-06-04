@@ -24,7 +24,10 @@ const readText = (relativePath: string): string =>
 const readPackageJson = (relativePath: string): PackageJson => JSON.parse(readText(relativePath));
 
 const packageManifests: PackageManifestExpectation[] = [
-  { packagePath: "package.json", shouldDependOnPlatformNodeShared: false },
+  // The `pinned` fork's root is the npx-installable package: it mirrors the
+  // CLI's runtime externals (which include `@effect/platform-node-shared`, the
+  // Node-20-safe shared variant — never the Undici-backed `@effect/platform-node`).
+  { packagePath: "package.json", shouldDependOnPlatformNodeShared: true },
   { packagePath: "packages/api/package.json", shouldDependOnPlatformNodeShared: false },
   { packagePath: "packages/core/package.json", shouldDependOnPlatformNodeShared: true },
   {

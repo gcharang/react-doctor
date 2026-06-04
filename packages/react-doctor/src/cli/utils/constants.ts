@@ -55,12 +55,12 @@ export const SCORE_PROJECTION_BAR_ROWS_ABOVE_CURSOR = 5;
 export const INTERNAL_ERROR_JSON_FALLBACK =
   '{"schemaVersion":1,"ok":false,"error":{"message":"Internal error","name":"Error","chain":[]}}\n';
 
-// Sentry DSN for CLI crash reporting. Public by design (DSNs are safe to
-// embed in client-side code) and only used by the CLI application entry,
-// never the programmatic `@react-doctor/api` library. Overridable at runtime
-// via the standard `SENTRY_DSN` env var (read in `instrument.ts`).
-export const SENTRY_DSN =
-  "https://f253d570240a59b8dbd77b7a548ef133@o4510226365743104.ingest.us.sentry.io/4511487817809920";
+// Sentry DSN for CLI crash reporting. Blanked on the `pinned` fork so no
+// telemetry leaves the machine — `Sentry.init` with an empty DSN is a no-op
+// (see `instrument.ts`), so the SDK stays wired but transports nothing.
+// Upstream `main` ships react.doctor's DSN here. A user who wants their own
+// crash reporting can still set the standard `SENTRY_DSN` env var at runtime.
+export const SENTRY_DSN = "";
 
 // Sentry release identifier prefix. Releases are reported as
 // `react-doctor@<version>` so they're globally unique within the Sentry org

@@ -57,7 +57,11 @@ interface EslintPlugin {
 }
 
 const PLUGIN_NAMESPACE = "react-doctor";
-const RULE_DOCS_BASE_URL = "https://react.doctor/rules";
+// Pinned fork: rule docs are the recipes vendored into `prompts/rules/` on the
+// `pinned` branch, rendered as markdown by GitHub. All rules in this plugin
+// live under the `react-doctor` namespace, so the path is fixed here.
+const RULE_DOCS_BASE_URL =
+  "https://github.com/gcharang/react-doctor/blob/pinned/prompts/rules/react-doctor";
 
 const recommendedRuleKeys = new Set(Object.keys(RECOMMENDED_RULES));
 
@@ -68,7 +72,7 @@ const wrapAsEslintRule = (ruleName: string, ruleImpl: WrappedRule): EslintRule =
       description: ruleName
         .replaceAll("-", " ")
         .replace(/\b\w/g, (innerChar) => innerChar.toUpperCase()),
-      url: `${RULE_DOCS_BASE_URL}/${ruleName}`,
+      url: `${RULE_DOCS_BASE_URL}/${ruleName}.md`,
       recommended: recommendedRuleKeys.has(`${PLUGIN_NAMESPACE}/${ruleName}`),
     },
     schema: [],

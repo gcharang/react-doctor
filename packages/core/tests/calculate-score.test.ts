@@ -1,141 +1,108 @@
-import { gunzipSync } from "node:zlib";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { calculateScore } from "@react-doctor/core";
+import { calculateScore, getScoreLabel } from "@react-doctor/core";
 import type { Diagnostic } from "@react-doctor/core";
 
-const sampleDiagnostics: Diagnostic[] = [
-  {
-    filePath: "src/App.tsx",
-    plugin: "react-doctor",
-    rule: "example-rule",
-    severity: "error",
-    message: "Example",
-    help: "",
-    line: 1,
-    column: 1,
-    category: "performance",
-  },
-];
+// The `pinned` fork computes the score offline (no react.doctor API call), so
+// these tests cover the local formula and label bucketing, and assert that
+// nothing is sent over the network.
 
-const apiScoreResponse = { score: 73, label: "Needs work" } as const;
+const diag = (rule: string, severity: "error" | "warning"): Diagnostic => ({
+  filePath: "src/App.tsx",
+  plugin: "react-doctor",
+  rule,
+  severity,
+  message: "Example",
+  help: "",
+  line: 1,
+  column: 1,
+  category: "performance",
+});
 
-const stubFetch = (impl: typeof fetch): void => {
-  vi.stubGlobal("fetch", vi.fn(impl));
-};
-
-describe("calculateScore", () => {
+describe("calculateScore (offline)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("returns null and logs a warning when fetch throws", async () => {
-    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    stubFetch(async () => {
-      throw new Error("network unavailable");
-    });
-
-    const result = await calculateScore(sampleDiagnostics);
-
-    expect(result).toBeNull();
-    expect(consoleSpy).toHaveBeenCalled();
+  it("returns a perfect score for a clean scan", async () => {
+    // #given no diagnostics
+    // #then the score is 100 / Great
+    expect(await calculateScore([])).toEqual({ score: 100, label: "Great" });
   });
 
-  it("returns null and logs a warning when the API responds non-2xx", async () => {
-    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    stubFetch(
-      async () => new Response("boom", { status: 500, statusText: "Internal Server Error" }),
-    );
-
-    const result = await calculateScore(sampleDiagnostics);
-
-    expect(result).toBeNull();
-    expect(consoleSpy).toHaveBeenCalled();
+  it("penalizes each distinct error rule by 1.5", async () => {
+    // #given two distinct error rules
+    // #then penalty is 3.0 → 97
+    const result = await calculateScore([diag("a", "error"), diag("b", "error")]);
+    expect(result).toEqual({ score: 97, label: "Great" });
   });
 
-  it("parses a well-formed API response and sends score metadata", async () => {
-    let capturedBody: BodyInit | null | undefined;
-    let capturedHeaders: HeadersInit | undefined;
-    stubFetch(async (_url, init) => {
-      capturedBody = init?.body;
-      capturedHeaders = init?.headers;
-      return new Response(JSON.stringify(apiScoreResponse), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    });
-
-    const result = await calculateScore(sampleDiagnostics, {
-      metadata: {
-        repo: "millionco/react-doctor",
-        sha: "abc123",
-        framework: "nextjs",
-        reactVersion: "19.2.0",
-        sourceFileCount: 42,
-        defaultBranch: "main",
-        doctorVersion: "0.2.5",
-        githubEventName: "pull_request",
-        githubActorAssociation: "CONTRIBUTOR",
-        githubViewerPermission: "write",
-      },
-    });
-
-    expect(result).toEqual(apiScoreResponse);
-    const headerRecord = capturedHeaders as Record<string, string> | undefined;
-    expect(headerRecord?.["Content-Encoding"]).toBe("gzip");
-    const compressedBytes = capturedBody as Uint8Array;
-    expect(compressedBytes).toBeInstanceOf(Uint8Array);
-    const decompressedJson = gunzipSync(compressedBytes).toString("utf8");
-    const parsedBody: { diagnostics: Array<Record<string, unknown>> } =
-      JSON.parse(decompressedJson);
-    expect(parsedBody.diagnostics).toHaveLength(1);
-    expect(parsedBody.diagnostics[0]).not.toHaveProperty("filePath");
-    expect(parsedBody.diagnostics[0]).toMatchObject({
-      plugin: "react-doctor",
-      rule: "example-rule",
-      severity: "error",
-    });
-    expect(parsedBody).toMatchObject({
-      repo: "millionco/react-doctor",
-      sha: "abc123",
-      framework: "nextjs",
-      reactVersion: "19.2.0",
-      sourceFileCount: 42,
-      defaultBranch: "main",
-      doctorVersion: "0.2.5",
-      githubEventName: "pull_request",
-      githubActorAssociation: "CONTRIBUTOR",
-      githubViewerPermission: "write",
-    });
+  it("penalizes each distinct warning rule by 0.75", async () => {
+    // #given four distinct warning rules
+    // #then penalty is 3.0 → 97
+    const result = await calculateScore([
+      diag("a", "warning"),
+      diag("b", "warning"),
+      diag("c", "warning"),
+      diag("d", "warning"),
+    ]);
+    expect(result).toEqual({ score: 97, label: "Great" });
   });
 
-  it("issue #302: tags the score request with ?ci=1 when isCi is true", async () => {
-    let capturedUrl: string | URL | Request | undefined;
-    stubFetch(async (url) => {
-      capturedUrl = url;
-      return new Response(JSON.stringify(apiScoreResponse), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    });
-
-    await calculateScore(sampleDiagnostics);
-    expect(String(capturedUrl)).not.toContain("ci=1");
-
-    await calculateScore(sampleDiagnostics, { isCi: true });
-    expect(String(capturedUrl)).toContain("?ci=1");
+  it("counts a rule once no matter how many times it fires", async () => {
+    // #given the same error rule three times plus one other error rule
+    // #then only the two distinct rules are penalized → 97
+    const result = await calculateScore([
+      diag("a", "error"),
+      diag("a", "error"),
+      diag("a", "error"),
+      diag("b", "error"),
+    ]);
+    expect(result).toEqual({ score: 97, label: "Great" });
   });
 
-  it("returns null when the API response shape is invalid", async () => {
-    stubFetch(
-      async () =>
-        new Response(JSON.stringify({ score: "high" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-    );
+  it("buckets a mid-range score as 'Needs work' and floors at zero", async () => {
+    // #given 40 distinct error rules (penalty 60) → 40 / Critical
+    const many = Array.from({ length: 40 }, (_unused, index) => diag(`r${index}`, "error"));
+    expect(await calculateScore(many)).toEqual({ score: 40, label: "Critical" });
 
-    const result = await calculateScore(sampleDiagnostics);
-    expect(result).toBeNull();
+    // #given enough rules to exceed 100 of penalty → clamped to 0
+    const tooMany = Array.from({ length: 80 }, (_unused, index) => diag(`r${index}`, "error"));
+    expect(await calculateScore(tooMany)).toEqual({ score: 0, label: "Critical" });
+  });
+
+  it("never returns null and ignores CI/metadata options", async () => {
+    // #given options the offline scorer no longer uses
+    // #then the score is identical to the no-options result
+    const base = await calculateScore([diag("a", "error")]);
+    const withOptions = await calculateScore([diag("a", "error")], {
+      isCi: true,
+      metadata: { repo: "owner/repo", sha: "abc123", doctorVersion: "0.2.18" },
+    });
+    expect(withOptions).toEqual(base);
+    expect(withOptions).not.toBeNull();
+  });
+
+  it("never touches the network", async () => {
+    // #given a stubbed global fetch
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    // #when computing a score
+    await calculateScore([diag("a", "error"), diag("b", "warning")]);
+
+    // #then no request is made
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("getScoreLabel", () => {
+  it("buckets by the good/ok thresholds", () => {
+    expect(getScoreLabel(100)).toBe("Great");
+    expect(getScoreLabel(75)).toBe("Great");
+    expect(getScoreLabel(74)).toBe("Needs work");
+    expect(getScoreLabel(50)).toBe("Needs work");
+    expect(getScoreLabel(49)).toBe("Critical");
+    expect(getScoreLabel(0)).toBe("Critical");
   });
 });

@@ -8,7 +8,7 @@ import {
   SKILL_MANIFEST_FILE,
   type SkillAgentType,
 } from "agent-install";
-import { highlighter, SKILL_NAME } from "@react-doctor/core";
+import { FORK_PACKAGE_SPEC, highlighter, SKILL_NAME } from "@react-doctor/core";
 import { cliLogger as logger } from "./cli-logger.js";
 import { detectAvailableAgents } from "./detect-agents.js";
 import { METRIC } from "./constants.js";
@@ -127,7 +127,10 @@ const packageManagerNeedsWorkspaceFlag = (projectRoot: string): boolean =>
 
 const buildInstallCommand = (projectRoot: string): InstallReactDoctorDependencyRunnerInput => {
   const packageManager = detectPackageManager(projectRoot);
-  const packageSpecifier = `${DOCTOR_PACKAGE_NAME}@latest`;
+  // Pin the fork: install it under the `react-doctor` alias so the dep key
+  // stays `react-doctor` (detection keeps working) while the source is this
+  // hardened branch, not the npm-published package.
+  const packageSpecifier = `${DOCTOR_PACKAGE_NAME}@${FORK_PACKAGE_SPEC}`;
   if (packageManager === "npm") {
     return { command: "npm", args: ["install", "--save-dev", packageSpecifier], cwd: projectRoot };
   }
@@ -262,12 +265,12 @@ const formatDependencyInstallMessage = (result: InstallReactDoctorDependencyResu
   }
   if (result.dependencyReason === "trust-policy-blocked") {
     const installCommand =
-      result.installCommand ?? `npm install --save-dev ${DOCTOR_PACKAGE_NAME}@latest`;
-    return `Skipped local install: your package manager's supply-chain trust policy blocked a dependency (not a compromise — beta packages trip this). React Doctor still works via \`npx react-doctor\`. To add it locally: ${installCommand}`;
+      result.installCommand ?? `npm install --save-dev ${DOCTOR_PACKAGE_NAME}@${FORK_PACKAGE_SPEC}`;
+    return `Skipped local install: your package manager's supply-chain trust policy blocked a dependency (not a compromise — beta packages trip this). React Doctor still works via \`npx ${FORK_PACKAGE_SPEC}\`. To add it locally: ${installCommand}`;
   }
   if (result.dependencyReason === "install-command-failed") {
     const installCommand =
-      result.installCommand ?? `npm install --save-dev ${DOCTOR_PACKAGE_NAME}@latest`;
+      result.installCommand ?? `npm install --save-dev ${DOCTOR_PACKAGE_NAME}@${FORK_PACKAGE_SPEC}`;
     return `Skipped dev dependency install: package manager command failed. Run manually: ${installCommand}`;
   }
   return "Skipped dev dependency install: package.json missing or invalid.";
@@ -406,7 +409,7 @@ const buildWorkflowContent = (): string =>
     "    runs-on: ubuntu-latest",
     "    steps:",
     "      - uses: actions/checkout@v5",
-    "      - uses: millionco/react-doctor@main",
+    "      - uses: gcharang/react-doctor@pinned",
     "",
   ].join("\n");
 

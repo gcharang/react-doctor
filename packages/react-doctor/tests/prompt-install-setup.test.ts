@@ -351,7 +351,7 @@ describe("printAgentInstallHint", () => {
     });
     const output = writtenLines.join("\n");
 
-    expect(output).toContain("npx react-doctor install --yes");
+    expect(output).toContain("npx github:gcharang/react-doctor#pinned install --yes");
     expect(output).toContain("not installed");
     expect(output).toContain("Ask the user");
   });
@@ -359,7 +359,9 @@ describe("printAgentInstallHint", () => {
   it("AGENT_INSTALL_HINT_LINES contains the install command", () => {
     expect(AGENT_INSTALL_HINT_LINES.length).toBeGreaterThan(0);
     expect(
-      AGENT_INSTALL_HINT_LINES.some((line) => line.includes("npx react-doctor install --yes")),
+      AGENT_INSTALL_HINT_LINES.some((line) =>
+        line.includes("npx github:gcharang/react-doctor#pinned install --yes"),
+      ),
     ).toBe(true);
   });
 });

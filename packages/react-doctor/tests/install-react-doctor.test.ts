@@ -268,7 +268,7 @@ describe("runInstallReactDoctor", () => {
 
     expect(readFixturePackageJson(fixture.projectRoot).scripts).toEqual({
       test: "vite-plus test",
-      doctor: "npx react-doctor@latest",
+      doctor: "npx github:gcharang/react-doctor#pinned",
     });
     expect(readFixturePackageJson(fixture.projectRoot).devDependencies).toEqual({
       "react-doctor": "latest",
@@ -293,7 +293,7 @@ describe("runInstallReactDoctor", () => {
     expect(dependencyInstallCalls).toEqual([
       {
         command: "pnpm",
-        args: ["add", "--save-dev", "react-doctor@latest"],
+        args: ["add", "--save-dev", "react-doctor@github:gcharang/react-doctor#pinned"],
         cwd: fixture.projectRoot,
       },
     ]);
@@ -321,12 +321,12 @@ describe("runInstallReactDoctor", () => {
     expect(dependencyInstallCalls).toEqual([
       {
         command: "npm",
-        args: ["install", "--save-dev", "react-doctor@latest"],
+        args: ["install", "--save-dev", "react-doctor@github:gcharang/react-doctor#pinned"],
         cwd: fixture.projectRoot,
       },
     ]);
     expect(readFixturePackageJson(fixture.projectRoot).scripts).toEqual({
-      doctor: "npx react-doctor@latest",
+      doctor: "npx github:gcharang/react-doctor#pinned",
     });
     expect(readFixturePackageJson(fixture.projectRoot)).not.toHaveProperty("devDependencies");
   });
@@ -351,7 +351,7 @@ describe("runInstallReactDoctor", () => {
 
     expect(process.exitCode).toBe(0);
     expect(readFixturePackageJson(fixture.projectRoot).scripts).toEqual({
-      doctor: "npx react-doctor@latest",
+      doctor: "npx github:gcharang/react-doctor#pinned",
     });
     expect(readFixturePackageJson(fixture.projectRoot)).not.toHaveProperty("devDependencies");
   });
@@ -380,7 +380,7 @@ describe("runInstallReactDoctor", () => {
     expect(dependencyInstallCalls).toEqual([
       {
         command: "pnpm",
-        args: ["add", "--save-dev", "-w", "react-doctor@latest"],
+        args: ["add", "--save-dev", "-w", "react-doctor@github:gcharang/react-doctor#pinned"],
         cwd: appDirectory,
       },
     ]);
@@ -419,7 +419,7 @@ describe("runInstallReactDoctor", () => {
     });
 
     expect(readFixturePackageJson(fixture.projectRoot).scripts).toEqual({
-      doctor: "npx react-doctor@latest",
+      doctor: "npx github:gcharang/react-doctor#pinned",
     });
     expect(existsSync(path.join(fixture.projectRoot, ".agents/skills/react-doctor/SKILL.md"))).toBe(
       true,
@@ -469,7 +469,7 @@ describe("runInstallReactDoctor", () => {
 
     expect(readFixturePackageJson(fixture.projectRoot).scripts).toEqual({
       doctor: "vitest --run",
-      "react-doctor": "npx react-doctor@latest",
+      "react-doctor": "npx github:gcharang/react-doctor#pinned",
     });
     expect(readFixturePackageJson(fixture.projectRoot).devDependencies).toEqual({
       "react-doctor": "latest",
@@ -494,7 +494,7 @@ describe("runInstallReactDoctor", () => {
     });
 
     expect(readFixturePackageJson(fixture.projectRoot).scripts).toEqual({
-      doctor: "npx react-doctor@latest",
+      doctor: "npx github:gcharang/react-doctor#pinned",
     });
     expect(readFixturePackageJson(fixture.projectRoot).devDependencies).toEqual({
       "react-doctor": "^1.2.3",
@@ -648,7 +648,7 @@ describe("runInstallReactDoctor", () => {
     expect(workflowContent).toContain("pull-requests: write");
     expect(workflowContent).toContain("issues: write");
     expect(workflowContent).toContain("actions/checkout@v5");
-    expect(workflowContent).toContain("millionco/react-doctor@main");
+    expect(workflowContent).toContain("gcharang/react-doctor@pinned");
     expect(workflowContent).not.toContain("github-token");
     expect(workflowContent).not.toContain("diff: main");
   });
@@ -686,7 +686,7 @@ describe("runInstallReactDoctor", () => {
 
     expect(existsSync(hookPath)).toBe(false);
     expect(existsSync(path.join(fixture.projectRoot, ".cursor/hooks.json"))).toBe(false);
-    expect(readFileSync(workflowPath, "utf8")).toContain("millionco/react-doctor@main");
+    expect(readFileSync(workflowPath, "utf8")).toContain("gcharang/react-doctor@pinned");
   });
 
   it("--yes does not install native agent hooks unless --agent-hooks is set", async () => {

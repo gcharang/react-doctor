@@ -39,7 +39,7 @@ describe("handleError", () => {
     const body = issueUrl.searchParams.get("body") ?? "";
 
     expect(issueUrl.origin + issueUrl.pathname).toBe(
-      "https://github.com/millionco/react-doctor/issues/new",
+      "https://github.com/gcharang/react-doctor/issues/new",
     );
     expect(issueUrl.searchParams.get("title")).toBe("CLI error: boom");
     expect(issueUrl.searchParams.get("labels")).toBe("bug");
@@ -79,7 +79,7 @@ describe("handleError", () => {
     );
   });
 
-  it("suggests Discord when printing an error", () => {
+  it("suggests opening an issue when printing an error", () => {
     const errorMessages: string[] = [];
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation((...messages) => {
       errorMessages.push(messages.join(" "));
@@ -92,7 +92,7 @@ describe("handleError", () => {
     }
 
     expect(errorMessages.join("\n")).toContain(
-      "You can also ask for help in Discord: https://react.doctor/discord",
+      "You can also ask for help by opening an issue: https://github.com/gcharang/react-doctor/issues",
     );
     expect(process.exitCode).toBe(1);
   });

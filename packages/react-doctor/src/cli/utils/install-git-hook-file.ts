@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
+import { FORK_PACKAGE_SPEC } from "@react-doctor/core";
 import { GIT_HOOK_EXECUTABLE_MODE } from "./constants.js";
 import {
   ensureTrailingNewline,
@@ -32,8 +33,8 @@ const REACT_DOCTOR_BLOCK_PATTERN = new RegExp(
 const SHEBANG = "#!/bin/sh";
 const SHEBANG_PREFIX = "#!";
 const LOCAL_REACT_DOCTOR_BIN = "./node_modules/.bin/react-doctor";
-const PNPM_REACT_DOCTOR_COMMAND = "pnpm dlx react-doctor@latest --staged --fail-on warning";
-const NPX_REACT_DOCTOR_COMMAND = "npx --yes react-doctor@latest --staged --fail-on warning";
+const PNPM_REACT_DOCTOR_COMMAND = `pnpm dlx ${FORK_PACKAGE_SPEC} --staged --fail-on warning`;
+const NPX_REACT_DOCTOR_COMMAND = `npx --yes ${FORK_PACKAGE_SPEC} --staged --fail-on warning`;
 
 const buildReactDoctorHookBlock = (): string =>
   [

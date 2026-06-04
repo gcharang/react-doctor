@@ -11,6 +11,55 @@ overrides:
 importers:
 
   .:
+    dependencies:
+      '@babel/code-frame':
+        specifier: ^7.29.0
+        version: 7.29.0
+      '@effect/platform-node-shared':
+        specifier: 4.0.0-beta.70
+        version: 4.0.0-beta.70(effect@4.0.0-beta.70)
+      '@sentry/node':
+        specifier: ^10.54.0
+        version: 10.54.0
+      agent-install:
+        specifier: 0.0.5
+        version: 0.0.5
+      conf:
+        specifier: ^15.1.0
+        version: 15.1.0
+      confbox:
+        specifier: ^0.2.4
+        version: 0.2.4
+      deslop-js:
+        specifier: ^0.0.17
+        version: 0.0.17(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)
+      effect:
+        specifier: 4.0.0-beta.70
+        version: 4.0.0-beta.70
+      eslint-plugin-react-hooks:
+        specifier: ^7.1.1
+        version: 7.1.1(eslint@9.39.2(jiti@2.7.0))
+      jiti:
+        specifier: ^2.7.0
+        version: 2.7.0
+      magicast:
+        specifier: ^0.5.3
+        version: 0.5.3
+      oxlint:
+        specifier: ^1.66.0
+        version: 1.66.0(oxlint-tsgolint@0.23.0)
+      oxlint-plugin-react-doctor:
+        specifier: file:./packages/oxlint-plugin-react-doctor
+        version: link:packages/oxlint-plugin-react-doctor
+      picomatch:
+        specifier: ^4.0.4
+        version: 4.0.4
+      prompts:
+        specifier: ^2.4.2
+        version: 2.4.2
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
     devDependencies:
       '@changesets/changelog-github':
         specifier: ^0.7.0
@@ -39,9 +88,6 @@ importers:
       turbo:
         specifier: ^2.9.7
         version: 2.9.7
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
       vite-plus:
         specifier: ^0.1.15
         version: 0.1.20(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(esbuild@0.27.3)(jiti@2.7.0)(terser@5.46.0)(typescript@6.0.3)(vite@7.3.1(@types/node@25.6.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.46.0)(yaml@2.9.0))(yaml@2.9.0)
@@ -290,10 +336,6 @@ packages:
 
   '@babel/helper-string-parser@7.29.7':
     resolution: {integrity: sha512-Pb5ijPrZ89GDH8223L4UP8i6QApWxs04RbPQJTeWDV0/keR2E36MeKnyr6LYmUUvqRRI+Iv87SuF1W6ErINzYw==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/helper-validator-identifier@7.28.5':
-    resolution: {integrity: sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q==}
     engines: {node: '>=6.9.0'}
 
   '@babel/helper-validator-identifier@7.29.7':
@@ -3441,11 +3483,6 @@ packages:
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
-  yaml@2.8.3:
-    resolution: {integrity: sha512-AvbaCLOO2Otw/lW5bmh9d/WEdcDFdQp2Z2ZUH3pX9U2ihyUY0nvLv7J6TrWowklRGPYbB/IuIMfYgxaCPg5Bpg==}
-    engines: {node: '>= 14.6'}
-    hasBin: true
-
   yaml@2.9.0:
     resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
     engines: {node: '>= 14.6'}
@@ -3480,7 +3517,7 @@ snapshots:
 
   '@babel/code-frame@7.29.0':
     dependencies:
-      '@babel/helper-validator-identifier': 7.28.5
+      '@babel/helper-validator-identifier': 7.29.7
       js-tokens: 4.0.0
       picocolors: 1.1.1
 
@@ -3527,7 +3564,7 @@ snapshots:
   '@babel/helper-module-imports@7.28.6':
     dependencies:
       '@babel/traverse': 7.29.0
-      '@babel/types': 7.29.0
+      '@babel/types': 7.29.7
     transitivePeerDependencies:
       - supports-color
 
@@ -3535,7 +3572,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-module-imports': 7.28.6
-      '@babel/helper-validator-identifier': 7.28.5
+      '@babel/helper-validator-identifier': 7.29.7
       '@babel/traverse': 7.29.0
     transitivePeerDependencies:
       - supports-color
@@ -3543,8 +3580,6 @@ snapshots:
   '@babel/helper-string-parser@7.27.1': {}
 
   '@babel/helper-string-parser@7.29.7': {}
-
-  '@babel/helper-validator-identifier@7.28.5': {}
 
   '@babel/helper-validator-identifier@7.29.7': {}
 
@@ -3586,7 +3621,7 @@ snapshots:
   '@babel/types@7.29.0':
     dependencies:
       '@babel/helper-string-parser': 7.27.1
-      '@babel/helper-validator-identifier': 7.28.5
+      '@babel/helper-validator-identifier': 7.29.7
 
   '@babel/types@7.29.7':
     dependencies:
@@ -4877,7 +4912,7 @@ snapshots:
       jsonc-parser: 3.3.1
       picocolors: 1.1.1
       prompts: 2.4.2
-      yaml: 2.8.3
+      yaml: 2.9.0
 
   ajv-formats@3.0.1(ajv@8.20.0):
     optionalDependencies:
@@ -5515,7 +5550,7 @@ snapshots:
   magicast@0.5.3:
     dependencies:
       '@babel/parser': 7.29.7
-      '@babel/types': 7.29.0
+      '@babel/types': 7.29.7
       source-map-js: 1.2.1
 
   merge2@1.4.1: {}
@@ -6235,8 +6270,6 @@ snapshots:
   ws@8.20.0: {}
 
   yallist@3.1.1: {}
-
-  yaml@2.8.3: {}
 
   yaml@2.9.0: {}
 

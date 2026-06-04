@@ -1,5 +1,15 @@
 node_modules
 dist
+# pinned branch: vendor the prebuilt bundles so `npx github:` needs no build.
+# dist/cli.js (CLI + bundled core/api) and the rule engine's dist are shipped;
+# all other package dist trees stay ignored by the bare `dist` rule above.
+!/packages/react-doctor/dist/
+!/packages/react-doctor/dist/**
+!/packages/oxlint-plugin-react-doctor/dist/
+!/packages/oxlint-plugin-react-doctor/dist/**
+# but not the source maps — unused at runtime, only bloat the branch.
+/packages/react-doctor/dist/**/*.map
+/packages/oxlint-plugin-react-doctor/dist/**/*.map
 .turbo
 *.log
 .DS_Store

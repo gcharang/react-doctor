@@ -13,3 +13,8 @@ packages/website/public/schema/config.json
 
 # Lockfiles handled by their own tooling
 pnpm-lock.yaml
+
+# Vendored agent playbook + per-rule fix recipes (pinned fork). Written by
+# `scripts/vendor-prompts.mjs` as a reviewed upstream snapshot (repointed to
+# the fork); kept byte-for-byte so re-vendoring needs no formatter round-trip.
+prompts/

@@ -385,7 +385,7 @@ describe("non-verbose overflow summary line", () => {
       makeDiagnostic("rule-a", "error", 1),
       makeDiagnostic("rule-a", "error", 2),
     ]);
-    expect(text).toContain("Run npx react-doctor@latest --verbose for details");
+    expect(text).toContain("Run npx github:gcharang/react-doctor#pinned --verbose for details");
     expect(text).not.toContain("optional");
     expect(text).not.toContain("more rules");
   });

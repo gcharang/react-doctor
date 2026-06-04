@@ -17,6 +17,10 @@ let isInitialized = false;
 let resolvedTracesSampleRate = 0;
 
 const shouldEnableSentry = (): boolean => {
+  // No DSN configured fully disables the SDK. The `pinned` fork blanks
+  // `SENTRY_DSN` so nothing initializes (no spans, no transport); a user can
+  // still opt back in to their own project via the `SENTRY_DSN` env var.
+  if (!(process.env.SENTRY_DSN || SENTRY_DSN)) return false;
   // `--no-score` (and its `--no-telemetry` alias) opts out of crash
   // reporting. Read from raw argv because Sentry initializes before
   // Commander parses.
