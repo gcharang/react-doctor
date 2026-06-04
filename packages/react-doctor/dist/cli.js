@@ -51980,7 +51980,7 @@ const makeNoopConsole = () => ({
 });
 //#endregion
 //#region src/cli/utils/version.ts
-const VERSION = "0.3.0";
+const VERSION = "0.4.0";
 //#endregion
 //#region src/cli/utils/json-mode.ts
 let context = null;
@@ -52339,13 +52339,13 @@ const isDevVersion = (version) => version === "0.0.0" || version.includes("-");
 * uploads source-map artifacts under, so stack frames symbolicate. Honors the
 * standard `SENTRY_RELEASE` override.
 */
-const resolveSentryRelease = () => process.env.SENTRY_RELEASE || `react-doctor@0.3.0`;
+const resolveSentryRelease = () => process.env.SENTRY_RELEASE || `react-doctor@0.4.0`;
 /**
 * Deployment environment shown in Sentry's environment filter. Defaults to
 * `production` for tagged releases and `development` for dev/unbuilt versions,
 * overridable via the standard `SENTRY_ENVIRONMENT` env var.
 */
-const resolveSentryEnvironment = () => process.env.SENTRY_ENVIRONMENT || (isDevVersion("0.3.0") ? "development" : "production");
+const resolveSentryEnvironment = () => process.env.SENTRY_ENVIRONMENT || (isDevVersion("0.4.0") ? "development" : "production");
 /**
 * Performance-tracing sample rate in `[0, 1]`. Reads `SENTRY_TRACES_SAMPLE_RATE`
 * (set to `0` to disable tracing) and falls back to
