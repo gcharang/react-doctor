@@ -1,3 +1,13 @@
+/**
+ * Reserved `--diff` value that triggers parent-branch auto-detection —
+ * diff against the branch HEAD forked from (nearest merge-base) instead of
+ * the repo default branch. Stays a plain string through `coerceDiffValue`
+ * (it is not a boolean alias); callers detect it before treating the value
+ * as a literal base ref. A branch literally named `parent` can still be
+ * targeted explicitly via `--diff heads/parent`.
+ */
+export const DIFF_PARENT_BASE = "parent";
+
 // HACK: only the exact lowercase `"true"` / `"false"` literals are
 // coerced to booleans — anything else stays as a (case-sensitive) branch
 // name so that real branches like `True-Branch` / `FALSE-vN` aren't

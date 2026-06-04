@@ -58,6 +58,7 @@ ${formatExampleLines([
   ["react-doctor", "scan the current project"],
   ["react-doctor ./apps/web", "scan a specific directory"],
   ["react-doctor --diff main", "scan only files changed vs. main"],
+  ["react-doctor --diff parent", "scan changes vs. the branch you forked from"],
   ["react-doctor --staged", "scan staged files (pre-commit hook)"],
   ["react-doctor --fail-on warning", "exit non-zero on warnings (CI gate)"],
   ["react-doctor --json > report.json", "write a machine-readable report"],
@@ -114,7 +115,7 @@ const program = new Command()
   .option("--project <name>", "select workspace project (comma-separated for multiple)")
   .option(
     "--diff [base]",
-    "scan only files changed vs base branch (pass `false` to disable; overridden by --full)",
+    "scan only files changed vs base branch (use `parent` to auto-detect the branch you forked from; pass `false` to disable; overridden by --full)",
   )
   .option(
     "--changed-files-from <file>",

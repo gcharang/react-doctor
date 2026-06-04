@@ -45971,6 +45971,13 @@ const GIT_REF_NAME_RULE = "must match [A-Za-z0-9_./-] without leading '-', '..',
 /** git's two range operators: two-dot (direct) and three-dot (merge-base). */
 const DIFF_RANGE_OPERATOR = "..";
 const SYMMETRIC_DIFF_RANGE_OPERATOR = "...";
+/**
+* Bounded fan-out for `--diff parent` branch ranking. A repo with many
+* local branches would otherwise spawn one `git merge-base` + one
+* `git rev-list` process per branch all at once; cap the in-flight count
+* so detection stays a handful of concurrent subprocesses.
+*/
+const PARENT_BRANCH_DETECTION_CONCURRENCY = 8;
 const isSafeGitRevision = (candidate) => {
 	if (candidate.length === 0) return false;
 	if (candidate.startsWith("-")) return false;
@@ -46112,6 +46119,66 @@ var Git = class Git extends Context.Service()("react-doctor/Git") {
 			if (candidates.status !== 0) return null;
 			return trimOrNull(candidates.stdout.split("\n")[0] ?? "");
 		});
+		/**
+		* Heuristic "parent branch" detection for `--diff parent`. Git has no
+		* native notion of the branch a branch was forked from, so we rank
+		* every other local branch by how recently its history diverged from
+		* `HEAD`: the branch whose merge-base with `HEAD` is closest (fewest
+		* commits in `mergeBase..HEAD`) is the most likely parent. This
+		* correctly prefers an intermediate integration branch (e.g. a
+		* `pinned` branch forked from `main`) over the default branch for
+		* stacked workflows.
+		*
+		* Returns `null` (caller falls back to the default branch) when there
+		* are no other branches, none share history with `HEAD`, or every
+		* candidate is an ancestor of / identical to `HEAD` — zero divergence
+		* means a child or sibling, never a parent.
+		*
+		* Resilience mirrors `currentBranch`: a per-branch git hiccup drops
+		* that candidate rather than aborting the whole scan.
+		*/
+		const parentBranch = (directory, currentBranchName) => Effect.gen(function* () {
+			const listing = yield* runGit(directory, [
+				"for-each-ref",
+				"--format=%(refname:short)",
+				"refs/heads/"
+			]);
+			if (listing.status !== 0) return null;
+			const candidates = listing.stdout.split("\n").map((line) => line.trim()).filter((name) => name.length > 0 && name !== currentBranchName && isSafeGitRevision(name));
+			if (candidates.length === 0) return null;
+			const scored = (yield* Effect.all(candidates.map((name) => Effect.gen(function* () {
+				const mergeBase = yield* runGit(directory, [
+					"merge-base",
+					name,
+					"HEAD"
+				]);
+				if (mergeBase.status !== 0) return null;
+				const mergeBaseRef = trimOrNull(mergeBase.stdout);
+				if (mergeBaseRef === null) return null;
+				const count = yield* runGit(directory, [
+					"rev-list",
+					"--count",
+					`${mergeBaseRef}..HEAD`
+				]);
+				if (count.status !== 0) return null;
+				const distance = Number.parseInt(trimOrNull(count.stdout) ?? "", 10);
+				if (!Number.isInteger(distance) || distance <= 0) return null;
+				return {
+					name,
+					distance
+				};
+			}).pipe(Effect.orElseSucceed(() => null))), { concurrency: PARENT_BRANCH_DETECTION_CONCURRENCY })).filter((entry) => entry !== null);
+			if (scored.length === 0) return null;
+			const repoDefaultBranch = yield* defaultBranch(directory);
+			scored.sort((a, b) => {
+				if (a.distance !== b.distance) return a.distance - b.distance;
+				const aIsDefault = a.name === repoDefaultBranch ? 0 : 1;
+				const bIsDefault = b.name === repoDefaultBranch ? 0 : 1;
+				if (aIsDefault !== bIsDefault) return aIsDefault - bIsDefault;
+				return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+			});
+			return scored[0]?.name ?? null;
+		});
 		const branchExists = (directory, branch) => runGit(directory, [
 			"rev-parse",
 			"--verify",
@@ -46204,7 +46271,7 @@ var Git = class Git extends Context.Service()("react-doctor/Git") {
 			githubRepo,
 			githubViewerPermission,
 			branchExists,
-			diffSelection: ({ directory, explicitBaseBranch }) => Effect.gen(function* () {
+			diffSelection: ({ directory, explicitBaseBranch, useParentBranch }) => Effect.gen(function* () {
 				if (explicitBaseBranch !== void 0 && explicitBaseBranch.trim().length === 0) return yield* Effect.fail(new ReactDoctorError({ reason: new GitBaseBranchInvalid({ detail: "Diff base branch cannot be empty." }) }));
 				if (explicitBaseBranch !== void 0) {
 					const range = parseGitDiffRange(explicitBaseBranch);
@@ -46217,7 +46284,8 @@ var Git = class Git extends Context.Service()("react-doctor/Git") {
 				}
 				const resolvedCurrentBranch = yield* currentBranch(directory);
 				if (resolvedCurrentBranch === null && explicitBaseBranch === void 0) return null;
-				const baseBranch = explicitBaseBranch ?? (yield* defaultBranch(directory));
+				const detectedParentBranch = useParentBranch && explicitBaseBranch === void 0 && resolvedCurrentBranch !== null ? yield* parentBranch(directory, resolvedCurrentBranch) : null;
+				const baseBranch = explicitBaseBranch ?? detectedParentBranch ?? (yield* defaultBranch(directory));
 				if (baseBranch === null) return null;
 				if (explicitBaseBranch !== void 0) {
 					if (!(yield* branchExists(directory, explicitBaseBranch))) return yield* Effect.fail(new ReactDoctorError({ reason: new GitBaseBranchMissing({ branch: explicitBaseBranch }) }));
@@ -48599,10 +48667,11 @@ const buildSkippedChecks = (input) => {
 * render diff-base mistakes (`GitBaseBranchInvalid` /
 * `GitBaseBranchMissing`) as clean user errors instead of crashes.
 */
-const getDiffInfo = (directory, explicitBaseBranch) => Effect.runPromise(Effect.gen(function* () {
+const getDiffInfo = (directory, explicitBaseBranch, options) => Effect.runPromise(Effect.gen(function* () {
 	const selection = yield* (yield* Git).diffSelection({
 		directory,
-		explicitBaseBranch
+		explicitBaseBranch,
+		useParentBranch: options?.useParentBranch
 	});
 	if (selection === null) return null;
 	return {

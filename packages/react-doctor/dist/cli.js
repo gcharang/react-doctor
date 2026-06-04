@@ -49036,6 +49036,13 @@ const GIT_REF_NAME_RULE = "must match [A-Za-z0-9_./-] without leading '-', '..',
 /** git's two range operators: two-dot (direct) and three-dot (merge-base). */
 const DIFF_RANGE_OPERATOR = "..";
 const SYMMETRIC_DIFF_RANGE_OPERATOR = "...";
+/**
+* Bounded fan-out for `--diff parent` branch ranking. A repo with many
+* local branches would otherwise spawn one `git merge-base` + one
+* `git rev-list` process per branch all at once; cap the in-flight count
+* so detection stays a handful of concurrent subprocesses.
+*/
+const PARENT_BRANCH_DETECTION_CONCURRENCY = 8;
 const isSafeGitRevision = (candidate) => {
 	if (candidate.length === 0) return false;
 	if (candidate.startsWith("-")) return false;
@@ -49177,6 +49184,66 @@ var Git = class Git extends Context.Service()("react-doctor/Git") {
 			if (candidates.status !== 0) return null;
 			return trimOrNull(candidates.stdout.split("\n")[0] ?? "");
 		});
+		/**
+		* Heuristic "parent branch" detection for `--diff parent`. Git has no
+		* native notion of the branch a branch was forked from, so we rank
+		* every other local branch by how recently its history diverged from
+		* `HEAD`: the branch whose merge-base with `HEAD` is closest (fewest
+		* commits in `mergeBase..HEAD`) is the most likely parent. This
+		* correctly prefers an intermediate integration branch (e.g. a
+		* `pinned` branch forked from `main`) over the default branch for
+		* stacked workflows.
+		*
+		* Returns `null` (caller falls back to the default branch) when there
+		* are no other branches, none share history with `HEAD`, or every
+		* candidate is an ancestor of / identical to `HEAD` — zero divergence
+		* means a child or sibling, never a parent.
+		*
+		* Resilience mirrors `currentBranch`: a per-branch git hiccup drops
+		* that candidate rather than aborting the whole scan.
+		*/
+		const parentBranch = (directory, currentBranchName) => Effect.gen(function* () {
+			const listing = yield* runGit(directory, [
+				"for-each-ref",
+				"--format=%(refname:short)",
+				"refs/heads/"
+			]);
+			if (listing.status !== 0) return null;
+			const candidates = listing.stdout.split("\n").map((line) => line.trim()).filter((name) => name.length > 0 && name !== currentBranchName && isSafeGitRevision(name));
+			if (candidates.length === 0) return null;
+			const scored = (yield* Effect.all(candidates.map((name) => Effect.gen(function* () {
+				const mergeBase = yield* runGit(directory, [
+					"merge-base",
+					name,
+					"HEAD"
+				]);
+				if (mergeBase.status !== 0) return null;
+				const mergeBaseRef = trimOrNull(mergeBase.stdout);
+				if (mergeBaseRef === null) return null;
+				const count = yield* runGit(directory, [
+					"rev-list",
+					"--count",
+					`${mergeBaseRef}..HEAD`
+				]);
+				if (count.status !== 0) return null;
+				const distance = Number.parseInt(trimOrNull(count.stdout) ?? "", 10);
+				if (!Number.isInteger(distance) || distance <= 0) return null;
+				return {
+					name,
+					distance
+				};
+			}).pipe(Effect.orElseSucceed(() => null))), { concurrency: PARENT_BRANCH_DETECTION_CONCURRENCY })).filter((entry) => entry !== null);
+			if (scored.length === 0) return null;
+			const repoDefaultBranch = yield* defaultBranch(directory);
+			scored.sort((a, b) => {
+				if (a.distance !== b.distance) return a.distance - b.distance;
+				const aIsDefault = a.name === repoDefaultBranch ? 0 : 1;
+				const bIsDefault = b.name === repoDefaultBranch ? 0 : 1;
+				if (aIsDefault !== bIsDefault) return aIsDefault - bIsDefault;
+				return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+			});
+			return scored[0]?.name ?? null;
+		});
 		const branchExists = (directory, branch) => runGit(directory, [
 			"rev-parse",
 			"--verify",
@@ -49269,7 +49336,7 @@ var Git = class Git extends Context.Service()("react-doctor/Git") {
 			githubRepo,
 			githubViewerPermission,
 			branchExists,
-			diffSelection: ({ directory, explicitBaseBranch }) => Effect.gen(function* () {
+			diffSelection: ({ directory, explicitBaseBranch, useParentBranch }) => Effect.gen(function* () {
 				if (explicitBaseBranch !== void 0 && explicitBaseBranch.trim().length === 0) return yield* Effect.fail(new ReactDoctorError({ reason: new GitBaseBranchInvalid({ detail: "Diff base branch cannot be empty." }) }));
 				if (explicitBaseBranch !== void 0) {
 					const range = parseGitDiffRange(explicitBaseBranch);
@@ -49282,7 +49349,8 @@ var Git = class Git extends Context.Service()("react-doctor/Git") {
 				}
 				const resolvedCurrentBranch = yield* currentBranch(directory);
 				if (resolvedCurrentBranch === null && explicitBaseBranch === void 0) return null;
-				const baseBranch = explicitBaseBranch ?? (yield* defaultBranch(directory));
+				const detectedParentBranch = useParentBranch && explicitBaseBranch === void 0 && resolvedCurrentBranch !== null ? yield* parentBranch(directory, resolvedCurrentBranch) : null;
+				const baseBranch = explicitBaseBranch ?? detectedParentBranch ?? (yield* defaultBranch(directory));
 				if (baseBranch === null) return null;
 				if (explicitBaseBranch !== void 0) {
 					if (!(yield* branchExists(directory, explicitBaseBranch))) return yield* Effect.fail(new ReactDoctorError({ reason: new GitBaseBranchMissing({ branch: explicitBaseBranch }) }));
@@ -51688,10 +51756,11 @@ const buildSkippedChecks = (input) => {
 * render diff-base mistakes (`GitBaseBranchInvalid` /
 * `GitBaseBranchMissing`) as clean user errors instead of crashes.
 */
-const getDiffInfo = (directory, explicitBaseBranch) => Effect.runPromise(Effect.gen(function* () {
+const getDiffInfo = (directory, explicitBaseBranch, options) => Effect.runPromise(Effect.gen(function* () {
 	const selection = yield* (yield* Git).diffSelection({
 		directory,
-		explicitBaseBranch
+		explicitBaseBranch,
+		useParentBranch: options?.useParentBranch
 	});
 	if (selection === null) return null;
 	return {
@@ -59297,6 +59366,28 @@ const printAgentInstallHint = (writeLine = defaultWriteLine) => {
 	for (const line of AGENT_INSTALL_HINT_LINES) writeLine(line);
 };
 //#endregion
+//#region src/cli/utils/coerce-diff-value.ts
+/**
+* Reserved `--diff` value that triggers parent-branch auto-detection —
+* diff against the branch HEAD forked from (nearest merge-base) instead of
+* the repo default branch. Stays a plain string through `coerceDiffValue`
+* (it is not a boolean alias); callers detect it before treating the value
+* as a literal base ref. A branch literally named `parent` can still be
+* targeted explicitly via `--diff heads/parent`.
+*/
+const DIFF_PARENT_BASE = "parent";
+const coerceDiffValue = (value) => {
+	if (value === void 0) return void 0;
+	if (typeof value === "boolean") return value;
+	if (typeof value === "string") {
+		if (value.length === 0) return void 0;
+		if (value === "false") return false;
+		if (value === "true") return true;
+		return value;
+	}
+	process.stderr.write(`[react-doctor] invalid diff value (expected boolean or string): ${typeof value}. Falling back to no diff.\n`);
+};
+//#endregion
 //#region src/cli/utils/resolve-parallel-flag.ts
 /**
 * Maps the `--no-parallel` flag to an `InspectOptions.concurrency` value.
@@ -59342,7 +59433,8 @@ const resolveDiffMode = async (diffInfo, effectiveDiff, shouldSkipPrompts, isQui
 	if (effectiveDiff !== void 0 && effectiveDiff !== false) {
 		if (diffInfo) return true;
 		if (!isQuiet) {
-			if (typeof effectiveDiff === "string") cliLogger.warn(`Could not compute diff against "${effectiveDiff}" (merge-base failed or HEAD has no history). Running full scan.`);
+			if (effectiveDiff === "parent") cliLogger.warn("Could not detect a parent branch to diff against (no diverging branch found). Running full scan.");
+			else if (typeof effectiveDiff === "string") cliLogger.warn(`Could not compute diff against "${effectiveDiff}" (merge-base failed or HEAD has no history). Running full scan.`);
 			else cliLogger.warn("No feature branch or uncommitted changes detected. Running full scan.");
 			cliLogger.break();
 		}
@@ -59369,19 +59461,6 @@ const resolveDiffMode = async (diffInfo, effectiveDiff, shouldSkipPrompts, isQui
 		initial: diffInfo.isCurrentChanges ? 0 : 1
 	});
 	return scanScope === "branch";
-};
-//#endregion
-//#region src/cli/utils/coerce-diff-value.ts
-const coerceDiffValue = (value) => {
-	if (value === void 0) return void 0;
-	if (typeof value === "boolean") return value;
-	if (typeof value === "string") {
-		if (value.length === 0) return void 0;
-		if (value === "false") return false;
-		if (value === "true") return true;
-		return value;
-	}
-	process.stderr.write(`[react-doctor] invalid diff value (expected boolean or string): ${typeof value}. Falling back to no diff.\n`);
 };
 //#endregion
 //#region src/cli/utils/resolve-effective-diff.ts
@@ -59751,7 +59830,8 @@ const inspectAction = async (directory, flags) => {
 		const projectDirectories = await selectProjects(resolvedDirectory, flags.project, skipPrompts);
 		const changedFilesDiffInfo = flags.changedFilesFrom && !flags.full ? buildChangedFilesDiffInfo(readChangedFilesFrom(path$1.resolve(flags.changedFilesFrom))) : null;
 		const effectiveDiff = resolveEffectiveDiff(flags, userConfig);
-		const diffInfo = changedFilesDiffInfo ?? (changedFilesDiffInfo === null && (effectiveDiff !== void 0 && effectiveDiff !== false || !skipPrompts && !isQuiet) ? await getDiffInfo(resolvedDirectory, typeof effectiveDiff === "string" ? effectiveDiff : void 0) : null);
+		const wantsParentBranch = effectiveDiff === DIFF_PARENT_BASE;
+		const diffInfo = changedFilesDiffInfo ?? (changedFilesDiffInfo === null && (effectiveDiff !== void 0 && effectiveDiff !== false || !skipPrompts && !isQuiet) ? await getDiffInfo(resolvedDirectory, typeof effectiveDiff === "string" && !wantsParentBranch ? effectiveDiff : void 0, { useParentBranch: wantsParentBranch }) : null);
 		const isDiffMode = changedFilesDiffInfo !== null || await resolveDiffMode(diffInfo, effectiveDiff, skipPrompts, isQuiet);
 		setJsonReportMode(isDiffMode ? "diff" : "full");
 		if (isDiffMode && diffInfo && !isQuiet) {
@@ -60708,6 +60788,7 @@ ${formatExampleLines([
 	["react-doctor", "scan the current project"],
 	["react-doctor ./apps/web", "scan a specific directory"],
 	["react-doctor --diff main", "scan only files changed vs. main"],
+	["react-doctor --diff parent", "scan changes vs. the branch you forked from"],
 	["react-doctor --staged", "scan staged files (pre-commit hook)"],
 	["react-doctor --fail-on warning", "exit non-zero on warnings (CI gate)"],
 	["react-doctor --json > report.json", "write a machine-readable report"],
@@ -60737,7 +60818,7 @@ ${formatExampleLines([
 ${highlighter.dim("Learn more:")}
   ${highlighter.info(CANONICAL_GITHUB_URL)}
 `;
-const program = new Command().name("react-doctor").description("Diagnose React codebase health").version(VERSION, "-v, --version", "display the version number").argument("[directory]", "project directory to scan", ".").option("--lint", "enable linting").option("--no-lint", "skip linting").option("--dead-code", "enable dead-code analysis (default)").option("--no-dead-code", "skip dead-code analysis (unused files / exports / dependencies, circular imports)").option("--verbose", "show every rule and per-file details (default shows top 3 rules)").option("--score", "output only the score").option("--json", "output a single structured JSON report (suppresses other output)").option("--json-compact", "with --json, emit compact JSON (no indentation)").option("-y, --yes", "skip prompts, scan all workspace projects").option("--full", "force a full scan (overrides any `diff` value in config or `--diff`)").option("--no-parallel", "lint serially with one worker (default: parallel across CPU cores; set the worker count with REACT_DOCTOR_PARALLEL)").option("--project <name>", "select workspace project (comma-separated for multiple)").option("--diff [base]", "scan only files changed vs base branch (pass `false` to disable; overridden by --full)").option("--changed-files-from <file>", "internal: scan source files listed in a newline-delimited changed-files file").option("--no-score", "skip the score API, the share URL, and crash reporting").option("--no-telemetry", "alias for --no-score (skip the score API, share URL, and crash reporting)").option("--staged", "scan only staged (git index) files for pre-commit hooks").option("--fail-on <level>", "exit with error code on diagnostics: error, warning, none (default: none)").option("--annotations", "output diagnostics as GitHub Actions annotations").option("--pr-comment", "tune CLI output for sticky PR comments (drops weak-signal rule families like `design` from the printed list and the fail-on gate; configure via config.surfaces)").option("--explain <file:line>", "diagnose why a rule fired or why a suppression didn't apply at a specific location").option("--why <file:line>", "alias for --explain").option("--respect-inline-disables", "respect inline `// eslint-disable*` / `// oxlint-disable*` comments (default)").option("--no-respect-inline-disables", "audit mode: neutralize inline lint suppressions before scanning").option("--warnings", "show warning-severity diagnostics (default)").option("--no-warnings", "hide warning-severity diagnostics (errors only)").option("--color", "force colored output").option("--no-color", "disable colored output (also honors NO_COLOR)").addHelpText("after", renderRootHelpEpilog);
+const program = new Command().name("react-doctor").description("Diagnose React codebase health").version(VERSION, "-v, --version", "display the version number").argument("[directory]", "project directory to scan", ".").option("--lint", "enable linting").option("--no-lint", "skip linting").option("--dead-code", "enable dead-code analysis (default)").option("--no-dead-code", "skip dead-code analysis (unused files / exports / dependencies, circular imports)").option("--verbose", "show every rule and per-file details (default shows top 3 rules)").option("--score", "output only the score").option("--json", "output a single structured JSON report (suppresses other output)").option("--json-compact", "with --json, emit compact JSON (no indentation)").option("-y, --yes", "skip prompts, scan all workspace projects").option("--full", "force a full scan (overrides any `diff` value in config or `--diff`)").option("--no-parallel", "lint serially with one worker (default: parallel across CPU cores; set the worker count with REACT_DOCTOR_PARALLEL)").option("--project <name>", "select workspace project (comma-separated for multiple)").option("--diff [base]", "scan only files changed vs base branch (use `parent` to auto-detect the branch you forked from; pass `false` to disable; overridden by --full)").option("--changed-files-from <file>", "internal: scan source files listed in a newline-delimited changed-files file").option("--no-score", "skip the score API, the share URL, and crash reporting").option("--no-telemetry", "alias for --no-score (skip the score API, share URL, and crash reporting)").option("--staged", "scan only staged (git index) files for pre-commit hooks").option("--fail-on <level>", "exit with error code on diagnostics: error, warning, none (default: none)").option("--annotations", "output diagnostics as GitHub Actions annotations").option("--pr-comment", "tune CLI output for sticky PR comments (drops weak-signal rule families like `design` from the printed list and the fail-on gate; configure via config.surfaces)").option("--explain <file:line>", "diagnose why a rule fired or why a suppression didn't apply at a specific location").option("--why <file:line>", "alias for --explain").option("--respect-inline-disables", "respect inline `// eslint-disable*` / `// oxlint-disable*` comments (default)").option("--no-respect-inline-disables", "audit mode: neutralize inline lint suppressions before scanning").option("--warnings", "show warning-severity diagnostics (default)").option("--no-warnings", "hide warning-severity diagnostics (errors only)").option("--color", "force colored output").option("--no-color", "disable colored output (also honors NO_COLOR)").addHelpText("after", renderRootHelpEpilog);
 program.action(inspectAction);
 program.command("install").alias("setup").description("Install the react-doctor skill into your coding agents and optional git hook").option("-y, --yes", "skip prompts, install for all detected agents").option("--dry-run", "show what would be installed without writing files").option("--agent-hooks", "install native non-blocking agent hooks for Claude Code and Cursor").option("-c, --cwd <cwd>", "working directory", process.cwd()).option("--color", "force colored output").option("--no-color", "disable colored output (also honors NO_COLOR)").addHelpText("after", renderInstallHelpEpilog).action(installAction);
 program.command("version").description("show the version with Node and platform info").option("--color", "force colored output").option("--no-color", "disable colored output (also honors NO_COLOR)").action(versionAction);

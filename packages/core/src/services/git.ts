@@ -63,6 +63,14 @@ const GIT_REF_NAME_RULE = "must match [A-Za-z0-9_./-] without leading '-', '..',
 const DIFF_RANGE_OPERATOR = "..";
 const SYMMETRIC_DIFF_RANGE_OPERATOR = "...";
 
+/**
+ * Bounded fan-out for `--diff parent` branch ranking. A repo with many
+ * local branches would otherwise spawn one `git merge-base` + one
+ * `git rev-list` process per branch all at once; cap the in-flight count
+ * so detection stays a handful of concurrent subprocesses.
+ */
+const PARENT_BRANCH_DETECTION_CONCURRENCY = 8;
+
 const isSafeGitRevision = (candidate: string): boolean => {
   if (candidate.length === 0) return false;
   if (candidate.startsWith("-")) return false;
@@ -156,6 +164,14 @@ export interface GitDiffSelection {
 interface GitDiffSelectionInput {
   readonly directory: string;
   readonly explicitBaseBranch?: string;
+  /**
+   * When `true` and no `explicitBaseBranch` is given, resolve the base by
+   * detecting the branch the current branch most likely forked from (the
+   * nearest merge-base) instead of the repository default branch. Falls
+   * back to the default branch when no parent can be inferred. Ignored
+   * when `explicitBaseBranch` is set or `HEAD` is detached.
+   */
+  readonly useParentBranch?: boolean;
 }
 
 interface GitShowOptions {
@@ -369,6 +385,88 @@ export class Git extends Context.Service<
           return trimOrNull(candidates.stdout.split("\n")[0] ?? "");
         });
 
+      /**
+       * Heuristic "parent branch" detection for `--diff parent`. Git has no
+       * native notion of the branch a branch was forked from, so we rank
+       * every other local branch by how recently its history diverged from
+       * `HEAD`: the branch whose merge-base with `HEAD` is closest (fewest
+       * commits in `mergeBase..HEAD`) is the most likely parent. This
+       * correctly prefers an intermediate integration branch (e.g. a
+       * `pinned` branch forked from `main`) over the default branch for
+       * stacked workflows.
+       *
+       * Returns `null` (caller falls back to the default branch) when there
+       * are no other branches, none share history with `HEAD`, or every
+       * candidate is an ancestor of / identical to `HEAD` — zero divergence
+       * means a child or sibling, never a parent.
+       *
+       * Resilience mirrors `currentBranch`: a per-branch git hiccup drops
+       * that candidate rather than aborting the whole scan.
+       */
+      const parentBranch = (
+        directory: string,
+        currentBranchName: string,
+      ): Effect.Effect<string | null, ReactDoctorError> =>
+        Effect.gen(function* () {
+          const listing = yield* runGit(directory, [
+            "for-each-ref",
+            "--format=%(refname:short)",
+            "refs/heads/",
+          ]);
+          if (listing.status !== 0) return null;
+          const candidates = listing.stdout
+            .split("\n")
+            .map((line) => line.trim())
+            // A branch is never its own parent; and only feed names that
+            // survive the flag-injection guard to `git merge-base` as a
+            // positional ref (defense in depth — these come from git itself).
+            .filter(
+              (name) => name.length > 0 && name !== currentBranchName && isSafeGitRevision(name),
+            );
+          if (candidates.length === 0) return null;
+
+          const ranked = yield* Effect.all(
+            candidates.map((name) =>
+              Effect.gen(function* () {
+                const mergeBase = yield* runGit(directory, ["merge-base", name, "HEAD"]);
+                if (mergeBase.status !== 0) return null; // unrelated history — not a parent
+                const mergeBaseRef = trimOrNull(mergeBase.stdout);
+                if (mergeBaseRef === null) return null;
+                const count = yield* runGit(directory, [
+                  "rev-list",
+                  "--count",
+                  `${mergeBaseRef}..HEAD`,
+                ]);
+                if (count.status !== 0) return null;
+                const distance = Number.parseInt(trimOrNull(count.stdout) ?? "", 10);
+                // distance 0 ⇒ the merge-base IS HEAD: the branch is an
+                // ancestor of (or equal to) HEAD — a child/sibling, not a parent.
+                if (!Number.isInteger(distance) || distance <= 0) return null;
+                return { name, distance };
+              }).pipe(Effect.orElseSucceed(() => null)),
+            ),
+            { concurrency: PARENT_BRANCH_DETECTION_CONCURRENCY },
+          );
+
+          const scored = ranked.filter(
+            (entry): entry is { name: string; distance: number } => entry !== null,
+          );
+          if (scored.length === 0) return null;
+
+          const repoDefaultBranch = yield* defaultBranch(directory);
+          // Nearest fork point wins. Ties — distinct branches that share the
+          // same merge-base commit, so the diff is identical regardless —
+          // resolve deterministically: prefer the default branch, then name.
+          scored.sort((a, b) => {
+            if (a.distance !== b.distance) return a.distance - b.distance;
+            const aIsDefault = a.name === repoDefaultBranch ? 0 : 1;
+            const bIsDefault = b.name === repoDefaultBranch ? 0 : 1;
+            if (aIsDefault !== bIsDefault) return aIsDefault - bIsDefault;
+            return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+          });
+          return scored[0]?.name ?? null;
+        });
+
       const branchExists = (
         directory: string,
         branch: string,
@@ -519,7 +617,7 @@ export class Git extends Context.Service<
         githubRepo,
         githubViewerPermission,
         branchExists,
-        diffSelection: ({ directory, explicitBaseBranch }) =>
+        diffSelection: ({ directory, explicitBaseBranch, useParentBranch }) =>
           Effect.gen(function* () {
             if (explicitBaseBranch !== undefined && explicitBaseBranch.trim().length === 0) {
               return yield* Effect.fail(
@@ -556,7 +654,21 @@ export class Git extends Context.Service<
             // branch is detached AND the caller didn't pin a base.
             if (resolvedCurrentBranch === null && explicitBaseBranch === undefined) return null;
 
-            const baseBranch = explicitBaseBranch ?? (yield* defaultBranch(directory));
+            // `--diff parent`: resolve the branch HEAD forked from. Skipped
+            // when an explicit base is pinned or HEAD is detached; falls back
+            // to the repo default branch when no parent can be inferred. A
+            // detected parent is not re-validated with `branchExists` (unlike
+            // an explicit base): `parentBranch` only returns branches whose
+            // merge-base with HEAD already resolved, so the shared merge-base
+            // path below succeeds — or, if the branch vanished mid-run,
+            // degrades to a full scan like any other merge-base failure.
+            const detectedParentBranch =
+              useParentBranch && explicitBaseBranch === undefined && resolvedCurrentBranch !== null
+                ? yield* parentBranch(directory, resolvedCurrentBranch)
+                : null;
+
+            const baseBranch =
+              explicitBaseBranch ?? detectedParentBranch ?? (yield* defaultBranch(directory));
             if (baseBranch === null) return null;
 
             if (explicitBaseBranch !== undefined) {

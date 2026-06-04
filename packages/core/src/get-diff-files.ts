@@ -19,11 +19,16 @@ import type { DiffInfo } from "./types/index.js";
 export const getDiffInfo = (
   directory: string,
   explicitBaseBranch?: string,
+  options?: { readonly useParentBranch?: boolean },
 ): Promise<DiffInfo | null> =>
   Effect.runPromise(
     Effect.gen(function* () {
       const git = yield* Git;
-      const selection = yield* git.diffSelection({ directory, explicitBaseBranch });
+      const selection = yield* git.diffSelection({
+        directory,
+        explicitBaseBranch,
+        useParentBranch: options?.useParentBranch,
+      });
       if (selection === null) return null;
       return {
         currentBranch: selection.currentBranch,

@@ -1,6 +1,7 @@
 import { filterSourceFiles } from "@react-doctor/core";
 import type { DiffInfo } from "@react-doctor/core";
 import { cliLogger as logger } from "./cli-logger.js";
+import { DIFF_PARENT_BASE } from "./coerce-diff-value.js";
 import { prompts } from "./prompts.js";
 
 export const resolveDiffMode = async (
@@ -12,12 +13,16 @@ export const resolveDiffMode = async (
   if (effectiveDiff !== undefined && effectiveDiff !== false) {
     if (diffInfo) return true;
     if (!isQuiet) {
-      // Differentiate the two failure modes so silent CI scope-drops
-      // surface immediately. When `--diff <base>` was passed
-      // explicitly, the user expects a scoped scan — saying "no
-      // feature branch detected" is misleading because they told us
-      // exactly what to diff against.
-      if (typeof effectiveDiff === "string") {
+      // Differentiate the failure modes so silent CI scope-drops surface
+      // immediately. `--diff parent` is auto-detection, so a ref-name
+      // message would be misleading; an explicit `--diff <base>` means the
+      // user expects a scoped scan, so "no feature branch detected" would be
+      // wrong because they told us exactly what to diff against.
+      if (effectiveDiff === DIFF_PARENT_BASE) {
+        logger.warn(
+          "Could not detect a parent branch to diff against (no diverging branch found). Running full scan.",
+        );
+      } else if (typeof effectiveDiff === "string") {
         logger.warn(
           `Could not compute diff against "${effectiveDiff}" (merge-base failed or HEAD has no history). Running full scan.`,
         );

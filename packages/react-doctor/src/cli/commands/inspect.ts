@@ -50,6 +50,7 @@ import {
   resolveInstallSetupProjectRoot,
   shouldShowAgentInstallHint,
 } from "../utils/prompt-install-setup.js";
+import { DIFF_PARENT_BASE } from "../utils/coerce-diff-value.js";
 import { resolveCliInspectOptions } from "../utils/resolve-cli-inspect-options.js";
 import { resolveDiffMode } from "../utils/resolve-diff-mode.js";
 import { resolveEffectiveDiff } from "../utils/resolve-effective-diff.js";
@@ -307,7 +308,12 @@ export const inspectAction = async (directory: string, flags: InspectFlags): Pro
         ? buildChangedFilesDiffInfo(readChangedFilesFrom(path.resolve(flags.changedFilesFrom)))
         : null;
     const effectiveDiff = resolveEffectiveDiff(flags, userConfig);
-    const explicitBaseBranch = typeof effectiveDiff === "string" ? effectiveDiff : undefined;
+    // `--diff parent` is a reserved sentinel (auto-detect the forked-from
+    // branch), not a literal base ref — route it to parent detection and
+    // keep `explicitBaseBranch` unset.
+    const wantsParentBranch = effectiveDiff === DIFF_PARENT_BASE;
+    const explicitBaseBranch =
+      typeof effectiveDiff === "string" && !wantsParentBranch ? effectiveDiff : undefined;
     const wantsDiffMode = effectiveDiff !== undefined && effectiveDiff !== false;
     // HACK: also call getDiffInfo when we MIGHT prompt the user — without
     // it, resolveDiffMode short-circuits at !diffInfo and the
@@ -317,7 +323,11 @@ export const inspectAction = async (directory: string, flags: InspectFlags): Pro
       changedFilesDiffInfo === null && (wantsDiffMode || (!skipPrompts && !isQuiet));
     const diffInfo =
       changedFilesDiffInfo ??
-      (shouldDetectDiff ? await getDiffInfo(resolvedDirectory, explicitBaseBranch) : null);
+      (shouldDetectDiff
+        ? await getDiffInfo(resolvedDirectory, explicitBaseBranch, {
+            useParentBranch: wantsParentBranch,
+          })
+        : null);
     const isDiffMode =
       changedFilesDiffInfo !== null ||
       (await resolveDiffMode(diffInfo, effectiveDiff, skipPrompts, isQuiet));

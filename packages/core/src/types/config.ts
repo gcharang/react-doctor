@@ -147,6 +147,15 @@ export interface ReactDoctorConfig {
    * `rules` / `categories`) still shows even when `warnings` is `false`.
    */
   warnings?: boolean;
+  /**
+   * Scope scans to changed files. `true` diffs against the default branch
+   * (`main`/`master`); a string pins an explicit base ref (e.g. `"develop"`)
+   * or commit range (`"main..HEAD"`). The reserved value `"parent"`
+   * auto-detects the branch the current branch forked from (nearest
+   * merge-base) — handy for stacked branches — and falls back to the
+   * default branch when none is found. Equivalent to the `--diff` flag;
+   * `--full` (or `--diff false`) overrides it.
+   */
   diff?: boolean | string;
   failOn?: FailOnLevel;
   customRulesOnly?: boolean;
