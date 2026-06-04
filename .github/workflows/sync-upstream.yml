@@ -56,22 +56,18 @@ jobs:
           echo "upstream_sha=${upstream_sha}" >> "$GITHUB_OUTPUT"
 
           # main carries our own sync-workflow commit (and merge commits), so it is
-          # never byte-equal to upstream. "Up to date" means upstream is already
+          # never byte-equal to upstream. Upstream is "already merged" once it is
           # fully contained in main.
           if git merge-base --is-ancestor "upstream/${UPSTREAM_BRANCH}" "origin/${FORK_BRANCH}"; then
-            echo "main already contains upstream/${UPSTREAM_BRANCH} (${upstream_sha}). Nothing to sync."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "main already contains upstream/${UPSTREAM_BRANCH} (${upstream_sha})."
+            echo "upstream_changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "Upstream has commits not in main; will merge."
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "upstream_changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: No-op exit
-        if: steps.delta.outputs.changed == 'false'
-        run: echo "Nothing to sync. Exiting cleanly."
-
       - name: Merge upstream into main and push
-        if: steps.delta.outputs.changed == 'true'
+        if: steps.delta.outputs.upstream_changed == 'true'
         run: |
           set -euo pipefail
           # Conflict-free in practice: main's only non-upstream content is this
@@ -85,8 +81,25 @@ jobs:
           # Push with GITHUB_TOKEN => does NOT trigger publish.yml/ci.yml (recursion guard).
           git push origin "HEAD:refs/heads/${FORK_BRANCH}"
 
-      - name: Build PR body (commits this PR would bring onto pinned)
-        if: steps.delta.outputs.changed == 'true'
+      - name: Decide whether a main -> pinned PR is needed
+        id: pr
+        run: |
+          set -euo pipefail
+          # Self-healing: open/refresh the PR whenever main carries commits pinned
+          # does not have yet (upstream commits + this workflow), regardless of
+          # whether THIS run merged anything. This retries a previously failed PR
+          # creation on the next run instead of stranding it until upstream moves.
+          ahead="$(git rev-list --count "origin/${PINNED_BRANCH}..HEAD")"
+          echo "main is ${ahead} commit(s) ahead of ${PINNED_BRANCH}."
+          if [ "${ahead}" -gt 0 ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pinned already contains everything on main; no PR needed."
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build PR body
+        if: steps.pr.outputs.needed == 'true'
         env:
           NEW_SHA: ${{ steps.delta.outputs.upstream_sha }}
         run: |
@@ -95,21 +108,22 @@ jobs:
             echo "Automated upstream sync."
             echo
             echo "- Upstream: \`${UPSTREAM_REPO}@${UPSTREAM_BRANCH}\`"
-            echo "- Synced up to upstream \`${NEW_SHA:0:12}\` (merged into \`${FORK_BRANCH}\`)."
+            echo "- \`${FORK_BRANCH}\` is synced up to upstream \`${NEW_SHA:0:12}\`."
             echo
-            echo "## Upstream commits this PR brings onto \`${PINNED_BRANCH}\`"
+            echo "## Commits this PR brings onto \`${PINNED_BRANCH}\`"
             echo
             # Everything the PR would add to pinned, excluding merge commits.
             git log --no-merges --pretty=format:'- %h %s (%an)' "origin/${PINNED_BRANCH}..HEAD"
             echo
             echo
-            echo "Conflicts (if any) on the harden commit's files are expected and shown in the PR UI; resolve them in the merge."
+            echo "Merge with a **merge commit** (not squash) so reachability stays accurate for the next sync."
+            echo "Conflicts on the harden commit's files are expected and shown in the PR UI; resolve them in the merge."
             echo
             echo "_Opened by the \`sync-upstream\` workflow. Do not auto-merge._"
           } > pr_body.md
 
       - name: Create or refresh PR (main -> pinned)
-        if: steps.delta.outputs.changed == 'true'
+        if: steps.pr.outputs.needed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_SHA: ${{ steps.delta.outputs.upstream_sha }}
@@ -117,7 +131,12 @@ jobs:
           set -euo pipefail
           title="Sync upstream into ${PINNED_BRANCH} (${NEW_SHA:0:12})"
 
+          # -R/--repo forces gh to act on THIS fork. Without it, gh defaults a
+          # fork's PR base to the parent repo (millionco/react-doctor), where
+          # GITHUB_TOKEN has no write access -> createPullRequest is denied with
+          # "Resource not accessible by integration".
           existing="$(gh pr list \
+            --repo "${GITHUB_REPOSITORY}" \
             --base "${PINNED_BRANCH}" \
             --head "${FORK_BRANCH}" \
             --state open \
@@ -126,10 +145,14 @@ jobs:
 
           if [ -n "${existing}" ]; then
             echo "Reusing existing open PR #${existing}; refreshing title and body."
-            gh pr edit "${existing}" --title "${title}" --body-file pr_body.md
+            gh pr edit "${existing}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${title}" \
+              --body-file pr_body.md
           else
             echo "No open PR found; creating one."
             gh pr create \
+              --repo "${GITHUB_REPOSITORY}" \
               --base "${PINNED_BRANCH}" \
               --head "${FORK_BRANCH}" \
               --title "${title}" \
