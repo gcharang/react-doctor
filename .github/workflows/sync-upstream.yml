@@ -1,0 +1,137 @@
+name: Sync upstream
+
+on:
+  schedule:
+    # Mondays 07:17 UTC. Off-the-hour to avoid GitHub's top-of-hour congestion.
+    - cron: "17 7 * * 1"
+  workflow_dispatch:
+
+# Never run two syncs at once; let an in-flight run finish its push.
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  UPSTREAM_REPO: millionco/react-doctor
+  UPSTREAM_BRANCH: main
+  FORK_BRANCH: main
+  PINNED_BRANCH: pinned
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the merged main
+      pull-requests: write # create/refresh the main -> pinned PR
+    steps:
+      - name: Checkout fork (full history)
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          # Full history so merge-base / merge / rev-list are accurate.
+          fetch-depth: 0
+          # Default true; keeps GITHUB_TOKEN in git config so `git push` is authed.
+          # Pushing with GITHUB_TOKEN deliberately does NOT trigger publish.yml/ci.yml.
+          persist-credentials: true
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote and fetch
+        run: |
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch --no-tags upstream "${UPSTREAM_BRANCH}"
+          git fetch --no-tags origin "${FORK_BRANCH}" "${PINNED_BRANCH}"
+
+      - name: Determine whether upstream is ahead
+        id: delta
+        run: |
+          set -euo pipefail
+          upstream_sha="$(git rev-parse "upstream/${UPSTREAM_BRANCH}")"
+          echo "upstream_sha=${upstream_sha}" >> "$GITHUB_OUTPUT"
+
+          # main carries our own sync-workflow commit (and merge commits), so it is
+          # never byte-equal to upstream. "Up to date" means upstream is already
+          # fully contained in main.
+          if git merge-base --is-ancestor "upstream/${UPSTREAM_BRANCH}" "origin/${FORK_BRANCH}"; then
+            echo "main already contains upstream/${UPSTREAM_BRANCH} (${upstream_sha}). Nothing to sync."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Upstream has commits not in main; will merge."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: No-op exit
+        if: steps.delta.outputs.changed == 'false'
+        run: echo "Nothing to sync. Exiting cleanly."
+
+      - name: Merge upstream into main and push
+        if: steps.delta.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          # Conflict-free in practice: main's only non-upstream content is this
+          # workflow file, which upstream never touches. Abort and fail loudly if a
+          # real conflict ever appears, rather than pushing a half-merged tree.
+          if ! git merge --no-edit "upstream/${UPSTREAM_BRANCH}"; then
+            git merge --abort || true
+            echo "::error::Merge of upstream/${UPSTREAM_BRANCH} into ${FORK_BRANCH} hit conflicts; resolve manually."
+            exit 1
+          fi
+          # Push with GITHUB_TOKEN => does NOT trigger publish.yml/ci.yml (recursion guard).
+          git push origin "HEAD:refs/heads/${FORK_BRANCH}"
+
+      - name: Build PR body (commits this PR would bring onto pinned)
+        if: steps.delta.outputs.changed == 'true'
+        env:
+          NEW_SHA: ${{ steps.delta.outputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Automated upstream sync."
+            echo
+            echo "- Upstream: \`${UPSTREAM_REPO}@${UPSTREAM_BRANCH}\`"
+            echo "- Synced up to upstream \`${NEW_SHA:0:12}\` (merged into \`${FORK_BRANCH}\`)."
+            echo
+            echo "## Upstream commits this PR brings onto \`${PINNED_BRANCH}\`"
+            echo
+            # Everything the PR would add to pinned, excluding merge commits.
+            git log --no-merges --pretty=format:'- %h %s (%an)' "origin/${PINNED_BRANCH}..HEAD"
+            echo
+            echo
+            echo "Conflicts (if any) on the harden commit's files are expected and shown in the PR UI; resolve them in the merge."
+            echo
+            echo "_Opened by the \`sync-upstream\` workflow. Do not auto-merge._"
+          } > pr_body.md
+
+      - name: Create or refresh PR (main -> pinned)
+        if: steps.delta.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_SHA: ${{ steps.delta.outputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+          title="Sync upstream into ${PINNED_BRANCH} (${NEW_SHA:0:12})"
+
+          existing="$(gh pr list \
+            --base "${PINNED_BRANCH}" \
+            --head "${FORK_BRANCH}" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [ -n "${existing}" ]; then
+            echo "Reusing existing open PR #${existing}; refreshing title and body."
+            gh pr edit "${existing}" --title "${title}" --body-file pr_body.md
+          else
+            echo "No open PR found; creating one."
+            gh pr create \
+              --base "${PINNED_BRANCH}" \
+              --head "${FORK_BRANCH}" \
+              --title "${title}" \
+              --body-file pr_body.md
+          fi
