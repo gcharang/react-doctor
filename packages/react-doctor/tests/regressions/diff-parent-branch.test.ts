@@ -83,6 +83,76 @@ describe("--diff parent: nearest-merge-base parent-branch detection", () => {
     expect(sortedChangedFiles(diffInfo?.changedFiles)).toEqual(["src/feature.tsx"]);
   });
 
+  it("excludes a child branch forked from a midpoint of the current branch and picks the true parent", async () => {
+    // #given main → integration → feature(feature1, feature2), and a `child`
+    // branch forked from feature's FIRST commit. child's merge-base with HEAD
+    // is that midpoint (distance 1) — nearer than integration (distance 2) —
+    // so nearest-merge-base alone would wrongly pick child and scope the scan
+    // to only feature's last commit.
+    const repoDir = initRepoWithApp("child-midpoint");
+
+    git(repoDir, "checkout", "-q", "-b", "integration");
+    writeFile(
+      path.join(repoDir, "src", "integration.tsx"),
+      "export const Integration = () => null;\n",
+    );
+    commitAll(repoDir, "integration work");
+
+    git(repoDir, "checkout", "-q", "-b", "feature");
+    writeFile(path.join(repoDir, "src", "feature1.tsx"), "export const Feature1 = () => null;\n");
+    const feature1 = commitAll(repoDir, "feature work 1");
+    writeFile(path.join(repoDir, "src", "feature2.tsx"), "export const Feature2 = () => null;\n");
+    commitAll(repoDir, "feature work 2");
+
+    git(repoDir, "checkout", "-q", "-b", "child", feature1);
+    writeFile(path.join(repoDir, "src", "child.tsx"), "export const Child = () => null;\n");
+    commitAll(repoDir, "child work");
+
+    git(repoDir, "checkout", "-q", "feature");
+
+    // #when parent detection runs on `feature`
+    const diffInfo = await getDiffInfo(repoDir, undefined, { useParentBranch: true });
+
+    // #then `child` is excluded — it has its own commit, so it is not an
+    // ancestor of HEAD — leaving `integration` as the nearest ancestor. BOTH of
+    // feature's commits are in scope, not just the last one.
+    expect(diffInfo?.baseBranch).toBe("integration");
+    expect(sortedChangedFiles(diffInfo?.changedFiles)).toEqual([
+      "src/feature1.tsx",
+      "src/feature2.tsx",
+    ]);
+  });
+
+  it("excludes a child branch and falls back to the default branch when there is no intermediate parent", async () => {
+    // #given main → feature(feature1, feature2), and a `child` forked from
+    // feature's first commit. child's merge-base (distance 1) is nearer than
+    // main (distance 2), so nearest-merge-base alone would pick child.
+    const repoDir = initRepoWithApp("child-simple");
+
+    git(repoDir, "checkout", "-q", "-b", "feature");
+    writeFile(path.join(repoDir, "src", "feature1.tsx"), "export const Feature1 = () => null;\n");
+    const feature1 = commitAll(repoDir, "feature work 1");
+    writeFile(path.join(repoDir, "src", "feature2.tsx"), "export const Feature2 = () => null;\n");
+    commitAll(repoDir, "feature work 2");
+
+    git(repoDir, "checkout", "-q", "-b", "child", feature1);
+    writeFile(path.join(repoDir, "src", "child.tsx"), "export const Child = () => null;\n");
+    commitAll(repoDir, "child work");
+
+    git(repoDir, "checkout", "-q", "feature");
+
+    // #when parent detection runs on `feature`
+    const diffInfo = await getDiffInfo(repoDir, undefined, { useParentBranch: true });
+
+    // #then `child` is excluded (non-ancestor); `main`, the only ancestor, wins
+    // and both of feature's commits are in scope.
+    expect(diffInfo?.baseBranch).toBe("main");
+    expect(sortedChangedFiles(diffInfo?.changedFiles)).toEqual([
+      "src/feature1.tsx",
+      "src/feature2.tsx",
+    ]);
+  });
+
   it("degrades to default-branch behavior when no sibling branch exists", async () => {
     // #given a lone `main` with an uncommitted change to a tracked file
     const repoDir = initRepoWithApp("no-sibling");
@@ -97,17 +167,23 @@ describe("--diff parent: nearest-merge-base parent-branch detection", () => {
     expect(sortedChangedFiles(diffInfo?.changedFiles)).toEqual(["src/app.tsx"]);
   });
 
-  it("breaks ties among equidistant non-default branches by name, not by picking the default branch", async () => {
-    // #given main → base → {sibling, feature}, sibling and feature both forked
-    // from base at the same commit. So `base` and `sibling` share feature's
-    // merge-base (distance 1) while `main` is farther (distance 2).
-    const repoDir = initRepoWithApp("sibling-tie");
+  it("excludes a non-ancestor sibling and breaks ties among equidistant ancestors by name", async () => {
+    // #given main → base(base.tsx); `base2` points at base's commit too; then
+    // both `feature` and a divergent `a-sibling` fork from base. For `feature`,
+    // `base` and `base2` are equidistant ancestors (distance 1), `main` is
+    // farther (distance 2), and `a-sibling` — carrying its own commit — is a
+    // non-ancestor of HEAD at distance 1. Its name sorts before `base`, so on
+    // nearest-merge-base alone it would win the tie — the ancestry gate is the
+    // only thing that drops it.
+    const repoDir = initRepoWithApp("sibling-and-tie");
 
     git(repoDir, "checkout", "-q", "-b", "base");
     writeFile(path.join(repoDir, "src", "base.tsx"), "export const Base = () => null;\n");
     commitAll(repoDir, "base work");
+    // a second branch sitting on the exact same commit as `base`
+    git(repoDir, "branch", "base2");
 
-    git(repoDir, "checkout", "-q", "-b", "sibling");
+    git(repoDir, "checkout", "-q", "-b", "a-sibling");
     writeFile(path.join(repoDir, "src", "sibling.tsx"), "export const Sibling = () => null;\n");
     commitAll(repoDir, "sibling work");
 
@@ -119,9 +195,10 @@ describe("--diff parent: nearest-merge-base parent-branch detection", () => {
     // #when parent detection runs on `feature`
     const diffInfo = await getDiffInfo(repoDir, undefined, { useParentBranch: true });
 
-    // #then the nearest fork point wins over the farther default branch, and
-    // the distance-1 tie between `base` and `sibling` (neither is the default)
-    // resolves lexicographically to `base`. The diff is scoped to feature's commit.
+    // #then `a-sibling` is dropped (non-ancestor) despite sorting first, and the
+    // `base`/`base2` tie at the nearest fork point resolves lexicographically to
+    // `base` — not the farther default branch. The diff is scoped to feature's
+    // own commit.
     expect(diffInfo?.baseBranch).toBe("base");
     expect(sortedChangedFiles(diffInfo?.changedFiles)).toEqual(["src/feature.tsx"]);
   });

@@ -387,18 +387,24 @@ export class Git extends Context.Service<
 
       /**
        * Heuristic "parent branch" detection for `--diff parent`. Git has no
-       * native notion of the branch a branch was forked from, so we rank
-       * every other local branch by how recently its history diverged from
-       * `HEAD`: the branch whose merge-base with `HEAD` is closest (fewest
-       * commits in `mergeBase..HEAD`) is the most likely parent. This
-       * correctly prefers an intermediate integration branch (e.g. a
-       * `pinned` branch forked from `main`) over the default branch for
-       * stacked workflows.
+       * native notion of the branch a branch was forked from, so we consider
+       * every other local branch whose tip is an ancestor of `HEAD` (a branch
+       * HEAD was built on top of) and pick the one whose merge-base with `HEAD`
+       * is closest — fewest commits in `mergeBase..HEAD`. This prefers an
+       * intermediate integration branch (e.g. a `pinned` branch forked from
+       * `main`) over the default branch for stacked workflows.
        *
-       * Returns `null` (caller falls back to the default branch) when there
-       * are no other branches, none share history with `HEAD`, or every
-       * candidate is an ancestor of / identical to `HEAD` — zero divergence
-       * means a child or sibling, never a parent.
+       * The ancestor requirement is what keeps a child or sibling — forked from
+       * a recent commit on the current branch's own history — from winning: it
+       * has a nearer merge-base but, carrying its own divergent commits, is not
+       * an ancestor of `HEAD`. Distance alone would rank it above the true fork
+       * point and scope the scan too narrowly, dropping changed files.
+       *
+       * Returns `null` (caller falls back to the default branch) when there are
+       * no other branches, none share history with `HEAD`, or none is an
+       * ancestor of `HEAD` (e.g. every candidate has diverged, or HEAD's parent
+       * advanced past the fork). That fallback diffs against the default branch
+       * — a safe superset, never an under-report.
        *
        * Resilience mirrors `currentBranch`: a per-branch git hiccup drops
        * that candidate rather than aborting the whole scan.
@@ -408,25 +414,42 @@ export class Git extends Context.Service<
         currentBranchName: string,
       ): Effect.Effect<string | null, ReactDoctorError> =>
         Effect.gen(function* () {
+          // Emit each branch's tip SHA alongside its name (NUL-separated, a byte
+          // no ref name can contain) so the ancestry test below is a string
+          // compare against the merge-base — no extra `git` process per branch.
           const listing = yield* runGit(directory, [
             "for-each-ref",
-            "--format=%(refname:short)",
+            "--format=%(refname:short)%00%(objectname)",
             "refs/heads/",
           ]);
           if (listing.status !== 0) return null;
           const candidates = listing.stdout
             .split("\n")
-            .map((line) => line.trim())
+            .map((line) => {
+              const separator = line.indexOf("\0");
+              if (separator === -1) return null;
+              // Branch refs point straight at a commit, so `objectname` is the
+              // tip SHA `git merge-base` returns — comparable verbatim.
+              return {
+                name: line.slice(0, separator).trim(),
+                tip: line.slice(separator + 1).trim(),
+              };
+            })
             // A branch is never its own parent; and only feed names that
             // survive the flag-injection guard to `git merge-base` as a
             // positional ref (defense in depth — these come from git itself).
             .filter(
-              (name) => name.length > 0 && name !== currentBranchName && isSafeGitRevision(name),
+              (entry): entry is { name: string; tip: string } =>
+                entry !== null &&
+                entry.name.length > 0 &&
+                entry.tip.length > 0 &&
+                entry.name !== currentBranchName &&
+                isSafeGitRevision(entry.name),
             );
           if (candidates.length === 0) return null;
 
           const ranked = yield* Effect.all(
-            candidates.map((name) =>
+            candidates.map(({ name, tip }) =>
               Effect.gen(function* () {
                 const mergeBase = yield* runGit(directory, ["merge-base", name, "HEAD"]);
                 if (mergeBase.status !== 0) return null; // unrelated history — not a parent
@@ -439,9 +462,19 @@ export class Git extends Context.Service<
                 ]);
                 if (count.status !== 0) return null;
                 const distance = Number.parseInt(trimOrNull(count.stdout) ?? "", 10);
-                // distance 0 ⇒ the merge-base IS HEAD: the branch is an
-                // ancestor of (or equal to) HEAD — a child/sibling, not a parent.
+                // distance 0 ⇒ merge-base IS HEAD: the branch is at HEAD or a
+                // child fast-forwarded past it — never a parent. A branch sitting
+                // *at* HEAD also satisfies the tip check below (its tip equals the
+                // merge-base), so this guard is the only thing that excludes it.
                 if (!Number.isInteger(distance) || distance <= 0) return null;
+                // The parent is a branch HEAD was built on top of: its tip must
+                // be an ancestor of HEAD — equivalently, the merge-base IS its
+                // tip. A child or sibling forked from a commit on the current
+                // branch's own history has a nearer merge-base but its own
+                // divergent commits (merge-base ≠ tip), so distance alone would
+                // rank it above the true fork point. The tip came from
+                // `for-each-ref`, so this costs no extra git call.
+                if (mergeBaseRef !== tip) return null;
                 return { name, distance };
               }).pipe(Effect.orElseSucceed(() => null)),
             ),

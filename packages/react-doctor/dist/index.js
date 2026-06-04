@@ -46121,18 +46121,24 @@ var Git = class Git extends Context.Service()("react-doctor/Git") {
 		});
 		/**
 		* Heuristic "parent branch" detection for `--diff parent`. Git has no
-		* native notion of the branch a branch was forked from, so we rank
-		* every other local branch by how recently its history diverged from
-		* `HEAD`: the branch whose merge-base with `HEAD` is closest (fewest
-		* commits in `mergeBase..HEAD`) is the most likely parent. This
-		* correctly prefers an intermediate integration branch (e.g. a
-		* `pinned` branch forked from `main`) over the default branch for
-		* stacked workflows.
+		* native notion of the branch a branch was forked from, so we consider
+		* every other local branch whose tip is an ancestor of `HEAD` (a branch
+		* HEAD was built on top of) and pick the one whose merge-base with `HEAD`
+		* is closest — fewest commits in `mergeBase..HEAD`. This prefers an
+		* intermediate integration branch (e.g. a `pinned` branch forked from
+		* `main`) over the default branch for stacked workflows.
 		*
-		* Returns `null` (caller falls back to the default branch) when there
-		* are no other branches, none share history with `HEAD`, or every
-		* candidate is an ancestor of / identical to `HEAD` — zero divergence
-		* means a child or sibling, never a parent.
+		* The ancestor requirement is what keeps a child or sibling — forked from
+		* a recent commit on the current branch's own history — from winning: it
+		* has a nearer merge-base but, carrying its own divergent commits, is not
+		* an ancestor of `HEAD`. Distance alone would rank it above the true fork
+		* point and scope the scan too narrowly, dropping changed files.
+		*
+		* Returns `null` (caller falls back to the default branch) when there are
+		* no other branches, none share history with `HEAD`, or none is an
+		* ancestor of `HEAD` (e.g. every candidate has diverged, or HEAD's parent
+		* advanced past the fork). That fallback diffs against the default branch
+		* — a safe superset, never an under-report.
 		*
 		* Resilience mirrors `currentBranch`: a per-branch git hiccup drops
 		* that candidate rather than aborting the whole scan.
@@ -46140,13 +46146,20 @@ var Git = class Git extends Context.Service()("react-doctor/Git") {
 		const parentBranch = (directory, currentBranchName) => Effect.gen(function* () {
 			const listing = yield* runGit(directory, [
 				"for-each-ref",
-				"--format=%(refname:short)",
+				"--format=%(refname:short)%00%(objectname)",
 				"refs/heads/"
 			]);
 			if (listing.status !== 0) return null;
-			const candidates = listing.stdout.split("\n").map((line) => line.trim()).filter((name) => name.length > 0 && name !== currentBranchName && isSafeGitRevision(name));
+			const candidates = listing.stdout.split("\n").map((line) => {
+				const separator = line.indexOf("\0");
+				if (separator === -1) return null;
+				return {
+					name: line.slice(0, separator).trim(),
+					tip: line.slice(separator + 1).trim()
+				};
+			}).filter((entry) => entry !== null && entry.name.length > 0 && entry.tip.length > 0 && entry.name !== currentBranchName && isSafeGitRevision(entry.name));
 			if (candidates.length === 0) return null;
-			const scored = (yield* Effect.all(candidates.map((name) => Effect.gen(function* () {
+			const scored = (yield* Effect.all(candidates.map(({ name, tip }) => Effect.gen(function* () {
 				const mergeBase = yield* runGit(directory, [
 					"merge-base",
 					name,
@@ -46163,6 +46176,7 @@ var Git = class Git extends Context.Service()("react-doctor/Git") {
 				if (count.status !== 0) return null;
 				const distance = Number.parseInt(trimOrNull(count.stdout) ?? "", 10);
 				if (!Number.isInteger(distance) || distance <= 0) return null;
+				if (mergeBaseRef !== tip) return null;
 				return {
 					name,
 					distance
