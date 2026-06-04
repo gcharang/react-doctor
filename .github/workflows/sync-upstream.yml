@@ -39,16 +39,18 @@ jobs:
 
       - name: Configure git identity
         run: |
+          set -euo pipefail
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Add upstream remote and fetch
         run: |
+          set -euo pipefail
           git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
           git fetch --no-tags upstream "${UPSTREAM_BRANCH}"
           git fetch --no-tags origin "${FORK_BRANCH}" "${PINNED_BRANCH}"
 
-      - name: Determine whether upstream is ahead
+      - name: Determine upstream SHA and whether main is already synced
         id: delta
         run: |
           set -euo pipefail
@@ -85,12 +87,14 @@ jobs:
         id: pr
         run: |
           set -euo pipefail
-          # Self-healing: open/refresh the PR whenever main carries commits pinned
-          # does not have yet (upstream commits + this workflow), regardless of
-          # whether THIS run merged anything. This retries a previously failed PR
-          # creation on the next run instead of stranding it until upstream moves.
-          ahead="$(git rev-list --count "origin/${PINNED_BRANCH}..HEAD")"
-          echo "main is ${ahead} commit(s) ahead of ${PINNED_BRANCH}."
+          # Self-healing: open/refresh the PR whenever main carries non-merge
+          # commits pinned does not have yet (upstream commits + this workflow),
+          # regardless of whether THIS run merged anything. This retries a
+          # previously failed PR creation on the next run instead of stranding it
+          # until upstream moves. --no-merges matches the PR-body list below, so we
+          # never open a PR whose commit list would render empty.
+          ahead="$(git rev-list --count --no-merges "origin/${PINNED_BRANCH}..HEAD")"
+          echo "main is ${ahead} non-merge commit(s) ahead of ${PINNED_BRANCH}."
           if [ "${ahead}" -gt 0 ]; then
             echo "needed=true" >> "$GITHUB_OUTPUT"
           else
@@ -116,7 +120,11 @@ jobs:
             git log --no-merges --pretty=format:'- %h %s (%an)' "origin/${PINNED_BRANCH}..HEAD"
             echo
             echo
-            echo "Merge with a **merge commit** (not squash) so reachability stays accurate for the next sync."
+            echo "**Merge with a merge commit — do not squash or rebase.** Squashing rewrites these commits"
+            echo "under new SHAs, so the next sync would see them as unmerged and reopen an ever-growing PR."
+            echo "A merge commit keeps \`main\`'s commits reachable from \`${PINNED_BRANCH}\`, which is how this"
+            echo "workflow detects that the sync is done."
+            echo
             echo "Conflicts on the harden commit's files are expected and shown in the PR UI; resolve them in the merge."
             echo
             echo "_Opened by the \`sync-upstream\` workflow. Do not auto-merge._"
