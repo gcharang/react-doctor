@@ -65,12 +65,20 @@ export default defineConfig({
         // Inline pure-JS CLI deps so `npm i react-doctor` skips
         // ~15 transitive installs (commander, ora, and ora's spinner
         // / cursor / log-symbols / string-width chain). Native
-        // (oxlint), the lint plugin, prompts (we monkey-patch it via
-        // require so the runtime copy must be on disk), agent-install
-        // (its jsonc-parser/yaml/toml transitives ship as UMD that
-        // doesn't bundle cleanly), and the typescript compiler all
-        // stay external.
-        alwaysBundle: ["commander", "ora"],
+        // (oxlint), prompts (we monkey-patch it via require so the
+        // runtime copy must be on disk), agent-install (its
+        // jsonc-parser/yaml/toml transitives ship as UMD that doesn't
+        // bundle cleanly), and the typescript compiler all stay external.
+        //
+        // The `oxlint-plugin-react-doctor` engine is bundled (inlined) on
+        // the pinned fork: it isn't a published npm package here, and a
+        // `file:` dep on the in-repo workspace member can't be resolved
+        // when the fork is consumed via `npx`/`pnpm dlx github:` (the spec
+        // resolves against the consumer, not this package). Its native dep
+        // `oxc-parser` stays external (root dependency); oxlint still loads
+        // the engine as a separate plugin file via `resolvePluginPath`,
+        // which finds the in-tree dist.
+        alwaysBundle: ["commander", "ora", "oxlint-plugin-react-doctor"],
         neverBundle: [
           "@effect/platform-node-shared",
           // Sentry bundles its own OpenTelemetry instrumentation chain
@@ -105,7 +113,6 @@ export default defineConfig({
           "oxc-parser",
           "oxc-resolver",
           "oxlint",
-          "oxlint-plugin-react-doctor",
           "prompts",
           "typescript",
         ],
@@ -139,7 +146,7 @@ export default defineConfig({
     {
       entry: { index: "./src/index.ts" },
       deps: {
-        alwaysBundle: ["commander", "ora"],
+        alwaysBundle: ["commander", "ora", "oxlint-plugin-react-doctor"],
         neverBundle: [
           "@effect/platform-node-shared",
           "@sentry/node",
@@ -152,7 +159,6 @@ export default defineConfig({
           "oxc-parser",
           "oxc-resolver",
           "oxlint",
-          "oxlint-plugin-react-doctor",
           "prompts",
           "typescript",
         ],
