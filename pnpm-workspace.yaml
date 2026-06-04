@@ -1,7 +1,7 @@
 packages:
   - "packages/*"
 
-minimumReleaseAge: 7200
+minimumReleaseAge: 10080
 trustPolicy: no-downgrade
 blockExoticSubdeps: true
 minimumReleaseAgeExclude:
