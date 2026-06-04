@@ -1,5 +1,4 @@
 import * as Schema from "effect/Schema";
-import fs from "node:fs";
 import * as Cause from "effect/Cause";
 //#region ../core/dist/index.d.ts
 //#region src/types/config.d.ts

@@ -1,0 +1,168 @@
+name: Sync upstream
+
+on:
+  schedule:
+    # Mondays 07:17 UTC. Off-the-hour to avoid GitHub's top-of-hour congestion.
+    - cron: "17 7 * * 1"
+  workflow_dispatch:
+
+# Never run two syncs at once; let an in-flight run finish its push.
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  UPSTREAM_REPO: millionco/react-doctor
+  UPSTREAM_BRANCH: main
+  FORK_BRANCH: main
+  PINNED_BRANCH: pinned
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the merged main
+      pull-requests: write # create/refresh the main -> pinned PR
+    steps:
+      - name: Checkout fork (full history)
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          # Full history so merge-base / merge / rev-list are accurate.
+          fetch-depth: 0
+          # Default true; keeps GITHUB_TOKEN in git config so `git push` is authed.
+          # Pushing with GITHUB_TOKEN deliberately does NOT trigger publish.yml/ci.yml.
+          persist-credentials: true
+
+      - name: Configure git identity
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote and fetch
+        run: |
+          set -euo pipefail
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch --no-tags upstream "${UPSTREAM_BRANCH}"
+          git fetch --no-tags origin "${FORK_BRANCH}" "${PINNED_BRANCH}"
+
+      - name: Determine upstream SHA and whether main is already synced
+        id: delta
+        run: |
+          set -euo pipefail
+          upstream_sha="$(git rev-parse "upstream/${UPSTREAM_BRANCH}")"
+          echo "upstream_sha=${upstream_sha}" >> "$GITHUB_OUTPUT"
+
+          # main carries our own sync-workflow commit (and merge commits), so it is
+          # never byte-equal to upstream. Upstream is "already merged" once it is
+          # fully contained in main.
+          if git merge-base --is-ancestor "upstream/${UPSTREAM_BRANCH}" "origin/${FORK_BRANCH}"; then
+            echo "main already contains upstream/${UPSTREAM_BRANCH} (${upstream_sha})."
+            echo "upstream_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Upstream has commits not in main; will merge."
+            echo "upstream_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream into main and push
+        if: steps.delta.outputs.upstream_changed == 'true'
+        run: |
+          set -euo pipefail
+          # Conflict-free in practice: main's only non-upstream content is this
+          # workflow file, which upstream never touches. Abort and fail loudly if a
+          # real conflict ever appears, rather than pushing a half-merged tree.
+          if ! git merge --no-edit "upstream/${UPSTREAM_BRANCH}"; then
+            git merge --abort || true
+            echo "::error::Merge of upstream/${UPSTREAM_BRANCH} into ${FORK_BRANCH} hit conflicts; resolve manually."
+            exit 1
+          fi
+          # Push with GITHUB_TOKEN => does NOT trigger publish.yml/ci.yml (recursion guard).
+          git push origin "HEAD:refs/heads/${FORK_BRANCH}"
+
+      - name: Decide whether a main -> pinned PR is needed
+        id: pr
+        run: |
+          set -euo pipefail
+          # Self-healing: open/refresh the PR whenever main carries non-merge
+          # commits pinned does not have yet (upstream commits + this workflow),
+          # regardless of whether THIS run merged anything. This retries a
+          # previously failed PR creation on the next run instead of stranding it
+          # until upstream moves. --no-merges matches the PR-body list below, so we
+          # never open a PR whose commit list would render empty.
+          ahead="$(git rev-list --count --no-merges "origin/${PINNED_BRANCH}..HEAD")"
+          echo "main is ${ahead} non-merge commit(s) ahead of ${PINNED_BRANCH}."
+          if [ "${ahead}" -gt 0 ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pinned already contains everything on main; no PR needed."
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build PR body
+        if: steps.pr.outputs.needed == 'true'
+        env:
+          NEW_SHA: ${{ steps.delta.outputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Automated upstream sync."
+            echo
+            echo "- Upstream: \`${UPSTREAM_REPO}@${UPSTREAM_BRANCH}\`"
+            echo "- \`${FORK_BRANCH}\` is synced up to upstream \`${NEW_SHA:0:12}\`."
+            echo
+            echo "## Commits this PR brings onto \`${PINNED_BRANCH}\`"
+            echo
+            # Everything the PR would add to pinned, excluding merge commits.
+            git log --no-merges --pretty=format:'- %h %s (%an)' "origin/${PINNED_BRANCH}..HEAD"
+            echo
+            echo
+            echo "**Merge with a merge commit — do not squash or rebase.** Squashing rewrites these commits"
+            echo "under new SHAs, so the next sync would see them as unmerged and reopen an ever-growing PR."
+            echo "A merge commit keeps \`main\`'s commits reachable from \`${PINNED_BRANCH}\`, which is how this"
+            echo "workflow detects that the sync is done."
+            echo
+            echo "Conflicts on the harden commit's files are expected and shown in the PR UI; resolve them in the merge."
+            echo
+            echo "_Opened by the \`sync-upstream\` workflow. Do not auto-merge._"
+          } > pr_body.md
+
+      - name: Create or refresh PR (main -> pinned)
+        if: steps.pr.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_SHA: ${{ steps.delta.outputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+          title="Sync upstream into ${PINNED_BRANCH} (${NEW_SHA:0:12})"
+
+          # -R/--repo forces gh to act on THIS fork. Without it, gh defaults a
+          # fork's PR base to the parent repo (millionco/react-doctor), where
+          # GITHUB_TOKEN has no write access -> createPullRequest is denied with
+          # "Resource not accessible by integration".
+          existing="$(gh pr list \
+            --repo "${GITHUB_REPOSITORY}" \
+            --base "${PINNED_BRANCH}" \
+            --head "${FORK_BRANCH}" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [ -n "${existing}" ]; then
+            echo "Reusing existing open PR #${existing}; refreshing title and body."
+            gh pr edit "${existing}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${title}" \
+              --body-file pr_body.md
+          else
+            echo "No open PR found; creating one."
+            gh pr create \
+              --repo "${GITHUB_REPOSITORY}" \
+              --base "${PINNED_BRANCH}" \
+              --head "${FORK_BRANCH}" \
+              --title "${title}" \
+              --body-file pr_body.md
+          fi

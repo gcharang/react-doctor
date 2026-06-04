@@ -30,6 +30,18 @@ const FIXTURES_DIRECTORY = path.resolve(
 const hasDesignTag = (ruleId: string): boolean =>
   reactDoctorPlugin.rules[ruleId]?.tags?.includes("design") ?? false;
 
+// The `design`-tagged rules ship `defaultEnabled: false`, so the surface
+// filter has nothing to act on unless we opt them back in. Enable a few
+// inline-style design rules that fire on `basic-react/src/design-issues.tsx`
+// (no Tailwind capability required) so these surface-filter assertions
+// exercise real design-tagged diagnostics.
+const DESIGN_RULE_OVERRIDES = {
+  "react-doctor/no-gradient-text": "warn",
+  "react-doctor/no-pure-black-background": "warn",
+  "react-doctor/no-dark-mode-glow": "warn",
+  "react-doctor/no-side-tab-border": "warn",
+} satisfies Record<string, "error" | "warn" | "off">;
+
 const isReactDoctorDesign = (diagnostic: { plugin: string; rule: string }): boolean =>
   diagnostic.plugin === "react-doctor" && hasDesignTag(diagnostic.rule);
 
@@ -59,6 +71,7 @@ describe("inspect — score surface filter", () => {
         deadCode: false,
         noScore: false,
         warnings: true,
+        configOverride: { rules: DESIGN_RULE_OVERRIDES },
       });
 
       // #then a score was computed (offline — no network)
@@ -101,6 +114,7 @@ describe("inspect — score surface filter", () => {
           deadCode: false,
           noScore: true,
           warnings: true,
+          configOverride: { rules: DESIGN_RULE_OVERRIDES },
         });
         const baselineDesignCount = baselineResult.diagnostics.filter(isReactDoctorDesign).length;
         expect(baselineDesignCount).toBeGreaterThan(0);
@@ -112,7 +126,10 @@ describe("inspect — score surface filter", () => {
           noScore: true,
           warnings: true,
           outputSurface: "cli",
-          configOverride: { surfaces: { cli: { excludeTags: ["design"] } } },
+          configOverride: {
+            rules: DESIGN_RULE_OVERRIDES,
+            surfaces: { cli: { excludeTags: ["design"] } },
+          },
         });
 
         const printedText = printedLines.join("\n");

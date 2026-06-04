@@ -1,8 +1,8 @@
 import { createRequire } from "node:module";
 import * as Schema from "effect/Schema";
 import * as fs$1 from "node:fs";
-import fs, { existsSync, readFileSync, readdirSync } from "node:fs";
-import * as Path from "node:path";
+import fs from "node:fs";
+import * as path$1 from "node:path";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import reactDoctorPlugin, { ALL_REACT_DOCTOR_RULE_KEYS, FRAMEWORK_SPECIFIC_RULE_KEYS, MOTION_LIBRARY_PACKAGES, REACT_COMPILER_RULES, REACT_DOCTOR_RULES } from "oxlint-plugin-react-doctor";
@@ -2072,7 +2072,7 @@ var AmbiguousProjectError = class extends Error {
 const isProjectDiscoveryError = (value) => value instanceof ProjectNotFoundError || value instanceof NoReactDependencyError || value instanceof PackageJsonNotFoundError || value instanceof NotADirectoryError || value instanceof AmbiguousProjectError;
 const isFile = (filePath) => {
 	try {
-		return fs.statSync(filePath).isFile();
+		return fs$1.statSync(filePath).isFile();
 	} catch {
 		return false;
 	}
@@ -2099,9 +2099,9 @@ const isLintableSourceFile = (filePath) => SOURCE_FILE_PATTERN.test(filePath) &&
 const isMinifiedSource = (absolutePath) => {
 	let fileDescriptor;
 	try {
-		fileDescriptor = fs.openSync(absolutePath, "r");
+		fileDescriptor = fs$1.openSync(absolutePath, "r");
 		const buffer = Buffer.alloc(MINIFIED_SNIFF_BYTES);
-		const bytesRead = fs.readSync(fileDescriptor, buffer, 0, MINIFIED_SNIFF_BYTES, 0);
+		const bytesRead = fs$1.readSync(fileDescriptor, buffer, 0, MINIFIED_SNIFF_BYTES, 0);
 		const prefix = buffer.toString("utf8", 0, bytesRead);
 		const lines = prefix.split("\n");
 		const longestLineLength = lines.reduce((longest, line) => Math.max(longest, line.length), 0);
@@ -2110,13 +2110,13 @@ const isMinifiedSource = (absolutePath) => {
 	} catch {
 		return false;
 	} finally {
-		if (fileDescriptor !== void 0) fs.closeSync(fileDescriptor);
+		if (fileDescriptor !== void 0) fs$1.closeSync(fileDescriptor);
 	}
 };
 const isLargeMinifiedFile = (absolutePath) => {
 	let sizeBytes;
 	try {
-		sizeBytes = fs.statSync(absolutePath).size;
+		sizeBytes = fs$1.statSync(absolutePath).size;
 	} catch {
 		return false;
 	}
@@ -2139,7 +2139,7 @@ const isIgnorableReaddirError = (error) => {
 };
 const readDirectoryEntries = (directoryPath) => {
 	try {
-		return fs.readdirSync(directoryPath, { withFileTypes: true });
+		return fs$1.readdirSync(directoryPath, { withFileTypes: true });
 	} catch (error) {
 		if (isIgnorableReaddirError(error)) return [];
 		throw error;
@@ -2153,10 +2153,10 @@ const countSourceFilesViaFilesystem = (rootDirectory) => {
 		const entries = readDirectoryEntries(currentDirectory);
 		for (const entry of entries) {
 			if (entry.isDirectory()) {
-				if (!entry.name.startsWith(".") && !IGNORED_DIRECTORIES.has(entry.name)) stack.push(path.join(currentDirectory, entry.name));
+				if (!entry.name.startsWith(".") && !IGNORED_DIRECTORIES.has(entry.name)) stack.push(path$1.join(currentDirectory, entry.name));
 				continue;
 			}
-			if (entry.isFile() && isLintableSourceFile(entry.name) && !isLargeMinifiedFile(path.join(currentDirectory, entry.name))) count++;
+			if (entry.isFile() && isLintableSourceFile(entry.name) && !isLargeMinifiedFile(path$1.join(currentDirectory, entry.name))) count++;
 		}
 	}
 	return count;
@@ -2174,7 +2174,7 @@ const countSourceFilesViaGit = (rootDirectory) => {
 		maxBuffer: GIT_LS_FILES_MAX_BUFFER_BYTES
 	});
 	if (result.error || result.status !== 0) return null;
-	return result.stdout.split("\0").filter((filePath) => filePath.length > 0 && isLintableSourceFile(filePath) && !isLargeMinifiedFile(path.resolve(rootDirectory, filePath))).length;
+	return result.stdout.split("\0").filter((filePath) => filePath.length > 0 && isLintableSourceFile(filePath) && !isLargeMinifiedFile(path$1.resolve(rootDirectory, filePath))).length;
 };
 const countSourceFiles = (rootDirectory) => countSourceFilesViaGit(rootDirectory) ?? countSourceFilesViaFilesystem(rootDirectory);
 const cachedPackageJsons = /* @__PURE__ */ new Map();
@@ -2183,7 +2183,7 @@ const clearPackageJsonCache = () => {
 };
 const readPackageJsonUncached = (packageJsonPath) => {
 	try {
-		return JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+		return JSON.parse(fs$1.readFileSync(packageJsonPath, "utf-8"));
 	} catch (error) {
 		if (error instanceof SyntaxError) return {};
 		if (error instanceof Error && "code" in error) {
@@ -2194,7 +2194,7 @@ const readPackageJsonUncached = (packageJsonPath) => {
 	}
 };
 const readPackageJson = (packageJsonPath) => {
-	const absolutePath = path.resolve(packageJsonPath);
+	const absolutePath = path$1.resolve(packageJsonPath);
 	const cached = cachedPackageJsons.get(absolutePath);
 	if (cached !== void 0) return cached;
 	const result = readPackageJsonUncached(absolutePath);
@@ -2202,18 +2202,18 @@ const readPackageJson = (packageJsonPath) => {
 	return result;
 };
 const isMonorepoRoot = (directory) => {
-	if (isFile(path.join(directory, "pnpm-workspace.yaml"))) return true;
-	if (isFile(path.join(directory, "nx.json"))) return true;
-	const packageJsonPath = path.join(directory, "package.json");
+	if (isFile(path$1.join(directory, "pnpm-workspace.yaml"))) return true;
+	if (isFile(path$1.join(directory, "nx.json"))) return true;
+	const packageJsonPath = path$1.join(directory, "package.json");
 	if (!isFile(packageJsonPath)) return false;
 	const packageJson = readPackageJson(packageJsonPath);
 	return Array.isArray(packageJson.workspaces) || Boolean(packageJson.workspaces?.packages);
 };
 const findMonorepoRoot = (startDirectory) => {
-	let currentDirectory = path.dirname(startDirectory);
-	while (currentDirectory !== path.dirname(currentDirectory)) {
+	let currentDirectory = path$1.dirname(startDirectory);
+	while (currentDirectory !== path$1.dirname(currentDirectory)) {
 		if (isMonorepoRoot(currentDirectory)) return currentDirectory;
-		currentDirectory = path.dirname(currentDirectory);
+		currentDirectory = path$1.dirname(currentDirectory);
 	}
 	return null;
 };
@@ -2227,7 +2227,7 @@ const findMonorepoRoot = (startDirectory) => {
 * `detectReactCompiler`. All three previously inlined their own
 * byte-equivalent copy.
 */
-const isProjectBoundary = (directory) => fs.existsSync(path.join(directory, ".git")) || isMonorepoRoot(directory);
+const isProjectBoundary = (directory) => fs$1.existsSync(path$1.join(directory, ".git")) || isMonorepoRoot(directory);
 const REACT_COMPILER_PACKAGES = new Set([
 	"babel-plugin-react-compiler",
 	"react-compiler-runtime",
@@ -2274,10 +2274,10 @@ const hasCompilerPackage = (packageJson) => {
 };
 const hasCompilerInConfigFile = (filePath) => {
 	if (!isFile(filePath)) return false;
-	const content = fs.readFileSync(filePath, "utf-8");
+	const content = fs$1.readFileSync(filePath, "utf-8");
 	return REACT_COMPILER_ENABLED_FLAG_PATTERN.test(content) || REACT_COMPILER_PACKAGE_REFERENCE_PATTERN.test(content);
 };
-const hasCompilerInConfigFiles = (directory, filenames) => filenames.some((filename) => hasCompilerInConfigFile(path.join(directory, filename)));
+const hasCompilerInConfigFiles = (directory, filenames) => filenames.some((filename) => hasCompilerInConfigFile(path$1.join(directory, filename)));
 const detectReactCompiler = (directory, packageJson) => {
 	if (hasCompilerPackage(packageJson)) return true;
 	if (hasCompilerInConfigFiles(directory, NEXT_CONFIG_FILENAMES)) return true;
@@ -2285,14 +2285,14 @@ const detectReactCompiler = (directory, packageJson) => {
 	if (hasCompilerInConfigFiles(directory, VITE_CONFIG_FILENAMES)) return true;
 	if (hasCompilerInConfigFiles(directory, EXPO_APP_CONFIG_FILENAMES)) return true;
 	if (isProjectBoundary(directory)) return false;
-	let ancestorDirectory = path.dirname(directory);
-	while (ancestorDirectory !== path.dirname(ancestorDirectory)) {
-		const ancestorPackagePath = path.join(ancestorDirectory, "package.json");
+	let ancestorDirectory = path$1.dirname(directory);
+	while (ancestorDirectory !== path$1.dirname(ancestorDirectory)) {
+		const ancestorPackagePath = path$1.join(ancestorDirectory, "package.json");
 		if (isFile(ancestorPackagePath)) {
 			if (hasCompilerPackage(readPackageJson(ancestorPackagePath))) return true;
 		}
 		if (isProjectBoundary(ancestorDirectory)) return false;
-		ancestorDirectory = path.dirname(ancestorDirectory);
+		ancestorDirectory = path$1.dirname(ancestorDirectory);
 	}
 	return false;
 };
@@ -2478,12 +2478,12 @@ const resolveVersionFromCatalog = (catalog, packageName) => {
 	return null;
 };
 const parsePnpmWorkspaceCatalogs = (rootDirectory) => {
-	const workspacePath = path.join(rootDirectory, "pnpm-workspace.yaml");
+	const workspacePath = path$1.join(rootDirectory, "pnpm-workspace.yaml");
 	if (!isFile(workspacePath)) return {
 		defaultCatalog: {},
 		namedCatalogs: {}
 	};
-	const content = fs.readFileSync(workspacePath, "utf-8");
+	const content = fs$1.readFileSync(workspacePath, "utf-8");
 	const defaultCatalog = {};
 	const namedCatalogs = {};
 	let currentSection = "none";
@@ -2664,7 +2664,7 @@ const getDependencyDeclaration = ({ packageJson, packageName, sections }) => {
 };
 const isDirectory = (directoryPath) => {
 	try {
-		return fs.statSync(directoryPath).isDirectory();
+		return fs$1.statSync(directoryPath).isDirectory();
 	} catch {
 		return false;
 	}
@@ -2675,23 +2675,23 @@ const NX_PROJECT_DISCOVERY_DIRS = [
 	"packages"
 ];
 const getNxWorkspaceDirectories = (rootDirectory) => {
-	if (!isFile(path.join(rootDirectory, "nx.json"))) return [];
+	if (!isFile(path$1.join(rootDirectory, "nx.json"))) return [];
 	const collected = [];
 	for (const candidate of NX_PROJECT_DISCOVERY_DIRS) {
-		const candidatePath = path.join(rootDirectory, candidate);
+		const candidatePath = path$1.join(rootDirectory, candidate);
 		if (!isDirectory(candidatePath)) continue;
 		for (const entry of readDirectoryEntries(candidatePath)) {
 			if (!entry.isDirectory()) continue;
-			const projectDirectory = path.join(candidatePath, entry.name);
-			if (isFile(path.join(projectDirectory, "project.json")) || isFile(path.join(projectDirectory, "package.json"))) collected.push(`${candidate}/${entry.name}`);
+			const projectDirectory = path$1.join(candidatePath, entry.name);
+			if (isFile(path$1.join(projectDirectory, "project.json")) || isFile(path$1.join(projectDirectory, "package.json"))) collected.push(`${candidate}/${entry.name}`);
 		}
 	}
 	return collected;
 };
 const parsePnpmWorkspacePatterns = (rootDirectory) => {
-	const workspacePath = path.join(rootDirectory, "pnpm-workspace.yaml");
+	const workspacePath = path$1.join(rootDirectory, "pnpm-workspace.yaml");
 	if (!isFile(workspacePath)) return [];
-	const content = fs.readFileSync(workspacePath, "utf-8");
+	const content = fs$1.readFileSync(workspacePath, "utf-8");
 	const patterns = [];
 	let isInsidePackagesBlock = false;
 	for (const line of content.split("\n")) {
@@ -2721,18 +2721,18 @@ const parseReactMajor = (reactVersion) => {
 const resolveWorkspaceDirectories = (rootDirectory, pattern) => {
 	const cleanPattern = pattern.replace(/["']/g, "").replace(/\/\*\*$/, "/*");
 	if (!cleanPattern.includes("*")) {
-		const directoryPath = path.join(rootDirectory, cleanPattern);
-		if (isDirectory(directoryPath) && isFile(path.join(directoryPath, "package.json"))) return [directoryPath];
+		const directoryPath = path$1.join(rootDirectory, cleanPattern);
+		if (isDirectory(directoryPath) && isFile(path$1.join(directoryPath, "package.json"))) return [directoryPath];
 		return [];
 	}
 	const wildcardIndex = cleanPattern.indexOf("*");
-	const baseDirectory = path.join(rootDirectory, cleanPattern.slice(0, wildcardIndex));
+	const baseDirectory = path$1.join(rootDirectory, cleanPattern.slice(0, wildcardIndex));
 	const suffixAfterWildcard = cleanPattern.slice(wildcardIndex + 1);
 	if (!isDirectory(baseDirectory)) return [];
 	const resolved = [];
 	for (const entry of readDirectoryEntries(baseDirectory)) {
-		const entryPath = path.join(baseDirectory, entry.name, suffixAfterWildcard);
-		if (isDirectory(entryPath) && isFile(path.join(entryPath, "package.json"))) resolved.push(entryPath);
+		const entryPath = path$1.join(baseDirectory, entry.name, suffixAfterWildcard);
+		if (isDirectory(entryPath) && isFile(path$1.join(entryPath, "package.json"))) resolved.push(entryPath);
 	}
 	return resolved;
 };
@@ -2759,7 +2759,7 @@ const findReactInWorkspaces = (rootDirectory, packageJson) => {
 	for (const pattern of patterns) {
 		const directories = resolveWorkspaceDirectories(rootDirectory, pattern);
 		for (const workspaceDirectory of directories) {
-			const workspacePackageJson = readPackageJson(path.join(workspaceDirectory, "package.json"));
+			const workspacePackageJson = readPackageJson(path$1.join(workspaceDirectory, "package.json"));
 			const info = extractDependencyInfo(workspacePackageJson);
 			const reactVersion = resolveWorkspaceDependencyVersion({
 				concreteVersion: info.reactVersion,
@@ -2813,11 +2813,11 @@ const findReactInWorkspaces = (rootDirectory, packageJson) => {
 const findDependencyInfoFromMonorepoRoot = (directory) => {
 	const monorepoRoot = findMonorepoRoot(directory);
 	if (!monorepoRoot) return EMPTY_DEPENDENCY_INFO;
-	const monorepoPackageJsonPath = path.join(monorepoRoot, "package.json");
+	const monorepoPackageJsonPath = path$1.join(monorepoRoot, "package.json");
 	if (!isFile(monorepoPackageJsonPath)) return EMPTY_DEPENDENCY_INFO;
 	const rootPackageJson = readPackageJson(monorepoPackageJsonPath);
 	const rootInfo = extractDependencyInfo(rootPackageJson);
-	const leafPackageJsonPath = path.join(directory, "package.json");
+	const leafPackageJsonPath = path$1.join(directory, "package.json");
 	const leafPackageJson = isFile(leafPackageJsonPath) ? readPackageJson(leafPackageJsonPath) : null;
 	const leafReactDeclaration = leafPackageJson ? getDependencyDeclaration({
 		packageJson: leafPackageJson,
@@ -2871,7 +2871,7 @@ const findInWorkspacePackageJsons = (rootDirectory, rootPackageJson, select) => 
 		for (const workspaceDirectory of directories) {
 			if (visitedDirectories.has(workspaceDirectory)) continue;
 			visitedDirectories.add(workspaceDirectory);
-			const value = select(readPackageJson(path.join(workspaceDirectory, "package.json")));
+			const value = select(readPackageJson(path$1.join(workspaceDirectory, "package.json")));
 			if (value !== null) return value;
 		}
 	}
@@ -3003,7 +3003,7 @@ const hasReactDependency = (packageJson) => {
 	return Object.keys(allDependencies).some((packageName) => REACT_DEPENDENCY_NAMES.has(packageName));
 };
 const listWorkspacePackages = (rootDirectory) => {
-	const packageJsonPath = path.join(rootDirectory, "package.json");
+	const packageJsonPath = path$1.join(rootDirectory, "package.json");
 	if (!isFile(packageJsonPath)) return [];
 	const packageJson = readPackageJson(packageJsonPath);
 	const patterns = getWorkspacePatterns(rootDirectory, packageJson);
@@ -3016,16 +3016,16 @@ const listWorkspacePackages = (rootDirectory) => {
 		packages.push(workspacePackage);
 	};
 	if (hasReactDependency(packageJson)) pushIfNew({
-		name: packageJson.name ?? path.basename(rootDirectory),
+		name: packageJson.name ?? path$1.basename(rootDirectory),
 		directory: rootDirectory
 	});
 	for (const pattern of patterns) {
 		const directories = resolveWorkspaceDirectories(rootDirectory, pattern);
 		for (const workspaceDirectory of directories) {
-			const workspacePackageJson = readPackageJson(path.join(workspaceDirectory, "package.json"));
+			const workspacePackageJson = readPackageJson(path$1.join(workspaceDirectory, "package.json"));
 			if (!hasReactDependency(workspacePackageJson)) continue;
 			pushIfNew({
-				name: workspacePackageJson.name ?? path.basename(workspaceDirectory),
+				name: workspacePackageJson.name ?? path$1.basename(workspaceDirectory),
 				directory: workspaceDirectory
 			});
 		}
@@ -3035,11 +3035,11 @@ const listWorkspacePackages = (rootDirectory) => {
 const toReactWorkspacePackages = (directories) => {
 	const packages = [];
 	for (const directory of directories) {
-		const packageJsonPath = path.join(directory, "package.json");
+		const packageJsonPath = path$1.join(directory, "package.json");
 		if (!isFile(packageJsonPath)) continue;
 		const packageJson = readPackageJson(packageJsonPath);
 		if (!hasReactDependency(packageJson)) continue;
-		const name = packageJson.name ?? path.basename(directory);
+		const name = packageJson.name ?? path$1.basename(directory);
 		packages.push({
 			name,
 			directory
@@ -3048,7 +3048,7 @@ const toReactWorkspacePackages = (directories) => {
 	return packages;
 };
 const listManifestWorkspacePackages = (rootDirectory) => {
-	if (isFile(path.join(rootDirectory, "package.json"))) return listWorkspacePackages(rootDirectory);
+	if (isFile(path$1.join(rootDirectory, "package.json"))) return listWorkspacePackages(rootDirectory);
 	const patterns = parsePnpmWorkspacePatterns(rootDirectory);
 	const nxPatterns = patterns.length > 0 ? [] : getNxWorkspaceDirectories(rootDirectory);
 	return toReactWorkspacePackages((patterns.length > 0 ? patterns : nxPatterns).flatMap((pattern) => resolveWorkspaceDirectories(rootDirectory, pattern)));
@@ -3069,11 +3069,11 @@ const discoverReactSubprojectsByFilesystem = (rootDirectory) => {
 		const current = pendingDirectories.pop();
 		if (!current) continue;
 		const { directory: currentDirectory, depth } = current;
-		const packageJsonPath = path.join(currentDirectory, "package.json");
+		const packageJsonPath = path$1.join(currentDirectory, "package.json");
 		if (isFile(packageJsonPath)) {
 			const packageJson = readPackageJson(packageJsonPath);
 			if (hasReactDependency(packageJson)) {
-				const name = packageJson.name ?? path.basename(currentDirectory);
+				const name = packageJson.name ?? path$1.basename(currentDirectory);
 				packages.push({
 					name,
 					directory: currentDirectory
@@ -3085,7 +3085,7 @@ const discoverReactSubprojectsByFilesystem = (rootDirectory) => {
 		for (const entry of entries) {
 			if (!entry.isDirectory() || entry.name.startsWith(".") || IGNORED_DIRECTORIES.has(entry.name) || NON_PROJECT_DIRECTORIES.has(entry.name)) continue;
 			pendingDirectories.push({
-				directory: path.join(currentDirectory, entry.name),
+				directory: path$1.join(currentDirectory, entry.name),
 				depth: depth + 1
 			});
 		}
@@ -3105,7 +3105,7 @@ const clearProjectCache = () => {
 const discoverProject = (directory) => {
 	const cached = cachedProjectInfos.get(directory);
 	if (cached !== void 0) return cached;
-	const packageJsonPath = path.join(directory, "package.json");
+	const packageJsonPath = path$1.join(directory, "package.json");
 	if (!isFile(packageJsonPath)) throw new PackageJsonNotFoundError(directory);
 	const packageJson = readPackageJson(packageJsonPath);
 	let { reactVersion, tailwindVersion, zodVersion, framework } = extractDependencyInfo(packageJson);
@@ -3142,7 +3142,7 @@ const discoverProject = (directory) => {
 	if (!reactVersion || !tailwindVersion || !zodVersion) {
 		const monorepoRoot = findMonorepoRoot(directory);
 		if (monorepoRoot) {
-			const monorepoPackageJsonPath = path.join(monorepoRoot, "package.json");
+			const monorepoPackageJsonPath = path$1.join(monorepoRoot, "package.json");
 			if (isFile(monorepoPackageJsonPath)) {
 				const rootPackageJson = readPackageJson(monorepoPackageJsonPath);
 				if (!reactVersion && reactDeclaration.hasDeclaration) reactVersion = resolveCatalogVersion(rootPackageJson, "react", monorepoRoot, reactDeclaration.catalogReference);
@@ -3168,8 +3168,8 @@ const discoverProject = (directory) => {
 	if (!reactVersion && reactDeclaration.version && !isCatalogReference(reactDeclaration.version)) reactVersion = reactDeclaration.version;
 	if (!tailwindVersion && tailwindDeclaration.version && !isCatalogReference(tailwindDeclaration.version)) tailwindVersion = tailwindDeclaration.version;
 	if (!zodVersion && zodDeclaration.version && !isCatalogReference(zodDeclaration.version)) zodVersion = zodDeclaration.version;
-	const projectName = packageJson.name ?? path.basename(directory);
-	const hasTypeScript = fs.existsSync(path.join(directory, "tsconfig.json"));
+	const projectName = packageJson.name ?? path$1.basename(directory);
+	const hasTypeScript = fs$1.existsSync(path$1.join(directory, "tsconfig.json"));
 	const sourceFileCount = countSourceFiles(directory);
 	const hasReactNativeWorkspace = framework === "expo" || framework === "react-native" || hasReactNativeWorkspaceAnywhere(directory, packageJson);
 	const expoVersion = hasReactNativeWorkspace ? resolveCatalogBackedDependencyVersion({
@@ -3820,12 +3820,12 @@ const findNearestPackageDirectory = (filename) => {
 	if (!filename) return null;
 	const fromCache = cachedPackageDirectoryByFilename.get(filename);
 	if (fromCache !== void 0) return fromCache;
-	let currentDirectory = path.dirname(filename);
+	let currentDirectory = path$1.dirname(filename);
 	while (true) {
-		const candidatePackageJsonPath = path.join(currentDirectory, "package.json");
+		const candidatePackageJsonPath = path$1.join(currentDirectory, "package.json");
 		let hasPackageJson = false;
 		try {
-			hasPackageJson = fs.statSync(candidatePackageJsonPath).isFile();
+			hasPackageJson = fs$1.statSync(candidatePackageJsonPath).isFile();
 		} catch {
 			hasPackageJson = false;
 		}
@@ -3833,7 +3833,7 @@ const findNearestPackageDirectory = (filename) => {
 			cachedPackageDirectoryByFilename.set(filename, currentDirectory);
 			return currentDirectory;
 		}
-		const parentDirectory = path.dirname(currentDirectory);
+		const parentDirectory = path$1.dirname(currentDirectory);
 		if (parentDirectory === currentDirectory) {
 			cachedPackageDirectoryByFilename.set(filename, null);
 			return null;
@@ -3843,7 +3843,7 @@ const findNearestPackageDirectory = (filename) => {
 };
 const readManifest = (packageJsonPath) => {
 	try {
-		const parsed = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+		const parsed = JSON.parse(fs$1.readFileSync(packageJsonPath, "utf-8"));
 		if (typeof parsed === "object" && parsed !== null) return parsed;
 		return null;
 	} catch {
@@ -3854,8 +3854,8 @@ const hasPublishContract = (manifest) => typeof manifest.name === "string" && ma
 const classifyByDirectoryCohort = (packageDirectory) => {
 	let current = packageDirectory;
 	while (true) {
-		if (path.basename(current) === "apps") return "app";
-		const parent = path.dirname(current);
+		if (path$1.basename(current) === "apps") return "app";
+		const parent = path$1.dirname(current);
 		if (parent === current) return null;
 		current = parent;
 	}
@@ -3870,10 +3870,10 @@ const classifyPackageRole = (filename) => {
 	if (!packageDirectory) return "unknown";
 	const cached = cachedRoleByPackageDirectory.get(packageDirectory);
 	if (cached !== void 0) return cached;
-	const manifest = readManifest(path.join(packageDirectory, "package.json"));
+	const manifest = readManifest(path$1.join(packageDirectory, "package.json"));
 	let result;
 	if (manifest && hasPublishContract(manifest)) result = "library";
-	else result = classifyByDirectoryCohort(path.dirname(packageDirectory)) ?? "unknown";
+	else result = classifyByDirectoryCohort(path$1.dirname(packageDirectory)) ?? "unknown";
 	cachedRoleByPackageDirectory.set(packageDirectory, result);
 	return result;
 };
@@ -4525,12 +4525,12 @@ const loadModuleConfig = async (filePath) => {
 	const imported = await jiti.import(filePath);
 	return imported?.default ?? imported;
 };
-const readDataConfig = (filePath) => parseJSON5(fs.readFileSync(filePath, "utf-8"));
+const readDataConfig = (filePath) => parseJSON5(fs$1.readFileSync(filePath, "utf-8"));
 const readEmbeddedPackageJsonConfig = (directory) => {
-	const packageJsonPath = path.join(directory, PACKAGE_JSON_FILENAME);
+	const packageJsonPath = path$1.join(directory, PACKAGE_JSON_FILENAME);
 	if (!isFile(packageJsonPath)) return null;
 	try {
-		const packageJson = parseJSON5(fs.readFileSync(packageJsonPath, "utf-8"));
+		const packageJson = parseJSON5(fs$1.readFileSync(packageJsonPath, "utf-8"));
 		if (isPlainObject(packageJson)) {
 			const embeddedConfig = packageJson[PACKAGE_JSON_CONFIG_KEY];
 			if (isPlainObject(embeddedConfig)) return embeddedConfig;
@@ -4544,14 +4544,14 @@ const loadPackageJsonConfig = (directory) => {
 	return {
 		config: validateConfigTypes(embeddedConfig),
 		sourceDirectory: directory,
-		configFilePath: path.join(directory, PACKAGE_JSON_FILENAME),
+		configFilePath: path$1.join(directory, PACKAGE_JSON_FILENAME),
 		format: "package-json"
 	};
 };
 const loadConfigFromDirectory = async (directory) => {
 	let sawBrokenConfigFile = false;
 	for (const extension of CONFIG_EXTENSIONS) {
-		const filePath = path.join(directory, `${CONFIG_BASENAME}.${extension}`);
+		const filePath = path$1.join(directory, `${CONFIG_BASENAME}.${extension}`);
 		if (!isFile(filePath)) continue;
 		const isDataFile = DATA_CONFIG_EXTENSIONS.has(extension);
 		try {
@@ -4577,7 +4577,7 @@ const loadConfigFromDirectory = async (directory) => {
 		status: "found",
 		loaded: packageJsonConfig
 	};
-	if (isFile(path.join(directory, LEGACY_CONFIG_FILENAME))) warn(`${LEGACY_CONFIG_FILENAME} is no longer read — rename it to ${CONFIG_BASENAME}.json (or author a ${CONFIG_BASENAME}.ts).`);
+	if (isFile(path$1.join(directory, LEGACY_CONFIG_FILENAME))) warn(`${LEGACY_CONFIG_FILENAME} is no longer read — rename it to ${CONFIG_BASENAME}.json (or author a ${CONFIG_BASENAME}.ts).`);
 	return {
 		status: sawBrokenConfigFile ? "invalid" : "absent",
 		loaded: null
@@ -4591,12 +4591,12 @@ const loadConfigWalkingUp = async (rootDirectory) => {
 	const localResult = await loadConfigFromDirectory(rootDirectory);
 	if (localResult.status === "found") return localResult.loaded;
 	if (localResult.status === "invalid" || isProjectBoundary(rootDirectory)) return null;
-	let ancestorDirectory = path.dirname(rootDirectory);
-	while (ancestorDirectory !== path.dirname(ancestorDirectory)) {
+	let ancestorDirectory = path$1.dirname(rootDirectory);
+	while (ancestorDirectory !== path$1.dirname(ancestorDirectory)) {
 		const ancestorResult = await loadConfigFromDirectory(ancestorDirectory);
 		if (ancestorResult.status === "found") return ancestorResult.loaded;
 		if (isProjectBoundary(ancestorDirectory)) return null;
-		ancestorDirectory = path.dirname(ancestorDirectory);
+		ancestorDirectory = path$1.dirname(ancestorDirectory);
 	}
 	return null;
 };
@@ -4613,7 +4613,7 @@ const resolveConfigRootDir = (config, configSourceDirectory) => {
 	if (typeof rawRootDir !== "string") return null;
 	const trimmedRootDir = rawRootDir.trim();
 	if (trimmedRootDir.length === 0) return null;
-	const resolvedRootDir = path.isAbsolute(trimmedRootDir) ? trimmedRootDir : path.resolve(configSourceDirectory, trimmedRootDir);
+	const resolvedRootDir = path$1.isAbsolute(trimmedRootDir) ? trimmedRootDir : path$1.resolve(configSourceDirectory, trimmedRootDir);
 	if (resolvedRootDir === configSourceDirectory) return null;
 	if (!isDirectory(resolvedRootDir)) {
 		Effect.runSync(Console.warn(`react-doctor config "rootDir" points to "${rawRootDir}" (resolved to ${resolvedRootDir}), which is not a directory. Ignoring.`));
@@ -4622,12 +4622,12 @@ const resolveConfigRootDir = (config, configSourceDirectory) => {
 	return resolvedRootDir;
 };
 const resolveDiagnoseTarget = (directory, options = {}) => {
-	if (isFile(path.join(directory, "package.json"))) return directory;
+	if (isFile(path$1.join(directory, "package.json"))) return directory;
 	const reactSubprojects = discoverReactSubprojects(directory);
 	if (reactSubprojects.length === 0) return null;
 	if (reactSubprojects.length === 1) return reactSubprojects[0].directory;
 	if (options.allowAmbiguous === true) return null;
-	throw new AmbiguousProjectError(directory, reactSubprojects.map((subproject) => path.relative(directory, subproject.directory)).toSorted());
+	throw new AmbiguousProjectError(directory, reactSubprojects.map((subproject) => path$1.relative(directory, subproject.directory)).toSorted());
 };
 /**
 * The canonical entry-point translation shared by every public shell
@@ -4653,14 +4653,14 @@ const resolveDiagnoseTarget = (directory, options = {}) => {
 * shell in agreement on what "the scan directory" means.
 */
 const resolveScanTarget = async (requestedDirectory, options = {}) => {
-	const absoluteRequested = path.resolve(requestedDirectory);
+	const absoluteRequested = path$1.resolve(requestedDirectory);
 	const loadedConfig = await loadConfigWithSource(absoluteRequested);
 	const userConfig = loadedConfig?.config ?? null;
 	const configSourceDirectory = loadedConfig?.sourceDirectory ?? null;
 	const redirectedDirectory = resolveConfigRootDir(userConfig, configSourceDirectory);
 	const directoryAfterRedirect = redirectedDirectory ?? absoluteRequested;
 	const resolvedDirectory = resolveDiagnoseTarget(directoryAfterRedirect, options) ?? directoryAfterRedirect;
-	if (!isDirectory(resolvedDirectory)) throw existsSync(resolvedDirectory) ? new NotADirectoryError(resolvedDirectory) : new ProjectNotFoundError(resolvedDirectory, { kind: "missing-path" });
+	if (!isDirectory(resolvedDirectory)) throw fs$1.existsSync(resolvedDirectory) ? new NotADirectoryError(resolvedDirectory) : new ProjectNotFoundError(resolvedDirectory, { kind: "missing-path" });
 	return {
 		resolvedDirectory,
 		requestedDirectory: absoluteRequested,
@@ -4671,7 +4671,7 @@ const resolveScanTarget = async (requestedDirectory, options = {}) => {
 };
 const getDirectDependencyNames = (packageJson) => new Set([...Object.keys(packageJson.dependencies ?? {}), ...Object.keys(packageJson.devDependencies ?? {})]);
 const buildExpoCheckContext = (rootDirectory, expoVersion) => {
-	const packageJson = readPackageJson(path.join(rootDirectory, "package.json"));
+	const packageJson = readPackageJson(path$1.join(rootDirectory, "package.json"));
 	return {
 		rootDirectory,
 		packageJson,
@@ -4741,7 +4741,7 @@ const LOCAL_ENV_FILE_NAMES = [
 const checkExpoEnvLocalFiles = (context) => {
 	const { rootDirectory } = context;
 	const committedEnvFiles = LOCAL_ENV_FILE_NAMES.filter((fileName) => {
-		const filePath = path.join(rootDirectory, fileName);
+		const filePath = path$1.join(rootDirectory, fileName);
 		if (!isFile(filePath)) return false;
 		return isPathGitIgnored(rootDirectory, filePath) === false;
 	});
@@ -4875,17 +4875,17 @@ const checkExpoFlaggedDependencies = (context) => FLAGGED_DEPENDENCIES.filter((f
 	help: flaggedDependency.help
 }));
 const findLocalModuleNativeFiles = (rootDirectory) => {
-	const modulesDirectory = path.join(rootDirectory, "modules");
+	const modulesDirectory = path$1.join(rootDirectory, "modules");
 	if (!isDirectory(modulesDirectory)) return [];
 	const nativeFilePaths = [];
 	for (const moduleEntry of readDirectoryEntries(modulesDirectory)) {
 		if (!moduleEntry.isDirectory()) continue;
-		const moduleDirectory = path.join(modulesDirectory, moduleEntry.name);
-		const gradlePath = path.join(moduleDirectory, "android", "build.gradle");
+		const moduleDirectory = path$1.join(modulesDirectory, moduleEntry.name);
+		const gradlePath = path$1.join(moduleDirectory, "android", "build.gradle");
 		if (isFile(gradlePath)) nativeFilePaths.push(gradlePath);
-		const iosDirectory = path.join(moduleDirectory, "ios");
+		const iosDirectory = path$1.join(moduleDirectory, "ios");
 		if (isDirectory(iosDirectory)) {
-			for (const iosEntry of readDirectoryEntries(iosDirectory)) if (iosEntry.isFile() && iosEntry.name.endsWith(".podspec")) nativeFilePaths.push(path.join(iosDirectory, iosEntry.name));
+			for (const iosEntry of readDirectoryEntries(iosDirectory)) if (iosEntry.isFile() && iosEntry.name.endsWith(".podspec")) nativeFilePaths.push(path$1.join(iosDirectory, iosEntry.name));
 		}
 	}
 	return nativeFilePaths;
@@ -4893,7 +4893,7 @@ const findLocalModuleNativeFiles = (rootDirectory) => {
 const checkExpoGitignore = (context) => {
 	const { rootDirectory } = context;
 	const diagnostics = [];
-	const expoStateDirectory = path.join(rootDirectory, ".expo");
+	const expoStateDirectory = path$1.join(rootDirectory, ".expo");
 	if (isDirectory(expoStateDirectory) && isPathGitIgnored(rootDirectory, expoStateDirectory) === false) diagnostics.push(buildExpoDiagnostic({
 		rule: "expo-gitignore",
 		message: "The `.expo` directory is not ignored by Git — it holds machine-specific device history and dev-server settings that should not be committed",
@@ -4915,7 +4915,7 @@ const LOCKFILE_NAMES = [
 ];
 const checkExpoLockfile = (context) => {
 	const workspaceRoot = isMonorepoRoot(context.rootDirectory) ? context.rootDirectory : findMonorepoRoot(context.rootDirectory) ?? context.rootDirectory;
-	const presentLockfiles = LOCKFILE_NAMES.filter((lockfileName) => isFile(path.join(workspaceRoot, lockfileName)));
+	const presentLockfiles = LOCKFILE_NAMES.filter((lockfileName) => isFile(path$1.join(workspaceRoot, lockfileName)));
 	if (presentLockfiles.length === 0) return [buildExpoDiagnostic({
 		rule: "expo-lockfile",
 		message: "No lock file detected at the project root — installs are not reproducible, and EAS Build cannot infer your package manager",
@@ -4940,18 +4940,18 @@ const EXPO_METRO_CONFIG_EXTEND_SIGNALS = [
 	"getSentryExpoConfig"
 ];
 const checkExpoMetroConfig = (context) => {
-	const metroConfigPath = METRO_CONFIG_FILE_NAMES.map((fileName) => path.join(context.rootDirectory, fileName)).find((candidatePath) => isFile(candidatePath));
+	const metroConfigPath = METRO_CONFIG_FILE_NAMES.map((fileName) => path$1.join(context.rootDirectory, fileName)).find((candidatePath) => isFile(candidatePath));
 	if (metroConfigPath === void 0) return [];
 	let contents;
 	try {
-		contents = fs.readFileSync(metroConfigPath, "utf-8");
+		contents = fs$1.readFileSync(metroConfigPath, "utf-8");
 	} catch {
 		return [];
 	}
 	if (EXPO_METRO_CONFIG_EXTEND_SIGNALS.some((signal) => contents.includes(signal))) return [];
 	return [buildExpoDiagnostic({
 		rule: "expo-metro-config",
-		filePath: path.basename(metroConfigPath),
+		filePath: path$1.basename(metroConfigPath),
 		message: "Your metro.config does not extend `expo/metro-config` — a custom Metro config that doesn't extend Expo's leads to unexpected, hard-to-debug bundling issues",
 		help: "Update your metro config to extend `expo/metro-config`. See https://docs.expo.dev/guides/customizing-metro/"
 	})];
@@ -4997,16 +4997,16 @@ const NO_CONFIG = {
 const decodeExpoConfig = (filePath) => {
 	let raw;
 	try {
-		raw = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+		raw = JSON.parse(fs$1.readFileSync(filePath, "utf-8"));
 	} catch {
 		return null;
 	}
 	return Option.getOrNull(Schema.decodeUnknownOption(AppManifestSchema)(raw))?.expo ?? null;
 };
 const readExpoAppConfig = (rootDirectory) => {
-	if (APP_CONFIG_DYNAMIC_FILES.some((fileName) => isFile(path.join(rootDirectory, fileName)))) return NO_CONFIG;
+	if (APP_CONFIG_DYNAMIC_FILES.some((fileName) => isFile(path$1.join(rootDirectory, fileName)))) return NO_CONFIG;
 	for (const fileName of APP_CONFIG_JSON_FILES) {
-		const filePath = path.join(rootDirectory, fileName);
+		const filePath = path$1.join(rootDirectory, fileName);
 		if (!isFile(filePath)) continue;
 		const config = decodeExpoConfig(filePath);
 		if (config) return {
@@ -5153,12 +5153,12 @@ const parseHardeningSettings = (content) => {
 	};
 };
 const isPnpmManagedProject = (rootDirectory) => {
-	if (isFile(path.join(rootDirectory, PNPM_LOCKFILE))) return true;
-	if (isFile(path.join(rootDirectory, PNPM_WORKSPACE_FILE))) return true;
-	const packageJsonPath = path.join(rootDirectory, PACKAGE_JSON_FILE);
+	if (isFile(path$1.join(rootDirectory, PNPM_LOCKFILE))) return true;
+	if (isFile(path$1.join(rootDirectory, PNPM_WORKSPACE_FILE))) return true;
+	const packageJsonPath = path$1.join(rootDirectory, PACKAGE_JSON_FILE);
 	if (!isFile(packageJsonPath)) return false;
 	try {
-		const packageJsonRaw = fs.readFileSync(packageJsonPath, "utf-8");
+		const packageJsonRaw = fs$1.readFileSync(packageJsonPath, "utf-8");
 		const packageJson = JSON.parse(packageJsonRaw);
 		if (packageJson !== null && typeof packageJson === "object" && "packageManager" in packageJson && typeof packageJson.packageManager === "string" && packageJson.packageManager.startsWith("pnpm@")) return true;
 	} catch {
@@ -5179,8 +5179,8 @@ const buildHardeningDiagnostic = (input) => ({
 });
 const checkPnpmHardening = (rootDirectory) => {
 	if (!isPnpmManagedProject(rootDirectory)) return [];
-	const workspacePath = path.join(rootDirectory, PNPM_WORKSPACE_FILE);
-	const settings = parseHardeningSettings(isFile(workspacePath) ? fs.readFileSync(workspacePath, "utf-8") : "");
+	const workspacePath = path$1.join(rootDirectory, PNPM_WORKSPACE_FILE);
+	const settings = parseHardeningSettings(isFile(workspacePath) ? fs$1.readFileSync(workspacePath, "utf-8") : "");
 	const diagnostics = [];
 	if (settings.minimumReleaseAge === null) diagnostics.push(buildHardeningDiagnostic({
 		message: "pnpm-workspace.yaml is missing `minimumReleaseAge` — newly published versions can ship malware that gets caught and unpublished within hours",
@@ -5210,7 +5210,7 @@ const isBuilderBobLibrary = (packageJson) => {
 	return typeof bobConfig === "object" && bobConfig !== null;
 };
 const checkReactNativeLibraryDependencies = (rootDirectory) => {
-	const packageJson = readPackageJson(path.join(rootDirectory, "package.json"));
+	const packageJson = readPackageJson(path$1.join(rootDirectory, "package.json"));
 	if (!isBuilderBobLibrary(packageJson)) return [];
 	const misplaced = ["react", "react-native"].filter((name) => packageJson.dependencies?.[name] !== void 0);
 	if (misplaced.length === 0) return [];
@@ -5239,11 +5239,11 @@ const BABEL_CONFIG_FILE_NAMES = [
 const LEGACY_PRESET_SPEC = "module:metro-react-native-babel-preset";
 const checkReactNativeMetroBabelPreset = (rootDirectory) => {
 	for (const fileName of BABEL_CONFIG_FILE_NAMES) {
-		const filePath = path.join(rootDirectory, fileName);
+		const filePath = path$1.join(rootDirectory, fileName);
 		if (!isFile(filePath)) continue;
 		let contents;
 		try {
-			contents = fs.readFileSync(filePath, "utf-8");
+			contents = fs$1.readFileSync(filePath, "utf-8");
 		} catch {
 			continue;
 		}
@@ -5288,7 +5288,7 @@ const MISSING_REDUCED_MOTION_DIAGNOSTIC = {
 	category: "Accessibility"
 };
 const checkReducedMotion = (rootDirectory) => {
-	const packageJsonPath = path.join(rootDirectory, "package.json");
+	const packageJsonPath = path$1.join(rootDirectory, "package.json");
 	if (!isFile(packageJsonPath)) return [];
 	let hasMotionLibrary = false;
 	try {
@@ -5413,7 +5413,7 @@ const isTruthyLinguistAttribute = (token) => {
 const parseGitattributesLinguistPaths = (filePath) => {
 	let content;
 	try {
-		content = fs.readFileSync(filePath, "utf-8");
+		content = fs$1.readFileSync(filePath, "utf-8");
 	} catch {
 		return [];
 	}
@@ -5435,7 +5435,7 @@ const stripGitignoreEscape = (pattern) => {
 const readIgnoreFile = (filePath) => {
 	let content;
 	try {
-		content = fs.readFileSync(filePath, "utf-8");
+		content = fs$1.readFileSync(filePath, "utf-8");
 	} catch (error) {
 		const errnoCode = error?.code;
 		if (errnoCode && errnoCode !== "ENOENT") Effect.runSync(Console.warn(`Could not read ignore file ${filePath}: ${errnoCode}`));
@@ -5467,8 +5467,8 @@ const computeIgnorePatterns = (rootDirectory) => {
 		seen.add(pattern);
 		patterns.push(pattern);
 	};
-	for (const filename of IGNORE_FILENAMES) for (const pattern of readIgnoreFile(path.join(rootDirectory, filename))) addPattern(pattern);
-	for (const linguistPath of parseGitattributesLinguistPaths(path.join(rootDirectory, ".gitattributes"))) addPattern(linguistPath);
+	for (const filename of IGNORE_FILENAMES) for (const pattern of readIgnoreFile(path$1.join(rootDirectory, filename))) addPattern(pattern);
+	for (const linguistPath of parseGitattributesLinguistPaths(path$1.join(rootDirectory, ".gitattributes"))) addPattern(linguistPath);
 	return patterns;
 };
 const collectIgnorePatterns = (rootDirectory) => {
@@ -5552,7 +5552,7 @@ const collectDeadCodeEntryPatterns = (rootDirectory) => [...new Set(collectKnipP
 */
 const toCanonicalPath = (filePath) => {
 	try {
-		return fs.realpathSync(filePath);
+		return fs$1.realpathSync(filePath);
 	} catch {
 		return filePath;
 	}
@@ -5619,8 +5619,8 @@ process.stdin.on("end", () => {
 `;
 const resolveTsConfigPath = (rootDirectory) => {
 	for (const filename of TSCONFIG_FILENAMES$1) {
-		const candidate = path.join(rootDirectory, filename);
-		if (fs.existsSync(candidate)) return candidate;
+		const candidate = path$1.join(rootDirectory, filename);
+		if (fs$1.existsSync(candidate)) return candidate;
 	}
 };
 const toRelativeFilePath = (rootDirectory, filePath) => {
@@ -5808,7 +5808,7 @@ const runDeadCodeWorkerWithTimeout = (handle, timeoutMs) => new Promise((resolve
 const checkDeadCode = async (options) => {
 	const { userConfig } = options;
 	const rootDirectory = toCanonicalPath(options.rootDirectory);
-	if (!fs.existsSync(path.join(rootDirectory, "package.json"))) return [];
+	if (!fs$1.existsSync(path$1.join(rootDirectory, "package.json"))) return [];
 	const entryPatterns = collectDeadCodeEntryPatterns(rootDirectory);
 	const ignorePatterns = collectDeadCodeIgnorePatterns(rootDirectory, userConfig);
 	const result = parseDeadCodeWorkerResult(await runDeadCodeWorkerWithTimeout((options.createWorker ?? createDeadCodeWorker)({
@@ -5915,7 +5915,7 @@ const isDiagnosticOnSurface = (diagnostic, surface, config) => {
 	return true;
 };
 const filterDiagnosticsForSurface = (diagnostics, surface, config) => diagnostics.filter((diagnostic) => isDiagnosticOnSurface(diagnostic, surface, config));
-const excludeMinifiedFiles = (rootDirectory, relativePaths) => relativePaths.filter((relativePath) => !isLargeMinifiedFile(path.resolve(rootDirectory, relativePath)));
+const excludeMinifiedFiles = (rootDirectory, relativePaths) => relativePaths.filter((relativePath) => !isLargeMinifiedFile(path$1.resolve(rootDirectory, relativePath)));
 const listSourceFilesViaGit = (rootDirectory) => {
 	const result = spawnSync("git", [
 		"ls-files",
@@ -5938,12 +5938,12 @@ const listSourceFilesViaFilesystem = (rootDirectory) => {
 		const currentDirectory = stack.pop();
 		const entries = readDirectoryEntries(currentDirectory);
 		for (const entry of entries) {
-			const absolutePath = path.join(currentDirectory, entry.name);
+			const absolutePath = path$1.join(currentDirectory, entry.name);
 			if (entry.isDirectory()) {
 				if (!entry.name.startsWith(".") && !IGNORED_DIRECTORIES.has(entry.name)) stack.push(absolutePath);
 				continue;
 			}
-			if (entry.isFile() && isLintableSourceFile(entry.name)) filePaths.push(path.relative(rootDirectory, absolutePath).replace(/\\/g, "/"));
+			if (entry.isFile() && isLintableSourceFile(entry.name)) filePaths.push(path$1.relative(rootDirectory, absolutePath).replace(/\\/g, "/"));
 		}
 	}
 	return filePaths;
@@ -6002,9 +6002,9 @@ var DeadCode = class DeadCode extends Context.Service()("react-doctor/DeadCode")
 };
 const createNodeReadFileLinesSync = (rootDirectory) => {
 	return (filePath) => {
-		const absolutePath = path.isAbsolute(filePath) ? filePath : path.join(rootDirectory, filePath);
+		const absolutePath = path$1.isAbsolute(filePath) ? filePath : path$1.join(rootDirectory, filePath);
 		try {
-			return fs.readFileSync(absolutePath, "utf-8").split("\n");
+			return fs$1.readFileSync(absolutePath, "utf-8").split("\n");
 		} catch {
 			return null;
 		}
@@ -6024,7 +6024,7 @@ var Files = class Files extends Context.Service()("react-doctor/Files") {
 	* pattern in react-doctor-evals' test layers.
 	*/
 	static layerInMemory = (tree) => {
-		const resolveAbsolute = (filePath, rootDirectory) => Path.isAbsolute(filePath) ? filePath : `${rootDirectory}/${filePath}`;
+		const resolveAbsolute = (filePath, rootDirectory) => path$1.isAbsolute(filePath) ? filePath : `${rootDirectory}/${filePath}`;
 		return Layer.succeed(Files, Files.of({
 			readLines: (input) => Effect.sync(() => {
 				const absolute = resolveAbsolute(input.filePath, input.rootDirectory);
@@ -6514,7 +6514,7 @@ const canOxlintExtendConfig = (configPath) => {
 	if (!configPath.endsWith(".eslintrc.json")) return true;
 	let parsed;
 	try {
-		parsed = parseJsonOrJsonc(fs.readFileSync(configPath, "utf-8"));
+		parsed = parseJsonOrJsonc(fs$1.readFileSync(configPath, "utf-8"));
 	} catch {
 		return true;
 	}
@@ -6527,7 +6527,7 @@ const canOxlintExtendConfig = (configPath) => {
 };
 const findFirstLintConfigInDirectory = (directory) => {
 	for (const filename of ADOPTABLE_LINT_CONFIG_FILENAMES) {
-		const candidatePath = path.join(directory, filename);
+		const candidatePath = path$1.join(directory, filename);
 		if (isFile(candidatePath)) return candidatePath;
 	}
 	return null;
@@ -6536,12 +6536,12 @@ const detectUserLintConfigPaths = (rootDirectory) => {
 	const directLintConfig = findFirstLintConfigInDirectory(rootDirectory);
 	if (directLintConfig) return [directLintConfig];
 	if (isProjectBoundary(rootDirectory)) return [];
-	let ancestorDirectory = path.dirname(rootDirectory);
-	while (ancestorDirectory !== path.dirname(ancestorDirectory)) {
+	let ancestorDirectory = path$1.dirname(rootDirectory);
+	while (ancestorDirectory !== path$1.dirname(ancestorDirectory)) {
 		const ancestorLintConfig = findFirstLintConfigInDirectory(ancestorDirectory);
 		if (ancestorLintConfig) return [ancestorLintConfig];
 		if (isProjectBoundary(ancestorDirectory)) return [];
-		ancestorDirectory = path.dirname(ancestorDirectory);
+		ancestorDirectory = path$1.dirname(ancestorDirectory);
 	}
 	return [];
 };
@@ -6570,10 +6570,10 @@ const findFilesWithDisableDirectivesViaFilesystem = (rootDirectory, includePaths
 	const matches = [];
 	const checkFile = (relativePath) => {
 		if (!isLintableSourceFile(relativePath)) return;
-		const absolutePath = path.join(rootDirectory, relativePath);
+		const absolutePath = path$1.join(rootDirectory, relativePath);
 		let content;
 		try {
-			content = fs.readFileSync(absolutePath, "utf-8");
+			content = fs$1.readFileSync(absolutePath, "utf-8");
 		} catch {
 			return;
 		}
@@ -6591,12 +6591,12 @@ const findFilesWithDisableDirectivesViaFilesystem = (rootDirectory, includePaths
 		for (const entry of entries) {
 			if (entry.isDirectory()) {
 				if (entry.name.startsWith(".") || IGNORED_DIRECTORIES.has(entry.name)) continue;
-				stack.push(path.join(current, entry.name));
+				stack.push(path$1.join(current, entry.name));
 				continue;
 			}
 			if (!entry.isFile()) continue;
-			const absolute = path.join(current, entry.name);
-			checkFile(path.relative(rootDirectory, absolute));
+			const absolute = path$1.join(current, entry.name);
+			checkFile(path$1.relative(rootDirectory, absolute));
 		}
 	}
 	return matches;
@@ -6611,7 +6611,7 @@ const neutralizeDisableDirectives = async (rootDirectory, includePaths) => {
 		if (isRestored) return;
 		isRestored = true;
 		for (const [absolutePath, originalContent] of originalContents) try {
-			fs.writeFileSync(absolutePath, originalContent);
+			fs$1.writeFileSync(absolutePath, originalContent);
 		} catch (error) {
 			process.stderr.write(`[react-doctor] Failed to restore inline disable directives in ${absolutePath}: ${error instanceof Error ? error.message : String(error)}\n[react-doctor] Run: git checkout -- ${absolutePath}\n`);
 		}
@@ -6619,17 +6619,17 @@ const neutralizeDisableDirectives = async (rootDirectory, includePaths) => {
 	const onExit = () => restore();
 	process.once("exit", onExit);
 	for (const relativePath of filePaths) {
-		const absolutePath = path.join(rootDirectory, relativePath);
+		const absolutePath = path$1.join(rootDirectory, relativePath);
 		let originalContent;
 		try {
-			originalContent = fs.readFileSync(absolutePath, "utf-8");
+			originalContent = fs$1.readFileSync(absolutePath, "utf-8");
 		} catch {
 			continue;
 		}
 		const neutralizedContent = neutralizeContent(originalContent);
 		if (neutralizedContent !== originalContent) {
 			originalContents.set(absolutePath, originalContent);
-			fs.writeFileSync(absolutePath, neutralizedContent);
+			fs$1.writeFileSync(absolutePath, neutralizedContent);
 		}
 	}
 	return () => {
@@ -6766,11 +6766,11 @@ const filterRulesToAvailable = (rules, pluginNamespace, availableRuleNames) => {
 * renamed.
 */
 const resolveUserPlugin = (spec, configSourceDirectory) => {
-	const isRelative = spec.startsWith("./") || spec.startsWith("../") || path.isAbsolute(spec);
-	const candidateRequire = createRequire(path.join(configSourceDirectory, "noop.js"));
+	const isRelative = spec.startsWith("./") || spec.startsWith("../") || path$1.isAbsolute(spec);
+	const candidateRequire = createRequire(path$1.join(configSourceDirectory, "noop.js"));
 	let resolvedSpecifier;
 	try {
-		resolvedSpecifier = isRelative ? path.resolve(configSourceDirectory, spec) : candidateRequire.resolve(spec);
+		resolvedSpecifier = isRelative ? path$1.resolve(configSourceDirectory, spec) : candidateRequire.resolve(spec);
 	} catch (error) {
 		warnConfigIssue(`config.plugins entry "${spec}" could not be resolved from ${configSourceDirectory}: ${error instanceof Error ? error.message : String(error)}`);
 		return null;
@@ -6810,8 +6810,8 @@ const resolveUserPlugins = (specs, configSourceDirectory) => {
 	return resolved;
 };
 const resolveSettingsRootDirectory = (rootDirectory) => {
-	if (!fs.existsSync(rootDirectory)) return rootDirectory;
-	return fs.realpathSync(rootDirectory);
+	if (!fs$1.existsSync(rootDirectory)) return rootDirectory;
+	return fs$1.realpathSync(rootDirectory);
 };
 const resolveCompilerCleanupBucketSeverity = (ruleKey, severityControls) => {
 	if (!COMPILER_CLEANUP_RULE_KEYS.has(ruleKey)) return void 0;
@@ -6900,13 +6900,13 @@ const createOxlintConfig = ({ pluginPath, project, customRulesOnly = false, exte
 const esmRequire = createRequire(import.meta.url);
 const resolveOxlintBinary = () => {
 	const oxlintMainPath = esmRequire.resolve("oxlint");
-	const oxlintPackageDirectory = path.resolve(path.dirname(oxlintMainPath), "..");
-	return path.join(oxlintPackageDirectory, "bin", "oxlint");
+	const oxlintPackageDirectory = path$1.resolve(path$1.dirname(oxlintMainPath), "..");
+	return path$1.join(oxlintPackageDirectory, "bin", "oxlint");
 };
 const resolvePluginPath = () => esmRequire.resolve("oxlint-plugin-react-doctor");
 const TSCONFIG_FILENAMES = ["tsconfig.json", "tsconfig.base.json"];
 const resolveTsConfigRelativePath = (rootDirectory) => {
-	for (const filename of TSCONFIG_FILENAMES) if (fs.existsSync(path.join(rootDirectory, filename))) return `./${filename}`;
+	for (const filename of TSCONFIG_FILENAMES) if (fs$1.existsSync(path$1.join(rootDirectory, filename))) return `./${filename}`;
 	return null;
 };
 const dedupeDiagnostics = (diagnostics) => {
@@ -7406,10 +7406,10 @@ const shouldSuppressLocalUseHookDiagnostic = (diagnostic, rootDirectory) => {
 	if (!diagnostic.message.startsWith(REACT_HOOK_USE_MESSAGE_PREFIX)) return false;
 	const primaryLabel = diagnostic.labels[0];
 	if (!primaryLabel) return false;
-	const absolutePath = path.isAbsolute(diagnostic.filename) ? diagnostic.filename : path.join(rootDirectory, diagnostic.filename);
+	const absolutePath = path$1.isAbsolute(diagnostic.filename) ? diagnostic.filename : path$1.join(rootDirectory, diagnostic.filename);
 	let sourceText;
 	try {
-		sourceText = fs.readFileSync(absolutePath, "utf-8");
+		sourceText = fs$1.readFileSync(absolutePath, "utf-8");
 	} catch {
 		return false;
 	}
@@ -7500,7 +7500,7 @@ const parseOxlintOutput = (stdout, project, rootDirectory) => {
 	if (!isOxlintOutput(parsed)) throw new ReactDoctorError({ reason: new OxlintOutputUnparseable({ preview: stdout.slice(0, 200) }) });
 	const minifiedFileCache = /* @__PURE__ */ new Map();
 	const isMinifiedDiagnosticFile = (filename) => {
-		const absolutePath = path.isAbsolute(filename) ? filename : path.resolve(rootDirectory || ".", filename);
+		const absolutePath = path$1.isAbsolute(filename) ? filename : path$1.resolve(rootDirectory || ".", filename);
 		const cached = minifiedFileCache.get(absolutePath);
 		if (cached !== void 0) return cached;
 		const minified = isMinifiedSource(absolutePath);
@@ -7767,12 +7767,12 @@ const validateRuleRegistration = () => {
 * legitimate overwriter is `this` runner inside the same temp dir.
 */
 const writeOxlintConfig = (configPath, configToWrite) => {
-	fs.rmSync(configPath, { force: true });
-	const fileHandle = fs.openSync(configPath, "wx", 384);
+	fs$1.rmSync(configPath, { force: true });
+	const fileHandle = fs$1.openSync(configPath, "wx", 384);
 	try {
-		fs.writeFileSync(fileHandle, JSON.stringify(configToWrite));
+		fs$1.writeFileSync(fileHandle, JSON.stringify(configToWrite));
 	} finally {
-		fs.closeSync(fileHandle);
+		fs$1.closeSync(fileHandle);
 	}
 };
 /**
@@ -7813,8 +7813,8 @@ const runOxlint = async (options) => {
 		userPlugins
 	});
 	const restoreDisableDirectives = respectInlineDisables ? () => {} : await neutralizeDisableDirectives(rootDirectory, includePaths);
-	const configDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "react-doctor-oxlintrc-"));
-	const configPath = path.join(configDirectory, "oxlintrc.json");
+	const configDirectory = fs$1.mkdtempSync(path$1.join(os.tmpdir(), "react-doctor-oxlintrc-"));
+	const configPath = path$1.join(configDirectory, "oxlintrc.json");
 	try {
 		const baseArgs = [
 			resolveOxlintBinary(),
@@ -7829,8 +7829,8 @@ const runOxlint = async (options) => {
 		}
 		const combinedPatterns = collectIgnorePatterns(rootDirectory);
 		if (combinedPatterns.length > 0) {
-			const combinedIgnorePath = path.join(configDirectory, "combined.ignore");
-			fs.writeFileSync(combinedIgnorePath, `${combinedPatterns.join("\n")}\n`);
+			const combinedIgnorePath = path$1.join(configDirectory, "combined.ignore");
+			fs$1.writeFileSync(combinedIgnorePath, `${combinedPatterns.join("\n")}\n`);
 			baseArgs.push("--ignore-path", combinedIgnorePath);
 		}
 		const fileBatches = batchIncludePaths(baseArgs, includePaths !== void 0 ? includePaths : listSourceFiles(rootDirectory));
@@ -7856,7 +7856,7 @@ const runOxlint = async (options) => {
 		}
 	} finally {
 		restoreDisableDirectives();
-		fs.rmSync(configDirectory, {
+		fs$1.rmSync(configDirectory, {
 			recursive: true,
 			force: true
 		});
@@ -8058,7 +8058,7 @@ var Reporter = class Reporter extends Context.Service()("react-doctor/Reporter")
 	* `Diagnostic` schema.
 	*/
 	static layerNdjson = (filePath) => Layer.effect(Reporter, Effect.sync(() => {
-		fs$1.mkdirSync(Path.dirname(filePath), { recursive: true });
+		fs$1.mkdirSync(path$1.dirname(filePath), { recursive: true });
 		const handle = fs$1.openSync(filePath, "a");
 		const encode = Schema.encodeUnknownSync(Diagnostic);
 		const emit = (diagnostic) => Effect.sync(() => {
@@ -8143,7 +8143,7 @@ const getStringProperty = (value, propertyName) => {
 const readGithubEventPayload = (eventPath) => {
 	if (eventPath === void 0 || eventPath.length === 0) return null;
 	try {
-		return JSON.parse(readFileSync(eventPath, "utf8"));
+		return JSON.parse(fs$1.readFileSync(eventPath, "utf8"));
 	} catch {
 		return null;
 	}
@@ -8227,7 +8227,7 @@ const runInspect = (input, hooks = {}) => Effect.gen(function* () {
 		repo
 	}).pipe(Effect.orElseSucceed(() => null)) : Effect.succeed(null));
 	const lintIncludePaths = computeJsxIncludePaths([...input.includePaths]) ?? resolveLintIncludePaths(scanDirectory, resolvedConfig.config);
-	const scannedFilePaths = input.suppressScanSummary ? (lintIncludePaths ?? (yield* filesService.listSourceFiles(scanDirectory))).map((relativePath) => path.resolve(scanDirectory, relativePath)) : [];
+	const scannedFilePaths = input.suppressScanSummary ? (lintIncludePaths ?? (yield* filesService.listSourceFiles(scanDirectory))).map((relativePath) => path$1.resolve(scanDirectory, relativePath)) : [];
 	const beforeLint = hooks.beforeLint ?? NO_HOOKS.beforeLint;
 	const afterLint = hooks.afterLint ?? NO_HOOKS.afterLint;
 	yield* beforeLint(project, lintIncludePaths ?? void 0);
@@ -8378,25 +8378,25 @@ const isNodeVersionCompatibleWithOxlint = ({ major, minor }) => {
 const isCurrentNodeCompatibleWithOxlint = () => isNodeVersionCompatibleWithOxlint(parseNodeVersion(process.version));
 const getNvmDirectory = () => {
 	const envNvmDirectory = process.env.NVM_DIR;
-	if (envNvmDirectory && existsSync(envNvmDirectory)) return envNvmDirectory;
-	const defaultNvmDirectory = path.join(os.homedir(), ".nvm");
-	if (existsSync(defaultNvmDirectory)) return defaultNvmDirectory;
+	if (envNvmDirectory && fs$1.existsSync(envNvmDirectory)) return envNvmDirectory;
+	const defaultNvmDirectory = path$1.join(os.homedir(), ".nvm");
+	if (fs$1.existsSync(defaultNvmDirectory)) return defaultNvmDirectory;
 	return null;
 };
 const isNvmInstalled = () => getNvmDirectory() !== null;
 const findCompatibleNvmBinary = () => {
 	const nvmDirectory = getNvmDirectory();
 	if (!nvmDirectory) return null;
-	const versionsDirectory = path.join(nvmDirectory, "versions", "node");
-	if (!existsSync(versionsDirectory)) return null;
-	const compatibleVersions = readdirSync(versionsDirectory).filter((directoryName) => directoryName.startsWith("v")).map((directoryName) => ({
+	const versionsDirectory = path$1.join(nvmDirectory, "versions", "node");
+	if (!fs$1.existsSync(versionsDirectory)) return null;
+	const compatibleVersions = fs$1.readdirSync(versionsDirectory).filter((directoryName) => directoryName.startsWith("v")).map((directoryName) => ({
 		directoryName,
 		...parseNodeVersion(directoryName)
 	})).filter((version) => isNodeVersionCompatibleWithOxlint(version)).sort((versionA, versionB) => versionB.major - versionA.major || versionB.minor - versionA.minor || versionB.patch - versionA.patch);
 	if (compatibleVersions.length === 0) return null;
 	const bestVersion = compatibleVersions[0];
-	const binaryPath = path.join(versionsDirectory, bestVersion.directoryName, "bin", "node");
-	return existsSync(binaryPath) ? binaryPath : null;
+	const binaryPath = path$1.join(versionsDirectory, bestVersion.directoryName, "bin", "node");
+	return fs$1.existsSync(binaryPath) ? binaryPath : null;
 };
 const getNodeVersionFromBinary = (binaryPath) => {
 	const result = spawnSync(binaryPath, ["--version"], { encoding: "utf-8" });
@@ -8406,8 +8406,8 @@ const getNodeVersionFromBinary = (binaryPath) => {
 const installNodeViaNvm = () => {
 	const nvmDirectory = getNvmDirectory();
 	if (!nvmDirectory) return false;
-	const nvmScript = path.join(nvmDirectory, "nvm.sh");
-	if (!existsSync(nvmScript)) return false;
+	const nvmScript = path$1.join(nvmDirectory, "nvm.sh");
+	if (!fs$1.existsSync(nvmScript)) return false;
 	const result = spawnSync("bash", ["-c", ". \"$NVM_SCRIPT\" && nvm install \"$NODE_MAJOR\""], {
 		stdio: "inherit",
 		env: {
@@ -8470,8 +8470,8 @@ const resolveNodeForOxlint = () => {
 * result that lands outside it before `writeFileSync` runs.
 */
 const isPathInsideDirectory = (childAbsolutePath, parentAbsolutePath) => {
-	const relative = path.relative(parentAbsolutePath, childAbsolutePath);
-	return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
+	const relative = path$1.relative(parentAbsolutePath, childAbsolutePath);
+	return Boolean(relative) && !relative.startsWith("..") && !path$1.isAbsolute(relative);
 };
 (class StagedFiles extends Context.Service()("react-doctor/StagedFiles") {
 	static layerNode = Layer.effect(StagedFiles, Effect.gen(function* () {
@@ -8480,23 +8480,23 @@ const isPathInsideDirectory = (childAbsolutePath, parentAbsolutePath) => {
 			discoverSourceFiles: (directory) => git.stagedFilePaths(directory).pipe(Effect.map((entries) => entries.filter(isLintableSourceFile))),
 			materialize: ({ directory, stagedFiles, tempDirectory }) => Effect.gen(function* () {
 				const materializedFiles = [];
-				const resolvedTempDirectory = path.resolve(tempDirectory);
+				const resolvedTempDirectory = path$1.resolve(tempDirectory);
 				for (const relativePath of stagedFiles) {
 					const content = yield* git.showStagedContent(directory, relativePath, { maxBufferBytes: GIT_SHOW_MAX_BUFFER_BYTES }).pipe(Effect.orElseSucceed(() => null));
 					if (content === null) continue;
-					const candidateTargetPath = path.resolve(resolvedTempDirectory, relativePath);
+					const candidateTargetPath = path$1.resolve(resolvedTempDirectory, relativePath);
 					if (!isPathInsideDirectory(candidateTargetPath, resolvedTempDirectory)) continue;
 					yield* Effect.sync(() => {
-						fs.mkdirSync(path.dirname(candidateTargetPath), { recursive: true });
-						fs.writeFileSync(candidateTargetPath, content);
+						fs$1.mkdirSync(path$1.dirname(candidateTargetPath), { recursive: true });
+						fs$1.writeFileSync(candidateTargetPath, content);
 					});
 					materializedFiles.push(relativePath);
 				}
 				yield* Effect.sync(() => {
 					for (const configFilename of STAGED_FILES_PROJECT_CONFIG_FILENAMES) {
-						const sourcePath = path.join(directory, configFilename);
-						const targetPath = path.join(resolvedTempDirectory, configFilename);
-						if (fs.existsSync(sourcePath) && !fs.existsSync(targetPath)) fs.cpSync(sourcePath, targetPath);
+						const sourcePath = path$1.join(directory, configFilename);
+						const targetPath = path$1.join(resolvedTempDirectory, configFilename);
+						if (fs$1.existsSync(sourcePath) && !fs$1.existsSync(targetPath)) fs$1.cpSync(sourcePath, targetPath);
 					}
 				});
 				return {
@@ -8504,7 +8504,7 @@ const isPathInsideDirectory = (childAbsolutePath, parentAbsolutePath) => {
 					stagedFiles: materializedFiles,
 					cleanup: () => {
 						try {
-							fs.rmSync(tempDirectory, {
+							fs$1.rmSync(tempDirectory, {
 								recursive: true,
 								force: true
 							});

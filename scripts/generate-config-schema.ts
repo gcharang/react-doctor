@@ -1,13 +1,13 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGenerator, type Config } from "ts-json-schema-generator";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
-const SCRIPT_DIRECTORY = dirname(fileURLToPath(import.meta.url));
-const REPOSITORY_ROOT = resolve(SCRIPT_DIRECTORY, "..");
-const SOURCE_TYPE_FILE = resolve(REPOSITORY_ROOT, "packages/core/src/types/config.ts");
-const SOURCE_TSCONFIG = resolve(REPOSITORY_ROOT, "packages/core/tsconfig.json");
-const OUTPUT_FILE = resolve(REPOSITORY_ROOT, "packages/website/public/schema/config.json");
+const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
+const REPOSITORY_ROOT = path.resolve(SCRIPT_DIRECTORY, "..");
+const SOURCE_TYPE_FILE = path.resolve(REPOSITORY_ROOT, "packages/core/src/types/config.ts");
+const SOURCE_TSCONFIG = path.resolve(REPOSITORY_ROOT, "packages/core/tsconfig.json");
+const OUTPUT_FILE = path.resolve(REPOSITORY_ROOT, "packages/website/public/schema/config.json");
 
 // Pinned fork: the schema is served from the branch's raw GitHub URL (matches
 // `CONFIG_SCHEMA_URL` in @react-doctor/core, which the CLI stamps into configs).
@@ -46,7 +46,7 @@ const annotated = {
   ...rest,
 };
 
-mkdirSync(dirname(OUTPUT_FILE), { recursive: true });
-writeFileSync(OUTPUT_FILE, `${JSON.stringify(annotated, undefined, 2)}\n`, "utf8");
+fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
+fs.writeFileSync(OUTPUT_FILE, `${JSON.stringify(annotated, undefined, 2)}\n`, "utf8");
 
 console.log(`Wrote ${OUTPUT_FILE}`);

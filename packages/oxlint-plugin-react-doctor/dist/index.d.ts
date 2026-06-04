@@ -5047,7 +5047,7 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly originallyExternal: false;
   readonly rule: {
     readonly framework: "react-native";
-    readonly category: "Performance";
+    readonly category: "Bugs";
     readonly tags: readonly string[];
     readonly id: string;
     readonly title?: string;
@@ -11345,7 +11345,7 @@ declare const RULES: readonly [{
   readonly originallyExternal: false;
   readonly rule: {
     readonly framework: "react-native";
-    readonly category: "Performance";
+    readonly category: "Bugs";
     readonly tags: readonly string[];
     readonly id: string;
     readonly title?: string;

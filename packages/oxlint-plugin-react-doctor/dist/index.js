@@ -1,7 +1,7 @@
-import path from "node:path";
+import * as path from "node:path";
 import { analyze } from "eslint-scope";
 import * as eslintVisitorKeys from "eslint-visitor-keys";
-import fs from "node:fs";
+import * as fs from "node:fs";
 import { parseSync } from "oxc-parser";
 //#region src/plugin/utils/is-testlike-filename.ts
 const NON_PRODUCTION_PATH_SEGMENTS = [
@@ -2574,7 +2574,7 @@ const INTENTIONAL_SEQUENCING_CALLEE_NAMES = new Set([
 * (`FUNCTION_LIKE_TYPES.has(node.type)`) and as a type-guard. The
 * type-guard form covers both shapes without callers paying a cast.
 */
-const isFunctionLike$3 = (node) => Boolean(node && (isNodeOfType(node, "ArrowFunctionExpression") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "FunctionDeclaration")));
+const isFunctionLike$2 = (node) => Boolean(node && (isNodeOfType(node, "ArrowFunctionExpression") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "FunctionDeclaration")));
 //#endregion
 //#region src/plugin/utils/is-inline-function-expression.ts
 /**
@@ -2597,7 +2597,7 @@ const findFirstAwaitOutsideNestedFunctions = (block) => {
 	let firstAwait = null;
 	walkAst(block, (child) => {
 		if (firstAwait) return false;
-		if (child !== block && isFunctionLike$3(child)) return false;
+		if (child !== block && isFunctionLike$2(child)) return false;
 		if (isNodeOfType(child, "AwaitExpression")) firstAwait = child;
 	});
 	return firstAwait;
@@ -3054,13 +3054,13 @@ const asyncDeferAwait = defineRule({
 		const inspectAllStatementBlocks = (functionBody) => {
 			if (!functionBody) return;
 			walkAst(functionBody, (descendant) => {
-				if (isFunctionLike$3(descendant)) return false;
+				if (isFunctionLike$2(descendant)) return false;
 				if (isNodeOfType(descendant, "BlockStatement")) inspectStatements(descendant.body ?? []);
 				else if (isNodeOfType(descendant, "SwitchCase")) inspectStatements(descendant.consequent ?? []);
 			});
 		};
 		const enterFunction = (node) => {
-			if (!isFunctionLike$3(node)) return;
+			if (!isFunctionLike$2(node)) return;
 			if (!node.async) return;
 			if (!isNodeOfType(node.body, "BlockStatement")) return;
 			inspectAllStatementBlocks(node.body);
@@ -3954,6 +3954,7 @@ const noEmDashInJsxText = defineRule({
 	title: "Em dash in JSX text",
 	tags: ["design", "test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	category: "Architecture",
 	recommendation: "Replace em dashes in UI text with commas, colons, semicolons, or parentheses so the copy reads less like AI output.",
 	create: (context) => ({ JSXText(jsxTextNode) {
@@ -4000,6 +4001,7 @@ const noRedundantPaddingAxes = defineRule({
 	title: "Redundant padding axes",
 	tags: ["design", "test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	category: "Architecture",
 	recommendation: "Collapse `px-N py-N` to `p-N` when both sides match. Keep them split only when one side changes at a breakpoint (`py-2 md:py-3`).",
 	create: (context) => ({ JSXAttribute(jsxAttribute) {
@@ -4023,6 +4025,7 @@ const noRedundantSizeAxes = defineRule({
 	requires: ["tailwind:3.4"],
 	tags: ["design", "test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	category: "Architecture",
 	recommendation: "Collapse `w-N h-N` to `size-N` (Tailwind v3.4+) when both sides match.",
 	create: (context) => ({ JSXAttribute(jsxAttribute) {
@@ -4046,6 +4049,7 @@ const noSpaceOnFlexChildren = defineRule({
 	title: "space-* utility on flex children",
 	tags: ["design", "test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	category: "Architecture",
 	recommendation: "Use `gap-*` on the flex or grid parent. `space-x-*` and `space-y-*` leave gaps when a child is hidden, miss spacing on wrapped lines, and don't flip in right-to-left layouts.",
 	create: (context) => ({ JSXAttribute(jsxAttribute) {
@@ -4079,6 +4083,7 @@ const noThreePeriodEllipsis = defineRule({
 	title: "Three dots instead of ellipsis",
 	tags: ["design", "test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	category: "Architecture",
 	recommendation: "Use the real ellipsis \"…\" (or `&hellip;`) instead of three dots. Good for labels like \"Rename…\" and \"Loading…\".",
 	create: (context) => ({ JSXText(jsxTextNode) {
@@ -4138,6 +4143,7 @@ const noVagueButtonLabel = defineRule({
 	title: "Vague button label",
 	tags: ["design", "test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	recommendation: "Name the action: \"Save changes\" instead of \"Continue\", \"Send invite\" instead of \"Submit\". The label is the button's accessible name.",
 	create: (context) => ({ JSXElement(jsxElementNode) {
 		const tagName = getOpeningElementTagName(jsxElementNode.openingElement);
@@ -4509,7 +4515,7 @@ const displayName = defineRule({
 //#region src/plugin/utils/walk-inside-statement-blocks.ts
 const walkInsideStatementBlocks = (node, visitor) => {
 	if (!node || typeof node !== "object") return;
-	if (isFunctionLike$3(node)) return;
+	if (isFunctionLike$2(node)) return;
 	visitor(node);
 	const nodeRecord = node;
 	for (const key of Object.keys(nodeRecord)) {
@@ -4597,7 +4603,7 @@ const containsReleaseLikeCall = (node, knownCleanupFunctionNames, knownBoundSubs
 	let didFindRelease = false;
 	walkAst(node, (child) => {
 		if (didFindRelease) return false;
-		if (child !== node && isFunctionLike$3(child) && !isIteratorCallbackArgument(child)) return false;
+		if (child !== node && isFunctionLike$2(child) && !isIteratorCallbackArgument(child)) return false;
 		if (isReleaseLikeCall(child, knownCleanupFunctionNames, knownBoundSubscriptionNames)) {
 			didFindRelease = true;
 			return false;
@@ -4606,7 +4612,7 @@ const containsReleaseLikeCall = (node, knownCleanupFunctionNames, knownBoundSubs
 	return didFindRelease;
 };
 const isCleanupFunctionLike = (node, knownCleanupFunctionNames, knownBoundSubscriptionNames) => {
-	if (!isFunctionLike$3(node)) return false;
+	if (!isFunctionLike$2(node)) return false;
 	return containsReleaseLikeCall(node.body, knownCleanupFunctionNames, knownBoundSubscriptionNames);
 };
 const isCleanupReturn = (returnedValue, knownCleanupFunctionNames, knownBoundSubscriptionNames, options = {}) => {
@@ -4870,7 +4876,7 @@ const recordReference = (state, identifier, flag) => {
 };
 const isFunctionBodyBlock = (block) => {
 	if (!block.parent) return false;
-	return isFunctionLike$3(block.parent);
+	return isFunctionLike$2(block.parent);
 };
 const isCatchClauseBlock = (block) => block.parent !== null && block.parent !== void 0 && block.parent.type === "CatchClause";
 const handleVariableDeclaration = (declaration, state) => {
@@ -5025,7 +5031,7 @@ const walkParameterReferences = (pattern, state) => {
 	if (isNodeOfType(pattern, "RestElement")) walkParameterReferences(pattern.argument, state);
 };
 const walk = (node, state) => {
-	if (isFunctionLike$3(node)) {
+	if (isFunctionLike$2(node)) {
 		if (isNodeOfType(node, "FunctionDeclaration") && node.id) handleFunctionDeclaration(node, state);
 		setNodeScope(node, state);
 		const fnScope = pushScope(node.type === "ArrowFunctionExpression" ? "arrow-function" : "function", node, state);
@@ -5271,7 +5277,7 @@ const closureCaptures = (functionNode, scopes) => {
 	const out = [];
 	const seen = /* @__PURE__ */ new Set();
 	const visit = (node) => {
-		if (node !== functionNode && isFunctionLike$3(node)) {
+		if (node !== functionNode && isFunctionLike$2(node)) {
 			const innerCaptures = closureCaptures(node, scopes);
 			for (const reference of innerCaptures) if (reference.resolvedSymbol && !isDescendantScope(reference.resolvedSymbol.scope, functionScope)) {
 				if (!seen.has(reference.id)) {
@@ -7391,7 +7397,7 @@ const isAtomFromJotai = (callExpression) => {
 	if (!isImportedFromModule(callExpression, localName, "jotai")) return false;
 	return getImportedNameFromModule(callExpression, localName, "jotai") === "atom";
 };
-const isFunctionLike$2 = (node) => Boolean(node && (isNodeOfType(node, "ArrowFunctionExpression") || isNodeOfType(node, "FunctionExpression")));
+const isFunctionLike$1 = (node) => Boolean(node && (isNodeOfType(node, "ArrowFunctionExpression") || isNodeOfType(node, "FunctionExpression")));
 const getFirstParameterName = (fn) => {
 	const parameters = fn.params ?? [];
 	if (parameters.length !== 1) return null;
@@ -7510,7 +7516,7 @@ const jotaiDerivedAtomReturnsFreshObject = defineRule({
 		const args = node.arguments ?? [];
 		if (args.length === 0) return;
 		const reader = args[0];
-		if (!isFunctionLike$2(reader)) return;
+		if (!isFunctionLike$1(reader)) return;
 		const getParameterName = getFirstParameterName(reader);
 		if (!getParameterName) return;
 		const freshReturn = getFreshReturnForFunction(reader);
@@ -7766,7 +7772,7 @@ const isInsideLoopContext = (node) => {
 	let current = node.parent;
 	while (current) {
 		if (isNodeOfType(current, "ForStatement") || isNodeOfType(current, "ForInStatement") || isNodeOfType(current, "ForOfStatement") || isNodeOfType(current, "WhileStatement") || isNodeOfType(current, "DoWhileStatement")) return true;
-		if (isFunctionLike$3(current)) {
+		if (isFunctionLike$2(current)) {
 			if (isIteratorCallback(current)) return true;
 			return false;
 		}
@@ -8127,7 +8133,7 @@ const jsHoistIntl = defineRule({
 		let cursor = node.parent ?? null;
 		let inFunctionBody = false;
 		while (cursor) {
-			if (isFunctionLike$3(cursor)) {
+			if (isFunctionLike$2(cursor)) {
 				inFunctionBody = true;
 				const fnParent = cursor.parent;
 				if (fnParent && isNodeOfType(fnParent, "CallExpression") && fnParent.arguments?.[0] === cursor) {
@@ -11808,6 +11814,7 @@ const jsxPascalCase = defineRule({
 	id: "jsx-pascal-case",
 	title: "Component name not PascalCase",
 	severity: "warn",
+	defaultEnabled: false,
 	tags: ["test-noise"],
 	recommendation: "Rename custom JSX components to PascalCase.",
 	category: "Architecture",
@@ -13082,7 +13089,7 @@ const collectChainedGetHandlerBodies = (initNode) => {
 };
 const resolveBodiesFromExpression = (expression, resolveBinding, remainingDepth) => {
 	if (remainingDepth <= 0) return [];
-	if (isFunctionLike$3(expression)) return expression.body ? [expression.body] : [];
+	if (isFunctionLike$2(expression)) return expression.body ? [expression.body] : [];
 	if (isNodeOfType(expression, "CallExpression")) {
 		for (const callArgument of expression.arguments ?? []) {
 			if (isNodeOfType(callArgument, "ArrowFunctionExpression") || isNodeOfType(callArgument, "FunctionExpression")) {
@@ -13552,7 +13559,7 @@ const getEffectFn = (analysis, node) => {
 	if (isNodeOfType(fn, "ArrowFunctionExpression") || isNodeOfType(fn, "FunctionExpression")) return fn;
 	if (isNodeOfType(fn, "Identifier")) {
 		const definitionNode = getRef(analysis, fn)?.resolved?.defs[0]?.node;
-		if (definitionNode && isFunctionLike$3(definitionNode)) return definitionNode;
+		if (definitionNode && isFunctionLike$2(definitionNode)) return definitionNode;
 		if (definitionNode && isNodeOfType(definitionNode, "VariableDeclarator")) {
 			const initializer = definitionNode.init;
 			if (isNodeOfType(initializer, "ArrowFunctionExpression") || isNodeOfType(initializer, "FunctionExpression")) return initializer;
@@ -13645,14 +13652,14 @@ const getUseStateDecl = (analysis, ref) => {
 	return node ?? null;
 };
 const isCleanupReturnArgument = (analysis, node) => {
-	if (isFunctionLike$3(node)) return true;
+	if (isFunctionLike$2(node)) return true;
 	if (isNodeOfType(node, "MemberExpression")) return true;
 	if (isNodeOfType(node, "Identifier")) {
 		const definitionNode = getRef(analysis, node)?.resolved?.defs[0]?.node;
-		if (definitionNode && isFunctionLike$3(definitionNode)) return true;
+		if (definitionNode && isFunctionLike$2(definitionNode)) return true;
 		if (definitionNode && isNodeOfType(definitionNode, "VariableDeclarator")) {
 			const initializer = definitionNode.init;
-			return isFunctionLike$3(initializer);
+			return isFunctionLike$2(initializer);
 		}
 	}
 	if (isNodeOfType(node, "ConditionalExpression")) return isCleanupReturnArgument(analysis, node.consequent) || isCleanupReturnArgument(analysis, node.alternate);
@@ -13662,7 +13669,7 @@ const hasCleanupReturn = (analysis, node, visited = /* @__PURE__ */ new WeakSet(
 	if (visited.has(node)) return false;
 	visited.add(node);
 	if (isNodeOfType(node, "ReturnStatement") && node.argument != null) return isCleanupReturnArgument(analysis, node.argument);
-	if (!isNodeOfType(node, "BlockStatement") && isFunctionLike$3(node)) return false;
+	if (!isNodeOfType(node, "BlockStatement") && isFunctionLike$2(node)) return false;
 	const record = node;
 	for (const [key, value] of Object.entries(record)) {
 		if (key === "parent") continue;
@@ -13674,7 +13681,7 @@ const hasCleanupReturn = (analysis, node, visited = /* @__PURE__ */ new WeakSet(
 };
 const hasCleanup = (analysis, node) => {
 	const fn = getEffectFn(analysis, node);
-	if (!isFunctionLike$3(fn)) return false;
+	if (!isFunctionLike$2(fn)) return false;
 	if (!isNodeOfType(fn.body, "BlockStatement")) return false;
 	return hasCleanupReturn(analysis, fn.body);
 };
@@ -14024,7 +14031,7 @@ const isInsideStaticPlaceholderMap = (node) => {
 	let current = node;
 	while (current.parent) {
 		const parent = current.parent;
-		if (isFunctionLike$3(current) && isNodeOfType(parent, "CallExpression") && parent.arguments.includes(current)) {
+		if (isFunctionLike$2(current) && isNodeOfType(parent, "CallExpression") && parent.arguments.includes(current)) {
 			const callee = parent.callee;
 			if (isNodeOfType(callee, "MemberExpression") && isNodeOfType(callee.property, "Identifier") && (callee.property.name === "map" || callee.property.name === "flatMap" || callee.property.name === "forEach")) return isStaticPlaceholderReceiver(callee.object);
 			if (isArrayFromCall(parent) && parent.arguments.length >= 2 && parent.arguments[1] === current) return isArrayFromLengthObjectCall(parent);
@@ -14043,7 +14050,7 @@ const findIteratorItemName$1 = (node) => {
 	let current = node;
 	while (current.parent) {
 		const parent = current.parent;
-		if (isFunctionLike$3(current) && isNodeOfType(parent, "CallExpression") && parent.arguments.includes(current)) {
+		if (isFunctionLike$2(current) && isNodeOfType(parent, "CallExpression") && parent.arguments.includes(current)) {
 			const callee = parent.callee;
 			const isIteratorMethodCall = isNodeOfType(callee, "MemberExpression") && isNodeOfType(callee.property, "Identifier") && (callee.property.name === "map" || callee.property.name === "flatMap" || callee.property.name === "forEach");
 			const isArrayFromCallback = isArrayFromCall(parent) && parent.arguments.length >= 2 && parent.arguments[1] === current;
@@ -14266,6 +14273,7 @@ const noArrayIndexKey = defineRule({
 	id: "no-array-index-key",
 	title: "Array index used as a key",
 	severity: "warn",
+	defaultEnabled: false,
 	recommendation: "Use a stable `key` from your data instead of the array index.",
 	category: "Performance",
 	create: (context) => ({
@@ -14778,6 +14786,37 @@ const isSetterIdentifier = (name) => SETTER_PATTERN.test(name);
 //#region src/plugin/utils/is-setter-call.ts
 const isSetterCall = (node) => isNodeOfType(node, "CallExpression") && isNodeOfType(node.callee, "Identifier") && isSetterIdentifier(node.callee.name);
 //#endregion
+//#region src/plugin/utils/is-hook-binding-in-scope.ts
+const isHookBindingInScope = (node, query) => {
+	const { bindingName, hookName, destructureIndex } = query;
+	let cursor = node;
+	while (cursor) {
+		if (isNodeOfType(cursor, "BlockStatement") || isNodeOfType(cursor, "Program")) for (const statement of cursor.body ?? []) {
+			if (!isNodeOfType(statement, "VariableDeclaration")) continue;
+			for (const declarator of statement.declarations ?? []) {
+				if (!isNodeOfType(declarator.init, "CallExpression")) continue;
+				if (!isHookCall$1(declarator.init, hookName)) continue;
+				if (destructureIndex !== void 0) {
+					if (!isNodeOfType(declarator.id, "ArrayPattern")) continue;
+					const elements = declarator.id.elements ?? [];
+					if (elements.length <= destructureIndex) continue;
+					const element = elements[destructureIndex];
+					if (isNodeOfType(element, "Identifier") && element.name === bindingName) return true;
+				} else if (isNodeOfType(declarator.id, "Identifier") && declarator.id.name === bindingName) return true;
+			}
+		}
+		cursor = cursor.parent ?? null;
+	}
+	return false;
+};
+//#endregion
+//#region src/plugin/utils/is-use-state-setter-in-scope.ts
+const isUseStateSetterInScope = (node, setterName) => isHookBindingInScope(node, {
+	bindingName: setterName,
+	hookName: "useState",
+	destructureIndex: 1
+});
+//#endregion
 //#region src/plugin/rules/state-and-effects/no-cascading-set-state.ts
 const isAsyncFunctionLike = (node) => {
 	if (isNodeOfType(node, "ArrowFunctionExpression") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "FunctionDeclaration")) return Boolean(node.async);
@@ -14819,7 +14858,7 @@ const countMaxPathSetStateCalls = (node) => {
 		const finallyCount = node.finalizer ? countMaxPathSetStateCalls(node.finalizer) : 0;
 		return Math.max(tryCount, catchCount) + finallyCount;
 	}
-	if (isSetterCall(node)) {
+	if (isNodeOfType(node, "CallExpression") && isSetterCall(node) && isNodeOfType(node.callee, "Identifier") && isUseStateSetterInScope(node, node.callee.name)) {
 		let nestedSettersInArgs = 0;
 		for (const argument of node.arguments ?? []) nestedSettersInArgs += countMaxPathSetStateCalls(argument);
 		return 1 + nestedSettersInArgs;
@@ -14988,7 +15027,7 @@ const componentOrHookDisplayNameForFunction = (functionNode) => {
 const nearestEnclosingFunction = (node) => {
 	let cursor = node.parent;
 	while (cursor) {
-		if (isFunctionLike$3(cursor)) return cursor;
+		if (isFunctionLike$2(cursor)) return cursor;
 		cursor = cursor.parent ?? null;
 	}
 	return null;
@@ -15405,6 +15444,7 @@ const noDarkModeGlow = defineRule({
 	title: "Colored glow on dark background",
 	tags: ["design", "test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	recommendation: "Use a subtle `box-shadow` in neutral colors for depth, or a faint `border`. Colored glows on dark backgrounds look overdone.",
 	create: (context) => ({ JSXAttribute(node) {
 		const expression = getInlineStyleExpression(node);
@@ -15439,6 +15479,7 @@ const noDefaultProps = defineRule({
 	requires: ["react:19"],
 	tags: ["test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	recommendation: "React 19 drops `Component.defaultProps` for function components. Set the defaults in the destructured props instead: `function Foo({ size = \"md\", variant = \"primary\" })` instead of `Foo.defaultProps = { size: \"md\", variant: \"primary\" }`.",
 	create: (context) => ({ AssignmentExpression(node) {
 		if (node.operator !== "=") return;
@@ -15618,7 +15659,11 @@ const noDerivedStateEffect = defineRule({
 		if (statements.length === 0) return;
 		if (!statements.every((statement) => {
 			if (!isNodeOfType(statement, "ExpressionStatement")) return false;
-			return isSetterCall(statement.expression);
+			const expression = statement.expression;
+			if (!isSetterCall(expression)) return false;
+			if (!isNodeOfType(expression, "CallExpression")) return false;
+			if (!isNodeOfType(expression.callee, "Identifier")) return false;
+			return isUseStateSetterInScope(expression, expression.callee.name);
 		})) return;
 		let allArgumentsDeriveFromDeps = true;
 		let hasAnyDependencyReference = false;
@@ -15671,7 +15716,7 @@ const extractDestructuredPropNames = (params) => {
 };
 const getInlineFunctionNode = (node) => {
 	if (!node) return null;
-	if (isFunctionLike$3(node)) return node;
+	if (isFunctionLike$2(node)) return node;
 	if (!isNodeOfType(node, "CallExpression")) return null;
 	for (const argument of node.arguments ?? []) {
 		const inlineFunctionNode = getInlineFunctionNode(argument);
@@ -15682,7 +15727,7 @@ const getInlineFunctionNode = (node) => {
 const getNearestComponentFunction = (node) => {
 	let cursor = node.parent ?? null;
 	while (cursor) {
-		if (isFunctionLike$3(cursor)) return cursor;
+		if (isFunctionLike$2(cursor)) return cursor;
 		cursor = cursor.parent ?? null;
 	}
 	return null;
@@ -16012,7 +16057,7 @@ const collectFunctionLocalBindings = (functionNode) => {
 const walkComponentRespectingShadows = (node, shadowedStateNames, visit) => {
 	if (!node || typeof node !== "object") return;
 	let nextShadowedStateNames = shadowedStateNames;
-	if (isFunctionLike$3(node)) {
+	if (isFunctionLike$2(node)) {
 		const localBindings = collectFunctionLocalBindings(node);
 		if (localBindings.size > 0) {
 			const merged = new Set(shadowedStateNames);
@@ -17611,6 +17656,7 @@ const noGenericHandlerNames = defineRule({
 	id: "no-generic-handler-names",
 	title: "Vague event handler name",
 	severity: "warn",
+	defaultEnabled: false,
 	tags: ["test-noise"],
 	recommendation: "Rename it to say what it does. For example `handleSubmit` could be `saveUserProfile`, and `handleClick` could be `toggleSidebar`.",
 	create: (context) => ({ JSXAttribute(node) {
@@ -17812,6 +17858,7 @@ const noGradientText = defineRule({
 	title: "Gradient text is hard to read",
 	tags: ["design", "test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	recommendation: "Use a solid text color so it stays readable. For emphasis, change the weight, size, or color instead of using a gradient.",
 	create: (context) => ({
 		JSXAttribute(node) {
@@ -18098,6 +18145,7 @@ const noJustifiedText = defineRule({
 	title: "Justified text without hyphens",
 	tags: ["test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	category: "Accessibility",
 	recommendation: "Use `text-align: left` for body text. If you must justify, add `hyphens: auto` and `overflow-wrap: break-word`.",
 	create: (context) => ({ JSXAttribute(node) {
@@ -18269,7 +18317,7 @@ const isInsideClassBody = (node) => {
 	let current = node.parent;
 	while (current) {
 		if (isNodeOfType(current, "ClassBody")) return true;
-		if (isFunctionLike$3(current)) return false;
+		if (isFunctionLike$2(current)) return false;
 		current = current.parent;
 	}
 	return false;
@@ -18973,7 +19021,7 @@ const isLodashMutatorCall = (callExpression) => {
 };
 //#endregion
 //#region src/plugin/utils/find-exported-function-body.ts
-const isFunctionLike$1 = (node) => {
+const isFunctionLike = (node) => {
 	if (!node) return false;
 	return isNodeOfType(node, "FunctionDeclaration") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "ArrowFunctionExpression");
 };
@@ -18988,7 +19036,7 @@ const findExportedFunctionBody = (programRoot, exportedName) => {
 			if (!isNodeOfType(declarator, "VariableDeclarator")) continue;
 			if (!isNodeOfType(declarator.id, "Identifier")) continue;
 			const initializer = declarator.init ? stripParenExpression(declarator.init) : null;
-			if (initializer && isFunctionLike$1(initializer)) localBindings.set(declarator.id.name, initializer);
+			if (initializer && isFunctionLike(initializer)) localBindings.set(declarator.id.name, initializer);
 		}
 	};
 	for (const statement of programRoot.body ?? []) {
@@ -19032,7 +19080,7 @@ const findExportedFunctionBody = (programRoot, exportedName) => {
 				defaultExport = declaration;
 				continue;
 			}
-			if (isFunctionLike$1(declaration)) {
+			if (isFunctionLike(declaration)) {
 				defaultExport = declaration;
 				continue;
 			}
@@ -19193,7 +19241,7 @@ const resolveCrossFileFunctionExport = (fromFilename, source, exportedName) => {
 const resolveReducerFunction = (node, currentFilename) => {
 	if (!node) return null;
 	const unwrappedNode = stripParenExpression(node);
-	if (isFunctionLike$3(unwrappedNode)) return {
+	if (isFunctionLike$2(unwrappedNode)) return {
 		functionNode: unwrappedNode,
 		crossFileSourceDisplay: null
 	};
@@ -19201,7 +19249,7 @@ const resolveReducerFunction = (node, currentFilename) => {
 	const initializer = findVariableInitializer(unwrappedNode, unwrappedNode.name)?.initializer;
 	if (!initializer) return null;
 	const unwrappedInitializer = stripParenExpression(initializer);
-	if (isFunctionLike$3(unwrappedInitializer)) return {
+	if (isFunctionLike$2(unwrappedInitializer)) return {
 		functionNode: unwrappedInitializer,
 		crossFileSourceDisplay: null
 	};
@@ -19315,11 +19363,11 @@ const canExpressionReturnOriginalReducerStateReference = (node, state) => {
 	return false;
 };
 const collectReducerStateMutationsInExpressionOrStatement = (node, state) => {
-	if (isFunctionLike$3(node)) return [];
+	if (isFunctionLike$2(node)) return [];
 	const mutations = [];
 	walkAst(node, (child) => {
 		const unwrappedChild = stripParenExpression(child);
-		if (child !== node && isFunctionLike$3(unwrappedChild)) return false;
+		if (child !== node && isFunctionLike$2(unwrappedChild)) return false;
 		if (isNodeOfType(unwrappedChild, "AssignmentExpression")) {
 			if (isNodeOfType(stripParenExpression(unwrappedChild.left), "MemberExpression") && isExpressionRootedInMutableReducerStateSource(unwrappedChild.left, state)) mutations.push({ node: unwrappedChild });
 			return;
@@ -19424,7 +19472,7 @@ const updateReducerStateIdentityForIdentifierAssignment = (assignment, state) =>
 	if (isExpressionReachableFromOriginalReducerState(assignment.right, state)) state.mutableStateSourceNames.add(name);
 };
 const analyzeReactUseReducerFunctionForStateMutation = (context, functionNode, reportedNodes, options) => {
-	if (!isFunctionLike$3(functionNode) || !isNodeOfType(functionNode.body, "BlockStatement")) return;
+	if (!isFunctionLike$2(functionNode) || !isNodeOfType(functionNode.body, "BlockStatement")) return;
 	const firstParam = functionNode.params?.[0];
 	const stateName = isNodeOfType(firstParam, "Identifier") ? firstParam.name : isNodeOfType(firstParam, "AssignmentPattern") && isNodeOfType(firstParam.left, "Identifier") ? firstParam.left.name : null;
 	if (!stateName) return;
@@ -20345,6 +20393,7 @@ const noPropTypes = defineRule({
 	requires: ["react:19"],
 	tags: ["test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	recommendation: "React 19 ignores `Component.propTypes`, so invalid props pass silently. Describe props with TypeScript types and add real runtime checks (or schema parsing) only where data can actually be wrong. Only runs on React 19+ projects.",
 	create: (context) => ({
 		AssignmentExpression(node) {
@@ -20373,6 +20422,7 @@ const noPureBlackBackground = defineRule({
 	title: "Pure black background",
 	tags: ["design", "test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	recommendation: "Nudge the background slightly toward your brand color, like `#0a0a0f` or Tailwind's `bg-gray-950`. Pure black looks harsh on modern screens.",
 	create: (context) => ({
 		JSXAttribute(node) {
@@ -21273,7 +21323,7 @@ const isTanStackServerFnHandler = (node) => {
 const isInsideServerOnlyScope = (node) => {
 	let currentNode = node.parent ?? null;
 	while (currentNode) {
-		if (isFunctionLike$3(currentNode)) {
+		if (isFunctionLike$2(currentNode)) {
 			if (hasUseServerDirective(currentNode) || isTanStackServerFnHandler(currentNode)) return true;
 		}
 		currentNode = currentNode.parent ?? null;
@@ -21802,6 +21852,7 @@ const noSideTabBorder = defineRule({
 	title: "Thick one-sided border",
 	tags: ["design", "test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	recommendation: "Use a softer accent like an inset box-shadow, a background, or a thin border-bottom instead of a thick one-sided border.",
 	create: (context) => ({
 		JSXAttribute(node) {
@@ -23428,7 +23479,7 @@ const isReactClassComponent = (classNode) => {
 const findEnclosingComponent = (node) => {
 	let walker = node.parent;
 	while (walker) {
-		if (isFunctionLike$3(walker)) {
+		if (isFunctionLike$2(walker)) {
 			const componentName = inferFunctionLikeName(walker);
 			if (componentName && isReactComponentName(componentName) && expressionContainsJsxOrCreateElement(walker)) return {
 				component: walker,
@@ -23713,6 +23764,7 @@ const noWideLetterSpacing = defineRule({
 	id: "no-wide-letter-spacing",
 	title: "Wide letter spacing on body text",
 	severity: "warn",
+	defaultEnabled: false,
 	tags: ["test-noise"],
 	recommendation: "Save wide letter-spacing (over 0.05em) for short uppercase labels, nav items, and buttons, not body text.",
 	create: (context) => ({ JSXAttribute(node) {
@@ -23796,6 +23848,7 @@ const noZIndex9999 = defineRule({
 	title: "Excessively high z-index",
 	tags: ["test-noise"],
 	severity: "warn",
+	defaultEnabled: false,
 	recommendation: "Pick a small z-index scale, like dropdown 10, modal 20, toast 30. To layer something on top, use `isolation: isolate` instead of bigger numbers.",
 	create: (context) => ({
 		JSXAttribute(node) {
@@ -24571,6 +24624,7 @@ const preferEs6Class = defineRule({
 	id: "prefer-es6-class",
 	title: "createClass instead of ES6 class",
 	severity: "warn",
+	defaultEnabled: false,
 	recommendation: "Pick one component style for the whole codebase: `class extends React.Component` (default) or `createReactClass` (legacy).",
 	category: "Architecture",
 	create: (context) => {
@@ -25694,7 +25748,7 @@ const reduxUseselectorInlineDerivation = defineRule({
 				if (!body) return;
 				const returnedExpressions = [];
 				if (isNodeOfType(body, "BlockStatement")) walkAst(body, (node) => {
-					if (node !== body && isFunctionLike$3(node)) return false;
+					if (node !== body && isFunctionLike$2(node)) return false;
 					if (isNodeOfType(node, "ReturnStatement")) {
 						if (node.argument) returnedExpressions.push(node.argument);
 						return false;
@@ -25949,7 +26003,9 @@ const renderingHydrationNoFlicker = defineRule({
 		const bodyStatements = isNodeOfType(callback.body, "BlockStatement") ? callback.body.body : [callback.body];
 		if (!bodyStatements || bodyStatements.length !== 1) return;
 		const soleStatement = bodyStatements[0];
-		if (isNodeOfType(soleStatement, "ExpressionStatement") && isSetterCall(soleStatement.expression)) context.report({
+		if (!isNodeOfType(soleStatement, "ExpressionStatement")) return;
+		const expression = soleStatement.expression;
+		if (isSetterCall(expression) && isNodeOfType(expression, "CallExpression") && isNodeOfType(expression.callee, "Identifier") && isUseStateSetterInScope(expression, expression.callee.name)) context.report({
 			node,
 			message: "This flashes for your users because useEffect(setState, []) runs after the first paint, so use useSyncExternalStore, or add suppressHydrationWarning"
 		});
@@ -26037,7 +26093,7 @@ const hasOwnAwait = (functionBody) => {
 	let found = false;
 	walkAst(functionBody, (child) => {
 		if (found) return;
-		if (child !== functionBody && isFunctionLike$3(child)) return false;
+		if (child !== functionBody && isFunctionLike$2(child)) return false;
 		if (isNodeOfType(child, "AwaitExpression")) found = true;
 	});
 	return found;
@@ -26056,7 +26112,7 @@ const setterIsCalledInAsyncContext = (componentBody, setterName) => {
 	let found = false;
 	walkAst(componentBody, (child) => {
 		if (found) return;
-		if (!isFunctionLike$3(child)) return;
+		if (!isFunctionLike$2(child)) return;
 		const functionBody = child.body;
 		if (!(Boolean(child.async) || hasOwnAwait(functionBody))) return;
 		if (callsIdentifier(functionBody, setterName)) found = true;
@@ -26472,6 +26528,7 @@ const rerenderFunctionalSetstate = defineRule({
 		if (!isSetterCall(node)) return;
 		if (!node.arguments?.length) return;
 		if (!isNodeOfType(node.callee, "Identifier")) return;
+		if (!isUseStateSetterInScope(node, node.callee.name)) return;
 		const calleeName = node.callee.name;
 		const argument = node.arguments[0];
 		const expectedStateName = deriveStateVariableName(calleeName);
@@ -26806,7 +26863,7 @@ const handlerCallsSetState = (handler) => {
 	let setStateCall = null;
 	walkAst(handler.body, (child) => {
 		if (setStateCall) return;
-		if (isNodeOfType(child, "CallExpression") && isNodeOfType(child.callee, "Identifier") && /^set[A-Z]/.test(child.callee.name)) setStateCall = child;
+		if (isNodeOfType(child, "CallExpression") && isNodeOfType(child.callee, "Identifier") && /^set[A-Z]/.test(child.callee.name) && isUseStateSetterInScope(child, child.callee.name)) setStateCall = child;
 	});
 	return setStateCall;
 };
@@ -26838,160 +26895,22 @@ const rerenderTransitionsScroll = defineRule({
 	} })
 });
 //#endregion
+//#region src/plugin/utils/define-retired-rule.ts
+const defineRetiredRule = (rule) => defineRule({
+	...rule,
+	defaultEnabled: false,
+	lifecycle: "retired",
+	create: () => ({})
+});
+//#endregion
 //#region src/plugin/rules/react-native/rn-animate-layout-property.ts
-const REANIMATED_MODULE = "react-native-reanimated";
-const REANIMATED_LAYOUT_STYLE_PROPERTIES = new Set([
-	"width",
-	"height",
-	"top",
-	"left",
-	"right",
-	"bottom",
-	"minWidth",
-	"minHeight",
-	"maxWidth",
-	"maxHeight",
-	"margin",
-	"marginTop",
-	"marginBottom",
-	"marginLeft",
-	"marginRight",
-	"marginHorizontal",
-	"marginVertical",
-	"padding",
-	"paddingTop",
-	"paddingBottom",
-	"paddingLeft",
-	"paddingRight",
-	"paddingHorizontal",
-	"paddingVertical",
-	"flex",
-	"flexBasis",
-	"flexGrow",
-	"flexShrink",
-	"borderWidth",
-	"borderTopWidth",
-	"borderBottomWidth",
-	"borderLeftWidth",
-	"borderRightWidth",
-	"fontSize",
-	"lineHeight",
-	"letterSpacing"
-]);
-const REANIMATED_ANIMATION_HELPERS = new Set([
-	"withTiming",
-	"withSpring",
-	"withDecay",
-	"withDelay",
-	"withRepeat",
-	"withSequence",
-	"withClamp"
-]);
-const findImportDeclaration = (symbol) => {
-	let currentNode = symbol.declarationNode.parent;
-	while (currentNode && !isNodeOfType(currentNode, "ImportDeclaration")) currentNode = currentNode.parent ?? null;
-	return currentNode && isNodeOfType(currentNode, "ImportDeclaration") ? currentNode : null;
-};
-const isReanimatedImport = (symbol) => {
-	const importDeclaration = findImportDeclaration(symbol);
-	if (!importDeclaration) return false;
-	return importDeclaration.source.value === REANIMATED_MODULE;
-};
-const getReanimatedNamedImport = (node, context) => {
-	if (!isNodeOfType(node, "Identifier")) return null;
-	const symbol = context.scopes.symbolFor(node);
-	if (!symbol || symbol.kind !== "import") return null;
-	if (!isReanimatedImport(symbol)) return null;
-	const declarationNode = symbol.declarationNode;
-	if (!isNodeOfType(declarationNode, "ImportSpecifier")) return null;
-	const importedName = declarationNode.imported;
-	if (isNodeOfType(importedName, "Identifier")) return importedName.name;
-	if (isNodeOfType(importedName, "Literal") && typeof importedName.value === "string") return importedName.value;
-	return null;
-};
-const isReanimatedNamespace = (node, context) => {
-	if (!isNodeOfType(node, "Identifier")) return false;
-	const symbol = context.scopes.symbolFor(node);
-	if (!symbol || symbol.kind !== "import") return false;
-	if (!isReanimatedImport(symbol)) return false;
-	return isNodeOfType(symbol.declarationNode, "ImportNamespaceSpecifier");
-};
-const isUseAnimatedStyleCallee = (callee, context) => {
-	if (isNodeOfType(callee, "Identifier")) return getReanimatedNamedImport(callee, context) === "useAnimatedStyle";
-	if (!isNodeOfType(callee, "MemberExpression") || callee.computed) return false;
-	if (!isNodeOfType(callee.property, "Identifier")) return false;
-	if (callee.property.name !== "useAnimatedStyle") return false;
-	return isReanimatedNamespace(callee.object, context);
-};
-const isReanimatedAnimationHelperCallee = (callee, context) => {
-	if (isNodeOfType(callee, "Identifier")) {
-		const importedName = getReanimatedNamedImport(callee, context);
-		return importedName !== null && REANIMATED_ANIMATION_HELPERS.has(importedName);
-	}
-	if (!isNodeOfType(callee, "MemberExpression") || callee.computed) return false;
-	if (!isNodeOfType(callee.property, "Identifier")) return false;
-	if (!REANIMATED_ANIMATION_HELPERS.has(callee.property.name)) return false;
-	return isReanimatedNamespace(callee.object, context);
-};
-const isFunctionLike = (node) => isNodeOfType(node, "ArrowFunctionExpression") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "FunctionDeclaration");
-const containsReanimatedAnimationHelperCall = (expression, context) => {
-	const rootExpression = stripParenExpression(expression);
-	let didFindAnimationHelper = false;
-	walkAst(rootExpression, (node) => {
-		if (didFindAnimationHelper) return false;
-		if (node !== rootExpression && isFunctionLike(node)) return false;
-		if (isNodeOfType(node, "CallExpression") && isReanimatedAnimationHelperCallee(node.callee, context)) {
-			didFindAnimationHelper = true;
-			return false;
-		}
-	});
-	return didFindAnimationHelper;
-};
-const findReturnedObject = (callback) => {
-	if (!isNodeOfType(callback, "ArrowFunctionExpression") && !isNodeOfType(callback, "FunctionExpression")) return null;
-	const body = stripParenExpression(callback.body);
-	if (isNodeOfType(body, "ObjectExpression")) return body;
-	if (!isNodeOfType(body, "BlockStatement")) return null;
-	for (const statement of body.body ?? []) {
-		if (!isNodeOfType(statement, "ReturnStatement")) continue;
-		if (!statement.argument) continue;
-		const returnArgument = stripParenExpression(statement.argument);
-		if (isNodeOfType(returnArgument, "ObjectExpression")) return returnArgument;
-	}
-	return null;
-};
-const getStaticPropertyName$1 = (property) => {
-	if (!property.computed && isNodeOfType(property.key, "Identifier")) return property.key.name;
-	if (isNodeOfType(property.key, "Literal") && typeof property.key.value === "string") return property.key.value;
-	return null;
-};
-const rnAnimateLayoutProperty = defineRule({
+const rnAnimateLayoutProperty = defineRetiredRule({
 	id: "rn-animate-layout-property",
 	title: "Animating a layout property",
 	tags: ["test-noise"],
 	requires: ["react-native"],
 	severity: "warn",
-	category: "Performance",
-	recommendation: "Prefer transform or opacity when a Reanimated animation helper drives purely visual motion; use layout-affecting styles only when the layout itself must change.",
-	create: (context) => ({ CallExpression(node) {
-		if (!isUseAnimatedStyleCallee(node.callee, context)) return;
-		const callback = node.arguments?.[0];
-		if (!callback) return;
-		const returnedObject = findReturnedObject(callback);
-		if (!returnedObject) return;
-		for (const property of returnedObject.properties ?? []) {
-			if (!isNodeOfType(property, "Property")) continue;
-			const propertyName = getStaticPropertyName$1(property);
-			if (propertyName === null) continue;
-			if (!REANIMATED_LAYOUT_STYLE_PROPERTIES.has(propertyName)) continue;
-			const propertyValue = property.value;
-			if (!containsReanimatedAnimationHelperCall(propertyValue, context)) continue;
-			context.report({
-				node: property,
-				message: `Reanimated can animate "${propertyName}", but this layout-affecting style recalculates layout while the animation runs; prefer transform or opacity when the motion is only visual.`
-			});
-		}
-	} })
+	recommendation: "Reanimated useAnimatedStyle runs on the UI thread; layout-affecting properties driven by animation helpers, interpolate, or shared values are valid."
 });
 //#endregion
 //#region src/plugin/rules/react-native/rn-animation-reaction-as-derived.ts
@@ -28192,7 +28111,7 @@ const findSetStateInBody = (body) => {
 	let setStateCallNode = null;
 	walkAst(body, (child) => {
 		if (setStateCallNode) return;
-		if (isNodeOfType(child, "CallExpression") && isNodeOfType(child.callee, "Identifier") && SET_STATE_PATTERN.test(child.callee.name)) setStateCallNode = child;
+		if (isNodeOfType(child, "CallExpression") && isNodeOfType(child.callee, "Identifier") && SET_STATE_PATTERN.test(child.callee.name) && isUseStateSetterInScope(child, child.callee.name)) setStateCallNode = child;
 	});
 	return setStateCallNode;
 };
@@ -28316,14 +28235,6 @@ const rnNoSingleElementStyleArray = defineRule({
 			message: `Your users pay for an extra array allocation when "${propName}" wraps a single value for nothing.`
 		});
 	} })
-});
-//#endregion
-//#region src/plugin/utils/define-retired-rule.ts
-const defineRetiredRule = (rule) => defineRule({
-	...rule,
-	defaultEnabled: false,
-	lifecycle: "retired",
-	create: () => ({})
 });
 //#endregion
 //#region src/plugin/rules/react-native/rn-prefer-content-inset-adjustment.ts
@@ -32423,7 +32334,7 @@ const isUseEffectEventSymbol = (symbol) => {
 const findEnclosingComponentOrHookFunction = (node) => {
 	let current = node.parent;
 	while (current) {
-		if (isFunctionLike$3(current)) {
+		if (isFunctionLike$2(current)) {
 			const resolvedName = inferFunctionName(current);
 			if (resolvedName !== null && isReactComponentOrHookName(resolvedName)) return current;
 		}
@@ -32444,7 +32355,7 @@ const isCallbackArgumentForAllowedEffectEventHook = (functionNode, additionalEff
 const isInsideAllowedEffectEventCallback = (node, additionalEffectHooksRegex) => {
 	let current = node.parent;
 	while (current) {
-		if (isFunctionLike$3(current) && isCallbackArgumentForAllowedEffectEventHook(current, additionalEffectHooksRegex)) return true;
+		if (isFunctionLike$2(current) && isCallbackArgumentForAllowedEffectEventHook(current, additionalEffectHooksRegex)) return true;
 		current = current.parent ?? null;
 	}
 	return false;
@@ -32782,7 +32693,7 @@ const containsAuthCheck = (rootNodes, allowedFunctionNames, genericMethodNames) 
 	let foundAuthCall = false;
 	for (const rootNode of rootNodes) walkAst(rootNode, (child) => {
 		if (foundAuthCall) return;
-		if (isFunctionLike$3(child)) return false;
+		if (isFunctionLike$2(child)) return false;
 		if (!isNodeOfType(child, "CallExpression")) return;
 		if (getAuthCallName(child, allowedFunctionNames, genericMethodNames)) foundAuthCall = true;
 	});
@@ -37396,7 +37307,7 @@ const reactDoctorRules = [
 		rule: {
 			...rnAnimateLayoutProperty,
 			framework: "react-native",
-			category: "Performance",
+			category: "Bugs",
 			tags: [...new Set(["react-native", ...rnAnimateLayoutProperty.tags ?? []])]
 		}
 	},
@@ -38261,7 +38172,7 @@ const appendNode = (builder, block, node) => {
 };
 const mapDescendantsToBlock = (builder, node, block) => {
 	builder.nodeBlock.set(node, block);
-	if (isFunctionLike$3(node)) return;
+	if (isFunctionLike$2(node)) return;
 	const record = node;
 	for (const key of Object.keys(record)) {
 		if (key === "parent") continue;
@@ -38599,7 +38510,7 @@ const analyzeControlFlow = (program) => {
 		body: program.body
 	});
 	const visit = (node) => {
-		if (isFunctionLike$3(node)) {
+		if (isFunctionLike$2(node)) {
 			const body = node.body;
 			if (body) buildFor(node, body);
 		}
@@ -38616,7 +38527,7 @@ const analyzeControlFlow = (program) => {
 	const enclosingFunction = (node) => {
 		let current = node;
 		while (current) {
-			if (isFunctionLike$3(current)) return current;
+			if (isFunctionLike$2(current)) return current;
 			if (isNodeOfType(current, "Program")) return current;
 			current = current.parent ?? null;
 		}

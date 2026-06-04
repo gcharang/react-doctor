@@ -98,6 +98,12 @@ export const ENTERPRISE_CONTACT_URL = FORK_REPO_URL;
 
 export const SHARE_BASE_URL = FORK_REPO_URL;
 
+// Guide for adding React Doctor to CI (GitHub Actions). The post-scan
+// handoff prompt links here when offering the "Add to CI" setup, and the
+// agent-handoff prompt points the agent here too. On the fork this lands
+// on the repo (README covers CI/CD setup) instead of react.doctor/ci.
+export const CI_URL = FORK_REPO_URL;
+
 // Root of the project docs. On the fork this is the repo itself (README
 // covers CI/CD setup, config files, and diff/PR scanning); the CLI links
 // here from its closing "learn more" footer note.
