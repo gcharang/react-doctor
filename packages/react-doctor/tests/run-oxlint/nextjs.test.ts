@@ -47,6 +47,25 @@ describe("runOxlint", () => {
       );
       expect(wrappedPageIssues).toHaveLength(0);
     });
+
+    it("does not flag useSearchParams() in a non-page component file (#695)", () => {
+      const componentIssues = nextjsDiagnostics.filter(
+        (diagnostic) =>
+          diagnostic.rule === "nextjs-no-use-search-params-without-suspense" &&
+          diagnostic.filePath.includes("components/search-bar"),
+      );
+      expect(componentIssues).toHaveLength(0);
+    });
+
+    it("flags cross-file: page renders imported component that calls useSearchParams() without Suspense", () => {
+      const crossFileIssues = nextjsDiagnostics.filter(
+        (diagnostic) =>
+          diagnostic.rule === "nextjs-no-use-search-params-without-suspense" &&
+          diagnostic.filePath.includes("cross-file/page"),
+      );
+      expect(crossFileIssues.length).toBeGreaterThan(0);
+      expect(crossFileIssues[0].message).toContain("SearchConsumer");
+    });
   });
 
   describe("server rule scope", () => {

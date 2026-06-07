@@ -1,16 +1,9 @@
-import { CROSS_FILE_BARREL_FOLLOW_DEPTH } from "../../../constants/thresholds.js";
 import type { EsTreeNode } from "../../../utils/es-tree-node.js";
-import {
-  findExportedFunctionBody,
-  findReExportSourcesForName,
-  resolveImportedExportName,
-} from "../../../utils/find-exported-function-body.js";
+import { resolveImportedExportName } from "../../../utils/find-exported-function-body.js";
 import { findVariableInitializer } from "../../../utils/find-variable-initializer.js";
 import { isFunctionLike } from "../../../utils/is-function-like.js";
 import { isNodeOfType } from "../../../utils/is-node-of-type.js";
-import { parseSourceFile } from "../../../utils/parse-source-file.js";
-import { resolveBarrelExportFilePath } from "../../../utils/resolve-barrel-export-file-path.js";
-import { resolveRelativeImportPath } from "../../../utils/resolve-relative-import-path.js";
+import { resolveCrossFileFunctionExport } from "../../../utils/resolve-cross-file-function-export.js";
 import { stripParenExpression } from "../../../utils/strip-paren-expression.js";
 
 export interface ResolvedReducer {
@@ -20,53 +13,6 @@ export interface ResolvedReducer {
   // into the diagnostic message.
   readonly crossFileSourceDisplay: string | null;
 }
-
-const resolveFunctionExportInFile = (
-  filePath: string,
-  exportedName: string,
-  visitedFilePaths: Set<string>,
-): EsTreeNode | null => {
-  if (visitedFilePaths.size >= CROSS_FILE_BARREL_FOLLOW_DEPTH) return null;
-  if (visitedFilePaths.has(filePath)) return null;
-  visitedFilePaths.add(filePath);
-
-  // Barrel files re-export from other files. Resolve the barrel
-  // first so we land on the file that owns the function.
-  const barrelTargetPath = resolveBarrelExportFilePath(filePath, exportedName);
-  const actualFilePath = barrelTargetPath ?? filePath;
-
-  const programRoot = parseSourceFile(actualFilePath);
-  if (!programRoot) return null;
-
-  const exported = findExportedFunctionBody(programRoot, exportedName);
-  if (exported) return exported;
-
-  // The export might be a re-export not handled by the barrel
-  // resolver. Probe each candidate re-export source in turn — a
-  // matching named re-export is precise, otherwise every `export *`
-  // is tried until one resolves.
-  for (const reExportSource of findReExportSourcesForName(programRoot, exportedName)) {
-    const nextFilePath = resolveRelativeImportPath(actualFilePath, reExportSource);
-    if (!nextFilePath) continue;
-    const resolved = resolveFunctionExportInFile(nextFilePath, exportedName, visitedFilePaths);
-    if (resolved) return resolved;
-  }
-
-  return null;
-};
-
-// Resolves `import { name } from "source"` to the actual function
-// body, following barrel re-exports up to CROSS_FILE_BARREL_FOLLOW_DEPTH
-// levels.
-const resolveCrossFileFunctionExport = (
-  fromFilename: string,
-  source: string,
-  exportedName: string,
-): EsTreeNode | null => {
-  const resolvedFilePath = resolveRelativeImportPath(fromFilename, source);
-  if (!resolvedFilePath) return null;
-  return resolveFunctionExportInFile(resolvedFilePath, exportedName, new Set<string>());
-};
 
 // Resolves a reducer-argument expression to a function/arrow node we
 // can analyse for mutations. Handles three cases:
@@ -110,13 +56,14 @@ export const resolveReducerFunction = (
     if (!importDeclaration || !isNodeOfType(importDeclaration, "ImportDeclaration")) return null;
     const sourceValue = importDeclaration.source?.value;
     if (typeof sourceValue !== "string") return null;
-    // Non-relative imports (`from "react-redux"`, etc.) resolve into
-    // node_modules. We skip those — they're packaged code, not the
-    // user's reducer.
-    if (!sourceValue.startsWith(".") && !sourceValue.startsWith("/")) return null;
 
     const exportedName = resolveImportedExportName(initializer);
     if (!exportedName) return null;
+    // Relative, absolute, AND tsconfig-alias (`@/…`) imports are followed.
+    // `resolveCrossFileFunctionExport` resolves the source via
+    // resolveModulePath, which returns null for bare node-module
+    // specifiers that match no alias (`react-redux`, etc.), so packaged
+    // code is skipped without an explicit guard here.
     const crossFileFunction = resolveCrossFileFunctionExport(
       currentFilename,
       sourceValue,
