@@ -173,7 +173,7 @@ const formatDoctorScriptInstallMessage = (scriptResult: InstallDoctorScriptResul
 };
 
 // Adds the `doctor` (or `react-doctor`) script to package.json so users can
-// run `pnpm doctor` / `npm run doctor`. The script invokes `npx react-doctor@latest`,
+// run `pnpm doctor` / `npm run doctor`. The script invokes `npx github:gcharang/react-doctor#pinned`,
 // so no local dev-dep is required for it to work — that's why the "Add to CI"
 // path calls this step directly instead of the full package-setup function.
 export const installReactDoctorScriptStep = (projectRoot: string): void => {

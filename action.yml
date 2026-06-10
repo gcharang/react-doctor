@@ -339,7 +339,7 @@ runs:
             seen.add(dedupeKey);
             const severity = diagnostic.severity === "error" ? "error" : "warning";
             const fixLine = diagnostic.help ? `\n\n**Fix** → ${diagnostic.help}` : "";
-            const docsLink = `\n\n[Docs](https://react.doctor/docs/rules/${ruleKey})`;
+            const docsLink = `\n\n[Docs](https://github.com/gcharang/react-doctor/blob/pinned/prompts/rules/${ruleKey}.md)`;
             comments.push({
               path: repoPath,
               line: diagnostic.line,

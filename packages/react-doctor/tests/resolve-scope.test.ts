@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { DiffInfo } from "@react-doctor/core";
-import { finalizeScope, resolveScope, warnDeprecatedDiff } from "../src/cli/utils/resolve-scope.js";
+import {
+  DIFF_PARENT_BASE,
+  finalizeScope,
+  resolveScope,
+  warnDeprecatedDiff,
+} from "../src/cli/utils/resolve-scope.js";
 import { prompts } from "../src/cli/utils/prompts.js";
 
 vi.mock("../src/cli/utils/prompts.js", () => ({
@@ -76,6 +81,19 @@ describe("resolveScope", () => {
 
   it("returns scope undefined when nothing is configured", () => {
     expect(resolveScope({}, null).scope).toBeUndefined();
+  });
+
+  it("surfaces the reserved `parent` base unchanged (fork sentinel for parent detection)", () => {
+    expect(resolveScope({ scope: "changed", base: DIFF_PARENT_BASE }, null).base).toBe("parent");
+    expect(resolveScope({}, { base: "parent" }).base).toBe(DIFF_PARENT_BASE);
+  });
+
+  it("coerces the deprecated --diff parent alias to changed + the parent sentinel", () => {
+    expect(resolveScope({ diff: "parent" }, null)).toEqual({
+      scope: "changed",
+      base: DIFF_PARENT_BASE,
+      usedDeprecatedDiff: true,
+    });
   });
 
   it("warns and ignores an invalid --scope value", () => {
@@ -154,6 +172,19 @@ describe("finalizeScope", () => {
     });
     expect(scope).toBe("full");
     expect(consoleHandle.capturedMessages.join("\n")).toMatch(/origin\/master/);
+  });
+
+  it("warns with the parent-detection message (not a ref-name message) when --base parent can't diff", async () => {
+    const scope = await finalizeScope({
+      requested: { scope: "changed", base: DIFF_PARENT_BASE, usedDeprecatedDiff: false },
+      diffInfo: null,
+      skipPrompts: true,
+      isQuiet: false,
+    });
+    expect(scope).toBe("full");
+    const warning = consoleHandle.capturedMessages.join("\n");
+    expect(warning).toMatch(/Could not detect a parent branch/);
+    expect(warning).not.toMatch(/Could not compute diff against "parent"/);
   });
 
   it("stays silent in quiet mode when a non-full scope can't diff", async () => {
