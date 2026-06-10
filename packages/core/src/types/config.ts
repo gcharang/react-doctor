@@ -1,4 +1,28 @@
-export type FailOnLevel = "error" | "warning" | "none";
+/**
+ * Severity threshold at which a scan blocks CI (exits non-zero). Controlled
+ * by `blocking` / `--blocking` (default `"error"`):
+ *
+ * - `"error"` — block when an `"error"`-severity diagnostic reaches the
+ *   `ciFailure` surface. The default.
+ * - `"warning"` — block on any diagnostic (warnings included).
+ * - `"none"` — never block; the scan is advisory (still reports + scores).
+ */
+export type BlockingLevel = "error" | "warning" | "none";
+
+/**
+ * How much of the project a scan looks at and reports on — the single knob the
+ * CLI `--scope` flag, the GitHub Action `scope` input, and this config field
+ * all share. Ordered widest to narrowest:
+ *
+ * - `"full"` — whole project, every issue (the default). Whole-project checks
+ *   (dead-code, environment, supply-chain) run only at this scope.
+ * - `"files"` — only the files changed vs the base, with ALL issues in them
+ *   (no compare-to-main). What `--staged` and an uncommitted `--diff` do today.
+ * - `"changed"` — only issues the change INTRODUCED vs the base (the baseline
+ *   delta). What `--diff <base>` and the action's `scope: changed` do today.
+ * - `"lines"` — only issues on the lines the change actually touched.
+ */
+export type ScopeValue = "full" | "files" | "changed" | "lines";
 
 export interface ReactDoctorIgnoreOverride {
   /** Glob patterns the override applies to (e.g. `["src/legacy/**"]`). */
@@ -45,9 +69,11 @@ interface ReactDoctorIgnoreConfig {
  *   (sets `outputSurface: "prComment"`).
  * - `score` — diagnostics shipped to the React Doctor score API
  *   (or counted toward local score calculations).
- * - `ciFailure` — diagnostics that count toward the `--fail-on` exit
- *   code gate. A diagnostic excluded from this surface never fails the
- *   build, regardless of severity.
+ * - `ciFailure` — diagnostics that count toward the CI exit-code gate.
+ *   react-doctor blocks (exits non-zero) when a diagnostic at or above the
+ *   `blocking` threshold reaches this surface (default: `"error"`). A
+ *   diagnostic excluded from this surface never fails the build,
+ *   regardless of severity.
  *
  * Defaults: design rules (tag `"design"`) are excluded from `prComment`,
  * `score`, and `ciFailure` so style cleanup doesn't dilute meaningful
@@ -123,10 +149,57 @@ export interface SurfaceControls {
   excludeRules?: string[];
 }
 
+/**
+ * Configuration for the Socket.dev supply-chain score check (the
+ * `SupplyChain` service). Runs by default; set `enabled: false` to opt out
+ * (it performs one network request per direct dependency).
+ *
+ * Mirrors how Socket Firewall's free tier (`sfw`) works: each direct
+ * dependency's PURL is looked up against Socket's keyless
+ * `firewall-api.socket.dev/purl/<purl>` endpoint, which returns a
+ * supply-chain score (0–100 once normalized). A dependency scoring below
+ * `minScore` produces a diagnostic; at the default `severity: "error"` it
+ * fails the scan (non-zero CI exit), the same way an error-severity lint
+ * finding does.
+ */
+export interface SupplyChainConfig {
+  /**
+   * Whether to run the Socket supply-chain score check. Default: `true`.
+   * Set to `false` to opt out — the check performs one network request per
+   * direct dependency. It is always skipped in `--diff` / `--staged` mode
+   * and in editor scans regardless of this setting.
+   */
+  enabled?: boolean;
+  /**
+   * Minimum acceptable Socket score on a 0–100 scale. A direct dependency
+   * whose Socket `overall` score is below this is flagged. Default: `50`.
+   * Values outside `0..100` are clamped.
+   */
+  minScore?: number;
+  /**
+   * Severity for a below-threshold dependency. `"error"` (default) fails
+   * the scan at the standard `blocking: "error"` gate; `"warning"` keeps
+   * the finding advisory.
+   */
+  severity?: "error" | "warning";
+  /**
+   * Whether to score `devDependencies` in addition to `dependencies`.
+   * Default: `true`.
+   */
+  includeDevDependencies?: boolean;
+}
+
 export interface ReactDoctorConfig {
   $schema?: string;
   ignore?: ReactDoctorIgnoreConfig;
   lint?: boolean;
+  /**
+   * Socket.dev supply-chain score gate. Runs by default; set
+   * `supplyChain: { enabled: false }` to opt out. See {@link SupplyChainConfig}.
+   * Every direct dependency is scored against Socket's free PURL endpoint and
+   * a low score fails the scan (at the default `severity: "error"`).
+   */
+  supplyChain?: SupplyChainConfig;
   /**
    * Whether to run dead-code analysis (via `deslop-js`) alongside lint.
    * Reports unused files, unused exports, unused dependencies, and
@@ -138,8 +211,9 @@ export interface ReactDoctorConfig {
   verbose?: boolean;
   /**
    * Whether to surface `"warning"`-severity diagnostics. Default: `true`
-   * — every warning reaches every surface (CLI, PR comment, score,
-   * `--fail-on`).
+   * — every warning reaches every surface (CLI, PR comment, score, the
+   * CI gate). Warnings only flip the exit code when `blocking` is set to
+   * `"warning"`; at the default `"error"` threshold they stay advisory.
    *
    * Set to `false` to surface only `"error"`-severity findings. This is the
    * master toggle and runs after per-rule / per-category severity
@@ -148,16 +222,43 @@ export interface ReactDoctorConfig {
    */
   warnings?: boolean;
   /**
-   * Scope scans to changed files. `true` diffs against the default branch
-   * (`main`/`master`); a string pins an explicit base ref (e.g. `"develop"`)
-   * or commit range (`"main..HEAD"`). The reserved value `"parent"`
-   * auto-detects the branch the current branch forked from (nearest
-   * merge-base) — handy for stacked branches — and falls back to the
-   * default branch when none is found. Equivalent to the `--diff` flag;
-   * `--full` (or `--diff false`) overrides it.
+   * Scan scope. Defaults to `"full"`. See `ScopeValue` for the four values.
+   * The CLI `--scope` flag and the GitHub Action `scope` input set the same
+   * thing; flags win over config.
+   */
+  scope?: ScopeValue;
+  /**
+   * Base git ref the `"files"` / `"changed"` / `"lines"` scopes compare
+   * against. Auto-detected from the default branch / merge-base when unset.
+   * The reserved value `"parent"` auto-detects the branch the current branch
+   * forked from (nearest merge-base) — handy for stacked branches — and
+   * falls back to the default branch when none is found.
+   */
+  base?: string;
+  /**
+   * @deprecated Use `scope` instead. Still honored as an alias when `scope`
+   * is unset: `diff: "<base>"` / `diff: true` → `scope: "changed"`,
+   * `diff: false` → `scope: "full"`. Using it emits a one-time deprecation
+   * warning. Prefer `scope` (+ `base`).
    */
   diff?: boolean | string;
-  failOn?: FailOnLevel;
+  /**
+   * Severity threshold at which the scan blocks CI (exits non-zero).
+   * Default: `"error"` — only `"error"`-severity diagnostics on the
+   * `ciFailure` surface fail the build. Set to `"warning"` to also block
+   * on warnings, or `"none"` to keep the scan advisory (it still reports
+   * findings and a score, but always exits `0`).
+   *
+   * The GitHub Action exposes the same control as its `blocking`
+   * input, and the CLI as `--blocking <level>`. Flags win over config.
+   */
+  blocking?: BlockingLevel;
+  /**
+   * @deprecated Renamed to `blocking` (same values + default). Still
+   * honored as an alias when `blocking` is unset, but using it emits a
+   * one-time deprecation warning. Prefer `blocking`.
+   */
+  failOn?: BlockingLevel;
   customRulesOnly?: boolean;
   share?: boolean;
   noScore?: boolean;
@@ -255,7 +356,7 @@ export interface ReactDoctorConfig {
    * Per-surface include/exclude controls. Each `DiagnosticSurface` is
    * resolved independently against rule tags, category, and id so a
    * single rule can be visible locally yet hidden from PR comments,
-   * neutralized from the score, and excluded from `--fail-on` — all
+   * neutralized from the score, and excluded from the CI gate — all
    * without touching the rule's severity or activation.
    *
    * Defaults (applied before user overrides):
@@ -280,7 +381,7 @@ export interface ReactDoctorConfig {
    * `"off"` skips registration in the generated lint config so the
    * rule never runs; `"error"` / `"warn"` re-stamp the registered
    * severity and the post-lint diagnostic, so downstream consumers
-   * (`--fail-on`, the score, the printed list) all see the
+   * (the CI gate, the score, the printed list) all see the
    * user-chosen severity.
    *
    * For visibility-only changes (silence on PR comments but keep on

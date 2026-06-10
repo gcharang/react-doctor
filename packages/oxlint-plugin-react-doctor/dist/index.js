@@ -1,8 +1,8 @@
 import * as path from "node:path";
-import { analyze } from "eslint-scope";
-import * as eslintVisitorKeys from "eslint-visitor-keys";
 import * as fs from "node:fs";
 import { parseSync } from "oxc-parser";
+import { analyze } from "eslint-scope";
+import * as eslintVisitorKeys from "eslint-visitor-keys";
 //#region src/plugin/utils/is-testlike-filename.ts
 const NON_PRODUCTION_PATH_SEGMENTS = [
 	"/test/",
@@ -432,6 +432,7 @@ const SETTER_PATTERN = /^set[A-Z]/;
 const RENDER_FUNCTION_PATTERN = /^render[A-Z]/;
 const UPPERCASE_PATTERN = /^[A-Z]/;
 const REACT_HANDLER_PROP_PATTERN = /^on[A-Z]/;
+const HANDLER_FUNCTION_NAME_PATTERN = /^(?:on|handle)[A-Z]/;
 const EFFECT_HOOK_NAMES$1 = new Set(["useEffect", "useLayoutEffect"]);
 const HOOKS_WITH_DEPS = new Set([
 	"useEffect",
@@ -719,7 +720,7 @@ const activityWrapsEffectHeavySubtree = defineRule({
 				if (totalEffects === 0) return;
 				context.report({
 					node: openingElement,
-					message: `Every hide & show rebuilds ${effectfulChildren.join(", ")} from scratch because <Activity> wraps them & they use ${totalEffects} effect hook${totalEffects === 1 ? "" : "s"}.`
+					message: `Every hide and show rebuilds ${effectfulChildren.join(", ")} from scratch because <Activity> wraps components with ${totalEffects} effect hook${totalEffects === 1 ? "" : "s"}.`
 				});
 			}
 		};
@@ -823,10 +824,548 @@ const getElementType = (openingElement, settings) => {
 	return baseName;
 };
 //#endregion
+//#region src/plugin/utils/find-import-source-for-name.ts
+const collectFromProgram = (programRoot) => {
+	const lookup = /* @__PURE__ */ new Map();
+	const visit = (node) => {
+		if (node.type === "ImportDeclaration" && "source" in node && node.source) {
+			const source = node.source.value;
+			if (typeof source !== "string") return;
+			if ("specifiers" in node && Array.isArray(node.specifiers)) for (const specifier of node.specifiers) {
+				if (!("local" in specifier) || !specifier.local) continue;
+				const local = specifier.local;
+				if (typeof local.name !== "string") continue;
+				if (specifier.type === "ImportDefaultSpecifier") lookup.set(local.name, {
+					source,
+					imported: null,
+					isDefault: true,
+					isNamespace: false
+				});
+				else if (specifier.type === "ImportNamespaceSpecifier") lookup.set(local.name, {
+					source,
+					imported: null,
+					isDefault: false,
+					isNamespace: true
+				});
+				else if (specifier.type === "ImportSpecifier") {
+					const importedNode = specifier.imported;
+					const importedName = importedNode?.name ?? (typeof importedNode?.value === "string" ? importedNode.value : null);
+					lookup.set(local.name, {
+						source,
+						imported: importedName,
+						isDefault: false,
+						isNamespace: false
+					});
+				}
+			}
+			return;
+		}
+		const nodeRecord = node;
+		for (const key of Object.keys(nodeRecord)) {
+			if (key === "parent") continue;
+			const child = nodeRecord[key];
+			if (Array.isArray(child)) {
+				for (const item of child) if (isAstNode(item)) visit(item);
+			} else if (isAstNode(child)) visit(child);
+		}
+	};
+	visit(programRoot);
+	return lookup;
+};
+const importLookupCache = /* @__PURE__ */ new WeakMap();
+const getImportLookup = (node) => {
+	const programRoot = findProgramRoot(node);
+	if (!programRoot) return null;
+	let cached = importLookupCache.get(programRoot);
+	if (!cached) {
+		cached = collectFromProgram(programRoot);
+		importLookupCache.set(programRoot, cached);
+	}
+	return cached;
+};
+const isImportedFromModule = (contextNode, localIdentifierName, moduleSource) => {
+	const lookup = getImportLookup(contextNode);
+	if (!lookup) return false;
+	const info = lookup.get(localIdentifierName);
+	if (!info) return false;
+	return info.source === moduleSource;
+};
+const isNamespaceImportFromModule = (contextNode, localIdentifierName, moduleSource) => {
+	const lookup = getImportLookup(contextNode);
+	if (!lookup) return false;
+	const info = lookup.get(localIdentifierName);
+	if (!info) return false;
+	return info.isNamespace && info.source === moduleSource;
+};
+const isDefaultImportFromModule = (contextNode, localIdentifierName, moduleSource) => {
+	const lookup = getImportLookup(contextNode);
+	if (!lookup) return false;
+	const info = lookup.get(localIdentifierName);
+	if (!info) return false;
+	return info.isDefault && info.source === moduleSource;
+};
+const getImportedNameFromModule = (contextNode, localIdentifierName, moduleSource) => {
+	const lookup = getImportLookup(contextNode);
+	if (!lookup) return null;
+	const info = lookup.get(localIdentifierName);
+	if (!info) return null;
+	if (info.source !== moduleSource) return null;
+	return info.imported;
+};
+//#endregion
+//#region src/plugin/utils/find-variable-initializer.ts
+const FUNCTION_LIKE_TYPES$1 = new Set([
+	"FunctionDeclaration",
+	"FunctionExpression",
+	"ArrowFunctionExpression",
+	"MethodDefinition",
+	"Program"
+]);
+const findScopeOwner = (node) => {
+	let ancestor = node;
+	while (ancestor) {
+		if (FUNCTION_LIKE_TYPES$1.has(ancestor.type)) return ancestor;
+		ancestor = ancestor.parent ?? null;
+	}
+	return null;
+};
+const findBlockScopeOwner = (declaratorNode, declarationKind) => {
+	if (declarationKind !== "let" && declarationKind !== "const") return findScopeOwner(declaratorNode);
+	let ancestor = declaratorNode.parent;
+	while (ancestor) {
+		if (ancestor.type === "BlockStatement") {
+			const blockParent = ancestor.parent;
+			if (blockParent && (blockParent.type === "FunctionDeclaration" || blockParent.type === "FunctionExpression" || blockParent.type === "ArrowFunctionExpression" || blockParent.type === "MethodDefinition")) return findScopeOwner(declaratorNode);
+			return ancestor;
+		}
+		if (FUNCTION_LIKE_TYPES$1.has(ancestor.type)) return ancestor;
+		ancestor = ancestor.parent ?? null;
+	}
+	return null;
+};
+const collectFromBindingPattern = (pattern, initializer, scopeOwner, out) => {
+	if (isNodeOfType(pattern, "Identifier")) {
+		const list = out.get(pattern.name) ?? [];
+		list.push({
+			bindingIdentifier: pattern,
+			initializer,
+			scopeOwner
+		});
+		out.set(pattern.name, list);
+		return;
+	}
+	if (isNodeOfType(pattern, "ObjectPattern")) {
+		for (const property of pattern.properties) if (isNodeOfType(property, "Property")) {
+			const valueNode = property.value;
+			collectFromBindingPattern(valueNode, isNodeOfType(valueNode, "AssignmentPattern") ? valueNode.right : null, scopeOwner, out);
+		} else if (isNodeOfType(property, "RestElement")) collectFromBindingPattern(property.argument, null, scopeOwner, out);
+		return;
+	}
+	if (isNodeOfType(pattern, "ArrayPattern")) {
+		for (const element of pattern.elements) {
+			if (!element) continue;
+			collectFromBindingPattern(element, isNodeOfType(element, "AssignmentPattern") ? element.right ?? null : null, scopeOwner, out);
+		}
+		return;
+	}
+	if (isNodeOfType(pattern, "AssignmentPattern")) {
+		collectFromBindingPattern(pattern.left, pattern.right ?? null, scopeOwner, out);
+		return;
+	}
+	if (isNodeOfType(pattern, "RestElement")) collectFromBindingPattern(pattern.argument, null, scopeOwner, out);
+};
+const buildBindingIndex = (root) => {
+	const out = /* @__PURE__ */ new Map();
+	const visit = (node) => {
+		if (isNodeOfType(node, "VariableDeclarator")) {
+			const declaration = node.parent;
+			const scopeOwner = findBlockScopeOwner(node, declaration && isNodeOfType(declaration, "VariableDeclaration") ? declaration.kind : void 0);
+			if (scopeOwner) collectFromBindingPattern(node.id, node.init ?? null, scopeOwner, out);
+		}
+		if ((isNodeOfType(node, "FunctionDeclaration") || isNodeOfType(node, "FunctionExpression")) && node.id) {
+			const enclosing = node.parent ? findScopeOwner(node.parent) : null;
+			if (enclosing) {
+				const list = out.get(node.id.name) ?? [];
+				list.push({
+					bindingIdentifier: node.id,
+					initializer: node,
+					scopeOwner: enclosing
+				});
+				out.set(node.id.name, list);
+			}
+		}
+		if ((isNodeOfType(node, "ClassDeclaration") || isNodeOfType(node, "ClassExpression")) && node.id) {
+			const enclosing = node.parent ? findScopeOwner(node.parent) : null;
+			if (enclosing) {
+				const list = out.get(node.id.name) ?? [];
+				list.push({
+					bindingIdentifier: node.id,
+					initializer: node,
+					scopeOwner: enclosing
+				});
+				out.set(node.id.name, list);
+			}
+		}
+		if (isNodeOfType(node, "FunctionDeclaration") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "ArrowFunctionExpression")) {
+			if (Array.isArray(node.params)) for (const param of node.params) {
+				if (!param) continue;
+				collectFromBindingPattern(param, null, node, out);
+				if (isNodeOfType(param, "AssignmentPattern")) collectFromBindingPattern(param.left ?? null, param.right ?? null, node, out);
+			}
+		}
+		if (isNodeOfType(node, "ImportDeclaration")) {
+			const scopeOwner = findScopeOwner(node);
+			if (scopeOwner && Array.isArray(node.specifiers)) for (const specifier of node.specifiers) {
+				const local = specifier.local;
+				if (local && isNodeOfType(local, "Identifier")) {
+					const list = out.get(local.name) ?? [];
+					list.push({
+						bindingIdentifier: local,
+						initializer: specifier,
+						scopeOwner
+					});
+					out.set(local.name, list);
+				}
+			}
+		}
+		if (node.type === "TSImportEqualsDeclaration" || node.type === "TSEnumDeclaration" || node.type === "TSModuleDeclaration") {
+			const idNode = node.id;
+			if (idNode && idNode.type === "Identifier") {
+				const idObject = idNode;
+				const scopeOwner = findScopeOwner(node);
+				if (scopeOwner && typeof idObject.name === "string") {
+					const list = out.get(idObject.name) ?? [];
+					list.push({
+						bindingIdentifier: idNode,
+						initializer: null,
+						scopeOwner
+					});
+					out.set(idObject.name, list);
+				}
+			}
+		}
+		const nodeRecord = node;
+		for (const key of Object.keys(nodeRecord)) {
+			if (key === "parent") continue;
+			const child = nodeRecord[key];
+			if (Array.isArray(child)) {
+				for (const item of child) if (isAstNode(item)) visit(item);
+			} else if (isAstNode(child)) visit(child);
+		}
+	};
+	visit(root);
+	return out;
+};
+const programRootCache = /* @__PURE__ */ new WeakMap();
+const getBindingIndex = (referenceNode) => {
+	const programRoot = findProgramRoot(referenceNode);
+	if (!programRoot) return null;
+	let index = programRootCache.get(programRoot);
+	if (!index) {
+		index = buildBindingIndex(programRoot);
+		programRootCache.set(programRoot, index);
+	}
+	return index;
+};
+const findVariableInitializer = (referenceNode, bindingName) => {
+	const index = getBindingIndex(referenceNode);
+	if (!index) return null;
+	const candidates = index.get(bindingName);
+	if (!candidates || candidates.length === 0) return null;
+	const referenceAncestors = /* @__PURE__ */ new Set();
+	let walker = referenceNode;
+	while (walker) {
+		referenceAncestors.add(walker);
+		walker = walker.parent ?? null;
+	}
+	let best = null;
+	for (const candidate of candidates) {
+		if (!referenceAncestors.has(candidate.scopeOwner)) continue;
+		if (best === null) {
+			best = candidate;
+			continue;
+		}
+		let cursor = candidate.scopeOwner;
+		while (cursor) {
+			if (cursor === best.scopeOwner) {
+				best = candidate;
+				break;
+			}
+			cursor = cursor.parent ?? null;
+		}
+	}
+	return best;
+};
+//#endregion
+//#region src/plugin/utils/flatten-jsx-name.ts
+/**
+* Flattens a JSX opener / member-expression chain into a dotted name.
+*
+*   `<Foo />`           → `"Foo"`
+*   `<Namespace.Foo />` → `"Namespace.Foo"`
+*   `<a.b.c />`         → `"a.b.c"`
+*
+* Returns `null` when the chain root isn't a `JSXIdentifier` (e.g.
+* the rare-but-valid `<this.x />` case, which JSX surfaces as a
+* `JSXThisExpression` root).
+*
+* Used by `forbid-elements` and `jsx-props-no-spreading`. Two other
+* rules (`forbid-component-props`, `utils/get-element-type`) keep
+* their own extended variants because they handle additional node
+* types (ThisExpression / JSXNamespacedName) and return a non-
+* nullable string with a sentinel value — semantically distinct.
+*/
+const flattenJsxName$1 = (node) => {
+	if (isNodeOfType(node, "JSXIdentifier")) return node.name;
+	if (isNodeOfType(node, "JSXMemberExpression")) {
+		const objectName = flattenJsxName$1(node.object);
+		if (!objectName) return null;
+		return `${objectName}.${node.property.name}`;
+	}
+	return null;
+};
+//#endregion
+//#region src/plugin/utils/is-member-property.ts
+const isMemberProperty = (node, propertyName) => Boolean(node && isNodeOfType(node, "MemberExpression") && isNodeOfType(node.property, "Identifier") && node.property.name === propertyName);
+//#endregion
+//#region src/plugin/constants/nextjs.ts
+const NEXTJS_SOURCE_FILE_EXTENSION_GROUP = "(?:tsx?|jsx?|mts|mjs)";
+const PAGE_FILE_PATTERN = new RegExp(`/page\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
+const PAGE_OR_LAYOUT_FILE_PATTERN = new RegExp(`/(page|layout)\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
+const INTERNAL_PAGE_PATH_PATTERN = /\/(?:(?:\((?:dashboard|admin|settings|account|internal|manage|console|portal|auth|onboarding|app|ee|protected)\))|(?:dashboard|admin|settings|account|internal|manage|console|portal))\//i;
+const PAGES_DIRECTORY_PATTERN = /\/pages\//;
+const NEXTJS_NAVIGATION_FUNCTIONS = new Set([
+	"redirect",
+	"permanentRedirect",
+	"notFound",
+	"forbidden",
+	"unauthorized"
+]);
+const GOOGLE_FONTS_PATTERN = /fonts\.googleapis\.com/;
+const POLYFILL_SCRIPT_PATTERN = /polyfill\.io|polyfill\.min\.js|cdn\.polyfill/;
+const APP_DIRECTORY_PATTERN = /\/app\//;
+const ROUTE_HANDLER_FILE_PATTERN = new RegExp(`/route\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
+const CRON_ROUTE_PATTERN = /\/(?:cron|jobs\/cron)(?:\/|$)/i;
+const MUTATING_ROUTE_SEGMENTS = new Set([
+	"logout",
+	"log-out",
+	"signout",
+	"sign-out",
+	"unsubscribe",
+	"delete",
+	"remove",
+	"revoke",
+	"cancel",
+	"deactivate"
+]);
+const ERROR_BOUNDARY_FILE_PATTERN = new RegExp(`/(error|global-error)\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
+const GLOBAL_ERROR_FILE_PATTERN = new RegExp(`/global-error\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
+const ROUTE_HANDLER_HTTP_METHODS = new Set([
+	"GET",
+	"POST",
+	"PUT",
+	"PATCH",
+	"DELETE",
+	"OPTIONS",
+	"HEAD"
+]);
+const GOOGLE_ANALYTICS_SCRIPT_PATTERN = /google-analytics\.com|googletagmanager\.com\/gtag/;
+const OG_IMAGE_FILE_PATTERN = new RegExp(`/(opengraph-image|twitter-image)\\d*\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
+//#endregion
 //#region src/plugin/utils/is-nextjs-metadata-image-route-filename.ts
+const METADATA_IMAGE_ROUTE_FILE_PATTERN = new RegExp(`^(opengraph-image|twitter-image|icon|apple-icon)\\d*\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
 const isNextjsMetadataImageRouteFilename = (rawFilename) => {
 	if (!rawFilename) return false;
-	return /^(opengraph-image|twitter-image|icon|apple-icon)\d*\.(jsx?|tsx?)$/.test(path.basename(rawFilename));
+	return METADATA_IMAGE_ROUTE_FILE_PATTERN.test(path.basename(rawFilename));
+};
+//#endregion
+//#region src/plugin/utils/normalize-filename.ts
+const normalizeFilename$1 = (filename) => filename.replaceAll("\\", "/");
+//#endregion
+//#region src/plugin/utils/strip-paren-expression.ts
+const TS_WRAPPER_TYPES = new Set([
+	"ParenthesizedExpression",
+	"TSAsExpression",
+	"TSSatisfiesExpression",
+	"TSTypeAssertion",
+	"TSNonNullExpression",
+	"TSInstantiationExpression"
+]);
+const stripParenExpression = (node) => {
+	let current = node;
+	while (true) {
+		if (TS_WRAPPER_TYPES.has(current.type) && "expression" in current && current.expression) {
+			current = current.expression;
+			continue;
+		}
+		if (isNodeOfType(current, "ChainExpression") && current.expression) {
+			current = current.expression;
+			continue;
+		}
+		break;
+	}
+	return current;
+};
+//#endregion
+//#region src/plugin/utils/is-generated-image-render-context.ts
+const IMAGE_RESPONSE_MODULES = ["next/og", "@vercel/og"];
+const SATORI_MODULE = "satori";
+const generatedImageJsxCache = /* @__PURE__ */ new WeakMap();
+const isGeneratedImageRenderFilename = (rawFilename) => {
+	if (!rawFilename) return false;
+	return isNextjsMetadataImageRouteFilename(normalizeFilename$1(rawFilename));
+};
+const isImageResponseCallee = (contextNode, callee) => {
+	if (isNodeOfType(callee, "Identifier")) return IMAGE_RESPONSE_MODULES.some((moduleSource) => getImportedNameFromModule(contextNode, callee.name, moduleSource) === "ImageResponse");
+	if (!isMemberProperty(callee, "ImageResponse")) return false;
+	if (!isNodeOfType(callee.object, "Identifier")) return false;
+	const namespaceIdentifierName = callee.object.name;
+	return IMAGE_RESPONSE_MODULES.some((moduleSource) => isNamespaceImportFromModule(contextNode, namespaceIdentifierName, moduleSource));
+};
+const isSatoriCallee = (contextNode, callee) => {
+	if (!isNodeOfType(callee, "Identifier")) return false;
+	if (getImportedNameFromModule(contextNode, callee.name, SATORI_MODULE) === "satori") return true;
+	return isDefaultImportFromModule(contextNode, callee.name, SATORI_MODULE);
+};
+const isGeneratedImageRendererCall = (node) => {
+	if (!isNodeOfType(node, "CallExpression") && !isNodeOfType(node, "NewExpression")) return false;
+	if (!isNodeOfType(node.callee, "Identifier") && !isNodeOfType(node.callee, "MemberExpression")) return false;
+	return isImageResponseCallee(node, node.callee) || isSatoriCallee(node, node.callee);
+};
+const isComponentIdentifierName = (name) => {
+	const firstCharacter = name[0];
+	return Boolean(firstCharacter && firstCharacter === firstCharacter.toUpperCase());
+};
+const isFunctionLike$3 = (node) => Boolean(node && (isNodeOfType(node, "FunctionDeclaration") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "ArrowFunctionExpression")));
+const markFunctionReturnJsx = (functionNode, programRoot, generatedImageJsxNodes, visitedComponentNames) => {
+	if (!isFunctionLike$3(functionNode)) return;
+	if (isNodeOfType(functionNode, "ArrowFunctionExpression")) {
+		const body = stripParenExpression(functionNode.body);
+		if (!isNodeOfType(body, "BlockStatement")) {
+			markGeneratedImageExpression(body, programRoot, generatedImageJsxNodes, visitedComponentNames);
+			return;
+		}
+	}
+	const body = functionNode.body;
+	if (!isNodeOfType(body, "BlockStatement")) return;
+	walkAst(body, (descendantNode) => {
+		if (descendantNode !== body && isFunctionLike$3(descendantNode)) return false;
+		if (!isNodeOfType(descendantNode, "ReturnStatement")) return;
+		if (!descendantNode.argument) return;
+		markGeneratedImageExpression(stripParenExpression(descendantNode.argument), programRoot, generatedImageJsxNodes, visitedComponentNames);
+	});
+};
+const hasNormalJsxUsage = (programRoot, componentName, generatedImageJsxNodes) => {
+	let hasNormalUsage = false;
+	walkAst(programRoot, (descendantNode) => {
+		if (hasNormalUsage) return false;
+		if (!isNodeOfType(descendantNode, "JSXOpeningElement")) return;
+		if (generatedImageJsxNodes.has(descendantNode)) return;
+		if (flattenJsxName$1(descendantNode.name) !== componentName) return;
+		hasNormalUsage = true;
+		return false;
+	});
+	return hasNormalUsage;
+};
+const markComponentRenderJsx = (programRoot, openingElement, generatedImageJsxNodes, visitedComponentNames) => {
+	const tagName = flattenJsxName$1(openingElement.name);
+	if (!tagName || tagName.includes(".") || !isComponentIdentifierName(tagName)) return;
+	if (visitedComponentNames.has(tagName)) return;
+	if (hasNormalJsxUsage(programRoot, tagName, generatedImageJsxNodes)) return;
+	const binding = findVariableInitializer(openingElement, tagName);
+	if (!binding?.initializer) return;
+	visitedComponentNames.add(tagName);
+	markGeneratedImageExpression(stripParenExpression(binding.initializer), programRoot, generatedImageJsxNodes, visitedComponentNames);
+};
+const isInsideGeneratedImageRendererArgument = (node) => {
+	let cursor = node.parent;
+	while (cursor) {
+		if (isGeneratedImageRendererCall(cursor)) return true;
+		cursor = cursor.parent ?? null;
+	}
+	return false;
+};
+const hasNormalFunctionCallUsage = (programRoot, functionName) => {
+	let hasNormalUsage = false;
+	walkAst(programRoot, (descendantNode) => {
+		if (hasNormalUsage) return false;
+		if (!isNodeOfType(descendantNode, "CallExpression")) return;
+		if (!isNodeOfType(descendantNode.callee, "Identifier")) return;
+		if (descendantNode.callee.name !== functionName) return;
+		if (isInsideGeneratedImageRendererArgument(descendantNode)) return;
+		hasNormalUsage = true;
+		return false;
+	});
+	return hasNormalUsage;
+};
+const markJsxSubtree = (node, programRoot, generatedImageJsxNodes, visitedComponentNames) => {
+	walkAst(node, (descendantNode) => {
+		if (!isNodeOfType(descendantNode, "JSXOpeningElement")) return;
+		generatedImageJsxNodes.add(descendantNode);
+		markComponentRenderJsx(programRoot, descendantNode, generatedImageJsxNodes, visitedComponentNames);
+	});
+};
+const markGeneratedImageExpression = (expression, programRoot, generatedImageJsxNodes, visitedComponentNames) => {
+	const unwrappedExpression = stripParenExpression(expression);
+	if (isNodeOfType(unwrappedExpression, "JSXElement") || isNodeOfType(unwrappedExpression, "JSXFragment")) {
+		markJsxSubtree(unwrappedExpression, programRoot, generatedImageJsxNodes, visitedComponentNames);
+		return;
+	}
+	if (isFunctionLike$3(unwrappedExpression)) {
+		markFunctionReturnJsx(unwrappedExpression, programRoot, generatedImageJsxNodes, visitedComponentNames);
+		return;
+	}
+	if (isNodeOfType(unwrappedExpression, "ConditionalExpression")) {
+		markGeneratedImageExpression(unwrappedExpression.consequent, programRoot, generatedImageJsxNodes, visitedComponentNames);
+		markGeneratedImageExpression(unwrappedExpression.alternate, programRoot, generatedImageJsxNodes, visitedComponentNames);
+		return;
+	}
+	if (isNodeOfType(unwrappedExpression, "LogicalExpression")) {
+		markGeneratedImageExpression(unwrappedExpression.left, programRoot, generatedImageJsxNodes, visitedComponentNames);
+		markGeneratedImageExpression(unwrappedExpression.right, programRoot, generatedImageJsxNodes, visitedComponentNames);
+		return;
+	}
+	if (isNodeOfType(unwrappedExpression, "CallExpression")) {
+		const callee = unwrappedExpression.callee;
+		if (isFunctionLike$3(callee)) {
+			markFunctionReturnJsx(callee, programRoot, generatedImageJsxNodes, visitedComponentNames);
+			return;
+		}
+		if (!isNodeOfType(callee, "Identifier")) return;
+		if (visitedComponentNames.has(callee.name)) return;
+		if (hasNormalJsxUsage(programRoot, callee.name, generatedImageJsxNodes)) return;
+		if (hasNormalFunctionCallUsage(programRoot, callee.name)) return;
+		const binding = findVariableInitializer(callee, callee.name);
+		if (!binding?.initializer || !isFunctionLike$3(stripParenExpression(binding.initializer))) return;
+		visitedComponentNames.add(callee.name);
+		markFunctionReturnJsx(stripParenExpression(binding.initializer), programRoot, generatedImageJsxNodes, visitedComponentNames);
+		return;
+	}
+	if (isNodeOfType(unwrappedExpression, "Identifier")) {
+		if (visitedComponentNames.has(unwrappedExpression.name)) return;
+		visitedComponentNames.add(unwrappedExpression.name);
+		const binding = findVariableInitializer(unwrappedExpression, unwrappedExpression.name);
+		if (!binding?.initializer) return;
+		markGeneratedImageExpression(stripParenExpression(binding.initializer), programRoot, generatedImageJsxNodes, visitedComponentNames);
+	}
+};
+const collectGeneratedImageJsxNodes = (programRoot) => {
+	const cached = generatedImageJsxCache.get(programRoot);
+	if (cached) return cached;
+	const generatedImageJsxNodes = /* @__PURE__ */ new WeakSet();
+	walkAst(programRoot, (descendantNode) => {
+		if (!isGeneratedImageRendererCall(descendantNode)) return;
+		for (const argument of descendantNode.arguments) markGeneratedImageExpression(argument, programRoot, generatedImageJsxNodes, /* @__PURE__ */ new Set());
+	});
+	generatedImageJsxCache.set(programRoot, generatedImageJsxNodes);
+	return generatedImageJsxNodes;
+};
+const isGeneratedImageRenderContext = (context, node) => {
+	if (isGeneratedImageRenderFilename(context.filename)) return true;
+	if (!node) return false;
+	const programRoot = findProgramRoot(node);
+	if (!programRoot) return false;
+	return collectGeneratedImageJsxNodes(programRoot).has(node);
 };
 //#endregion
 //#region src/plugin/utils/is-hidden-from-screen-reader.ts
@@ -876,15 +1415,15 @@ const objectHasAccessibleChild = (jsxElement, settings) => {
 };
 //#endregion
 //#region src/plugin/rules/a11y/alt-text.ts
-const MISSING_ALT_PROP = "Blind users can't use this image because screen readers skip it without `alt`, so add `alt=\"...\"` (or `alt=\"\"` if decorative).";
-const MISSING_ALT_VALUE = "Blind users can't use this image because its `alt` is empty or invalid, so add a short description (or `alt=\"\"` if decorative).";
-const ARIA_LABEL_VALUE = "Blind users hear nothing here because `aria-label` has no value, so give it a short description.";
-const ARIA_LABELLEDBY_VALUE = "Blind users hear nothing here because `aria-labelledby` has no value, so point it at the id of the text that labels this.";
+const MISSING_ALT_PROP = "Screen reader users cannot access this image without `alt`. Add `alt=\"image_description\"`, or `alt=\"\"` if it is decorative.";
+const MISSING_ALT_VALUE = "Screen reader users cannot access this image because its `alt` is empty or invalid. Add a short description, or `alt=\"\"` if it is decorative.";
+const ARIA_LABEL_VALUE = "Screen reader users hear nothing here because `aria-label` has no value, so give it a short description.";
+const ARIA_LABELLEDBY_VALUE = "Screen reader users hear nothing here because `aria-labelledby` has no value, so point it at the id of the text that labels this.";
 const PREFER_ALT = "Screen readers skip a decorative image more reliably with `alt=\"\"` than `role=\"presentation\"`, so use `alt=\"\"` instead.";
-const MESSAGE_OBJECT = "Blind users can't use this `<object>` because screen readers can't describe it, so add `alt`, `aria-label`, `aria-labelledby`, `title`, or inner fallback text.";
+const MESSAGE_OBJECT = "Screen reader users cannot use this `<object>` because assistive tech cannot describe it, so add `alt`, `aria-label`, `aria-labelledby`, `title`, or inner fallback text.";
 const MESSAGE_AREA = "Blind users can't use this `<area>` of the image map because screen readers can't describe it, so add `alt`, `aria-label`, or `aria-labelledby`.";
 const MESSAGE_INPUT_IMAGE = "Blind users can't use this image button because screen readers can't describe it, so add `alt`, `aria-label`, or `aria-labelledby`.";
-const resolveSettings$53 = (settings) => {
+const resolveSettings$52 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.altText ?? {} : {};
 };
@@ -1000,8 +1539,8 @@ const altText = defineRule({
 	recommendation: "Give every meaningful image an `alt`, `aria-label`, or `aria-labelledby`.",
 	category: "Accessibility",
 	create: (context) => {
-		if (isNextjsMetadataImageRouteFilename(context.filename)) return {};
-		const settings = resolveSettings$53(context.settings);
+		if (isGeneratedImageRenderContext(context)) return {};
+		const settings = resolveSettings$52(context.settings);
 		const checkImg = !settings.elements || settings.elements.includes("img");
 		const checkObject = !settings.elements || settings.elements.includes("object");
 		const checkArea = !settings.elements || settings.elements.includes("area");
@@ -1011,6 +1550,7 @@ const altText = defineRule({
 		const areaAliases = new Set(settings.area ?? []);
 		const inputImageAliases = new Set(settings["input[type=\"image\"]"] ?? []);
 		return { JSXOpeningElement(node) {
+			if (isGeneratedImageRenderContext(context, node)) return;
 			const tag = getElementType(node, context.settings);
 			if (checkImg && (tag === "img" || imgAliases.has(tag))) {
 				imgRule(node, node, context);
@@ -1045,7 +1585,7 @@ const DEFAULT_AMBIGUOUS = [
 	"a link",
 	"learn more"
 ];
-const resolveSettings$52 = (settings) => {
+const resolveSettings$51 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { words: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.anchorAmbiguousText ?? {} : {}).words ?? DEFAULT_AMBIGUOUS };
 };
@@ -1086,7 +1626,7 @@ const anchorAmbiguousText = defineRule({
 	recommendation: "Name where a link goes. Avoid 'click here', 'learn more', and 'link'.",
 	category: "Accessibility",
 	create: (context) => {
-		const settings = resolveSettings$52(context.settings);
+		const settings = resolveSettings$51(context.settings);
 		const ambiguousSet = new Set(settings.words.map((word) => word.toLowerCase()));
 		return { JSXElement(node) {
 			if (getElementType(node.openingElement, context.settings) !== "a") return;
@@ -1102,7 +1642,7 @@ const anchorAmbiguousText = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/anchor-has-content.ts
-const MESSAGE$50 = "Blind users can't follow this link because screen readers announce nothing, so add visible text, `aria-label`, or `aria-labelledby`.";
+const MESSAGE$51 = "Blind users can't follow this link because screen readers announce nothing, so add visible text, `aria-label`, or `aria-labelledby`.";
 const anchorHasContent = defineRule({
 	id: "anchor-has-content",
 	title: "Anchor has no content",
@@ -1118,7 +1658,7 @@ const anchorHasContent = defineRule({
 		for (const attribute of ["title", "aria-label"]) if (hasJsxPropIgnoreCase(opening.attributes, attribute)) return;
 		context.report({
 			node: opening.name,
-			message: MESSAGE$50
+			message: MESSAGE$51
 		});
 	} })
 });
@@ -1136,7 +1676,7 @@ const getStaticTemplateLiteralValue = (templateLiteral) => {
 const MESSAGE_MISSING_HREF = "Keyboard users can't reach this link because it has no `href`, so add a real `href` (or use `<button>` for actions).";
 const MESSAGE_INCORRECT_HREF = "Keyboard users can't reach this link because its `href` goes nowhere (`#`, `javascript:`, or empty), so point it at a real destination.";
 const MESSAGE_CANT_BE_ANCHOR = "Keyboard users can't trigger this link because it's a click handler with no real `href`, so use `<button>` instead.";
-const resolveSettings$51 = (settings) => {
+const resolveSettings$50 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.anchorIsValid ?? {} : {};
 	const jsxA11y = settings?.["jsx-a11y"];
@@ -1175,7 +1715,7 @@ const anchorIsValid = defineRule({
 	recommendation: "Give links a real destination. Use `<button>` for in-page actions.",
 	category: "Accessibility",
 	create: (context) => {
-		const settings = resolveSettings$51(context.settings);
+		const settings = resolveSettings$50(context.settings);
 		return { JSXOpeningElement(node) {
 			if (getElementType(node, context.settings) !== "a") return;
 			let hrefAttribute;
@@ -1512,7 +2052,7 @@ const parseJsxValue = (value) => {
 };
 //#endregion
 //#region src/plugin/rules/a11y/aria-activedescendant-has-tabindex.ts
-const MESSAGE$49 = "Keyboard users can't focus this element with `aria-activedescendant` because it isn't tabbable, so add `tabIndex={0}`.";
+const MESSAGE$50 = "Keyboard users can't focus this element with `aria-activedescendant` because it isn't tabbable, so add `tabIndex={0}`.";
 const ariaActivedescendantHasTabindex = defineRule({
 	id: "aria-activedescendant-has-tabindex",
 	title: "aria-activedescendant missing tabindex",
@@ -1530,14 +2070,14 @@ const ariaActivedescendantHasTabindex = defineRule({
 			if (tabIndexValue === null || tabIndexValue >= -1) return;
 			context.report({
 				node: node.name,
-				message: MESSAGE$49
+				message: MESSAGE$50
 			});
 			return;
 		}
 		if (isInteractiveElement(tag, node)) return;
 		context.report({
 			node: node.name,
-			message: MESSAGE$49
+			message: MESSAGE$50
 		});
 	} })
 });
@@ -2209,8 +2749,8 @@ const ABSTRACT_ROLES = new Set([
 const PRESENTATION_ROLES$2 = new Set(["presentation", "none"]);
 //#endregion
 //#region src/plugin/rules/a11y/aria-role.ts
-const buildBaseMessage = (suffix) => `Screen reader users get no help from this \`role\` because it isn't a valid ARIA role, so use a real, non-abstract role.${suffix}`;
-const resolveSettings$50 = (settings) => {
+const buildBaseMessage = (suffix) => `This \`role\` is not a valid ARIA role, so assistive tech cannot expose it correctly. Use a real, non-abstract role.${suffix}`;
+const resolveSettings$49 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.ariaRole ?? {} : {};
 	return {
@@ -2223,10 +2763,10 @@ const ariaRole = defineRule({
 	title: "Invalid ARIA role",
 	tags: ["react-jsx-only"],
 	severity: "error",
-	recommendation: "Use a real, non-abstract ARIA role.",
+	recommendation: "Use a real, non-abstract ARIA role so assistive tech can expose the element correctly.",
 	category: "Accessibility",
 	create: (context) => {
-		const settings = resolveSettings$50(context.settings);
+		const settings = resolveSettings$49(context.settings);
 		return { JSXOpeningElement(node) {
 			const roleAttribute = hasJsxPropIgnoreCase(node.attributes, "role");
 			if (!roleAttribute) return;
@@ -2327,7 +2867,7 @@ const LOOP_TYPES = [
 	"WhileStatement",
 	"DoWhileStatement"
 ];
-const FUNCTION_LIKE_TYPES$1 = new Set([
+const FUNCTION_LIKE_TYPES = new Set([
 	"FunctionDeclaration",
 	"FunctionExpression",
 	"ArrowFunctionExpression"
@@ -3018,7 +3558,7 @@ const asyncDeferAwait = defineRule({
 	title: "await before an early-return guard",
 	severity: "warn",
 	tags: ["test-noise"],
-	recommendation: "Move the `await` below the early-return guard so the skip path stays fast",
+	recommendation: "Move the `await` below the early-return guard so the skip path stays fast and avoids unnecessary async work.",
 	create: (context) => {
 		const inspectStatements = (statements) => {
 			for (let statementIndex = 0; statementIndex < statements.length - 1; statementIndex++) {
@@ -3072,9 +3612,6 @@ const asyncDeferAwait = defineRule({
 		};
 	}
 });
-//#endregion
-//#region src/plugin/utils/normalize-filename.ts
-const normalizeFilename$1 = (filename) => filename.replaceAll("\\", "/");
 //#endregion
 //#region src/plugin/utils/get-callee-identifier-trail.ts
 const getCalleeIdentifierTrail = (call) => {
@@ -3255,7 +3792,7 @@ const FORM_CONTROL_TAGS = new Set([
 	"select",
 	"form"
 ]);
-const resolveSettings$49 = (settings) => {
+const resolveSettings$48 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { inputComponents: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.autocompleteValid ?? {} : {}).inputComponents ?? [] };
 };
@@ -3264,10 +3801,10 @@ const autocompleteValid = defineRule({
 	title: "Invalid autocomplete value",
 	tags: ["react-jsx-only"],
 	severity: "warn",
-	recommendation: "Use a valid autofill token in `autoComplete`.",
+	recommendation: "Use a valid autofill token in `autoComplete` so browsers can fill the right field reliably.",
 	category: "Accessibility",
 	create: (context) => {
-		const settings = resolveSettings$49(context.settings);
+		const settings = resolveSettings$48(context.settings);
 		return { JSXOpeningElement: (node) => {
 			const tag = getElementType(node, context.settings);
 			if (!FORM_CONTROL_TAGS.has(tag) && !settings.inputComponents.includes(tag)) return;
@@ -3319,8 +3856,8 @@ const isCreateElementCall = (node) => {
 //#endregion
 //#region src/plugin/rules/react-builtins/button-has-type.ts
 const MISSING_MESSAGE$2 = "Your users can submit the form by accident because a `<button>` with no `type` defaults to submit.";
-const INVALID_MESSAGE = "This button's `type` is invalid.";
-const resolveSettings$48 = (settings) => {
+const INVALID_MESSAGE = "This button has an invalid `type`, so the browser may treat it like a submit button.";
+const resolveSettings$47 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.buttonHasType ?? {} : {};
 	return {
@@ -3360,9 +3897,9 @@ const buttonHasType = defineRule({
 	id: "button-has-type",
 	title: "Button missing explicit type",
 	severity: "warn",
-	recommendation: "Always set a `type` on a `<button>`: `type=\"button\"`, `\"submit\"`, or `\"reset\"`.",
+	recommendation: "Set an explicit button `type` so plain buttons do not submit forms by accident: `type=\"button\"`, `\"submit\"`, or `\"reset\"`.",
 	create: (context) => {
-		const settings = resolveSettings$48(context.settings);
+		const settings = resolveSettings$47(context.settings);
 		const isTestlikeFile = isTestlikeFilename(context.filename);
 		return {
 			JSXOpeningElement(node) {
@@ -3430,8 +3967,8 @@ const buttonHasType = defineRule({
 //#endregion
 //#region src/plugin/rules/react-builtins/checked-requires-onchange-or-readonly.ts
 const MISSING_MESSAGE$1 = "Your users can't toggle this input because `checked` has no `onChange`.";
-const EXCLUSIVE_MESSAGE = "This input behaves unpredictably with both `checked` & `defaultChecked` set.";
-const resolveSettings$47 = (settings) => {
+const EXCLUSIVE_MESSAGE = "This input mixes `checked` with `defaultChecked`, so React can't tell whether it is controlled or uncontrolled.";
+const resolveSettings$46 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.checkedRequiresOnchangeOrReadonly ?? {} : {};
 	return {
@@ -3481,10 +4018,10 @@ const checkedRequiresOnchangeOrReadonly = defineRule({
 	id: "checked-requires-onchange-or-readonly",
 	title: "Checked input without onChange",
 	severity: "warn",
-	recommendation: "Add `onChange` (controlled) or `readOnly` (display-only), or use `defaultChecked` for an uncontrolled checkbox.",
+	recommendation: "Add `onChange`, `readOnly`, or `defaultChecked` so React knows whether the checkbox is editable, display-only, or uncontrolled.",
 	category: "Correctness",
 	create: (context) => {
-		const settings = resolveSettings$47(context.settings);
+		const settings = resolveSettings$46(context.settings);
 		const reportFromPresence = (presence) => {
 			if (presence.checkedNode && presence.defaultCheckedNode && !settings.ignoreExclusiveCheckedAttribute) context.report({
 				node: presence.checkedNode,
@@ -3551,7 +4088,7 @@ const isPureEventBlockerHandler = (attribute) => {
 //#endregion
 //#region src/plugin/rules/a11y/click-events-have-key-events.ts
 const PRESENTATION_ROLES$1 = new Set(["presentation", "none"]);
-const MESSAGE$48 = "Keyboard users can't trigger this click handler because there's no keyboard one, so add `onKeyUp`, `onKeyDown`, or `onKeyPress`.";
+const MESSAGE$49 = "Keyboard users can't trigger this click handler because there's no keyboard one, so add `onKeyUp`, `onKeyDown`, or `onKeyPress`.";
 const KEY_HANDLERS = [
 	"onKeyUp",
 	"onKeyDown",
@@ -3583,7 +4120,7 @@ const clickEventsHaveKeyEvents = defineRule({
 			if (KEY_HANDLERS.some((handler) => hasJsxPropIgnoreCase(node.attributes, handler))) return;
 			context.report({
 				node: node.name,
-				message: MESSAGE$48
+				message: MESSAGE$49
 			});
 		} };
 	}
@@ -3628,9 +4165,6 @@ const clientLocalstorageNoVersion = defineRule({
 	} })
 });
 //#endregion
-//#region src/plugin/utils/is-member-property.ts
-const isMemberProperty = (node, propertyName) => Boolean(node && isNodeOfType(node, "MemberExpression") && isNodeOfType(node.property, "Identifier") && node.property.name === propertyName);
-//#endregion
 //#region src/plugin/rules/client/client-passive-event-listeners.ts
 const clientPassiveEventListeners = defineRule({
 	id: "client-passive-event-listeners",
@@ -3670,33 +4204,8 @@ const isReactComponentName = (name) => {
 	return firstCharacter >= 65 && firstCharacter <= 90;
 };
 //#endregion
-//#region src/plugin/utils/strip-paren-expression.ts
-const TS_WRAPPER_TYPES = new Set([
-	"ParenthesizedExpression",
-	"TSAsExpression",
-	"TSSatisfiesExpression",
-	"TSTypeAssertion",
-	"TSNonNullExpression",
-	"TSInstantiationExpression"
-]);
-const stripParenExpression = (node) => {
-	let current = node;
-	while (true) {
-		if (TS_WRAPPER_TYPES.has(current.type) && "expression" in current && current.expression) {
-			current = current.expression;
-			continue;
-		}
-		if (isNodeOfType(current, "ChainExpression") && current.expression) {
-			current = current.expression;
-			continue;
-		}
-		break;
-	}
-	return current;
-};
-//#endregion
 //#region src/plugin/rules/a11y/control-has-associated-label.ts
-const MESSAGE$47 = "Blind users can't tell what this control does because screen readers find no label, so add visible text, `aria-label`, or `aria-labelledby`.";
+const MESSAGE$48 = "Blind users can't tell what this control does because screen readers find no label, so add visible text, `aria-label`, or `aria-labelledby`.";
 const DEFAULT_IGNORE_ELEMENTS = ["link", "canvas"];
 const DEFAULT_LABELLING_PROPS = [
 	"alt",
@@ -3708,7 +4217,7 @@ const HTML_FOR_ATTRIBUTE = "htmlFor";
 const LABEL_ELEMENT = "label";
 const DEFAULT_DEPTH = 5;
 const MAX_DEPTH = 25;
-const resolveSettings$46 = (settings) => {
+const resolveSettings$45 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.controlHasAssociatedLabel ?? {} : {};
 	return {
@@ -3828,7 +4337,7 @@ const controlHasAssociatedLabel = defineRule({
 	recommendation: "Give every interactive control a label screen readers can read.",
 	category: "Accessibility",
 	create: (context) => {
-		const settings = resolveSettings$46(context.settings);
+		const settings = resolveSettings$45(context.settings);
 		const isTestlikeFile = isTestlikeFilename(context.filename);
 		return { JSXElement(node) {
 			if (isTestlikeFile) return;
@@ -3857,7 +4366,7 @@ const controlHasAssociatedLabel = defineRule({
 			for (const child of node.children) if (checkChildForLabel(child, 1, checkContext)) return;
 			context.report({
 				node: opening,
-				message: MESSAGE$47
+				message: MESSAGE$48
 			});
 		} };
 	}
@@ -4003,7 +4512,7 @@ const noRedundantPaddingAxes = defineRule({
 	severity: "warn",
 	defaultEnabled: false,
 	category: "Architecture",
-	recommendation: "Collapse `px-N py-N` to `p-N` when both sides match. Keep them split only when one side changes at a breakpoint (`py-2 md:py-3`).",
+	recommendation: "Collapse matching padding axes to `p-N` so duplicated classes do not make spacing harder to scan; keep split axes only when breakpoints differ.",
 	create: (context) => ({ JSXAttribute(jsxAttribute) {
 		if (!isNodeOfType(jsxAttribute.name, "JSXIdentifier") || jsxAttribute.name.name !== "className") return;
 		const classNameLiteral = getClassNameLiteral(jsxAttribute);
@@ -4013,7 +4522,7 @@ const noRedundantPaddingAxes = defineRule({
 		if (matchedPairs.length === 0) return;
 		for (const matchedPair of matchedPairs) context.report({
 			node: jsxAttribute,
-			message: `px-${matchedPair.value} & py-${matchedPair.value} are the same.`
+			message: `px-${matchedPair.value} and py-${matchedPair.value} duplicate p-${matchedPair.value}, so the class list is noisier without changing spacing.`
 		});
 	} })
 });
@@ -4027,7 +4536,7 @@ const noRedundantSizeAxes = defineRule({
 	severity: "warn",
 	defaultEnabled: false,
 	category: "Architecture",
-	recommendation: "Collapse `w-N h-N` to `size-N` (Tailwind v3.4+) when both sides match.",
+	recommendation: "Collapse matching width and height to `size-N` so duplicated classes do not make layout harder to scan.",
 	create: (context) => ({ JSXAttribute(jsxAttribute) {
 		if (!isNodeOfType(jsxAttribute.name, "JSXIdentifier") || jsxAttribute.name.name !== "className") return;
 		const classNameLiteral = getClassNameLiteral(jsxAttribute);
@@ -4037,7 +4546,7 @@ const noRedundantSizeAxes = defineRule({
 		if (matchedPairs.length === 0) return;
 		for (const matchedPair of matchedPairs) context.report({
 			node: jsxAttribute,
-			message: `w-${matchedPair.value} & h-${matchedPair.value} are the same.`
+			message: `w-${matchedPair.value} and h-${matchedPair.value} duplicate size-${matchedPair.value}, so the class list is noisier without changing layout.`
 		});
 	} })
 });
@@ -4072,7 +4581,7 @@ const noSpaceOnFlexChildren = defineRule({
 		const spaceValue = spaceMatch[2];
 		context.report({
 			node: jsxAttribute,
-			message: `space-${spaceAxis}-${spaceValue} on a flex or grid parent breaks spacing for your users.`
+			message: `space-${spaceAxis}-${spaceValue} on a flex or grid parent can leave uneven gaps when children hide, wrap, or render in RTL layouts.`
 		});
 	} })
 });
@@ -4085,14 +4594,14 @@ const noThreePeriodEllipsis = defineRule({
 	severity: "warn",
 	defaultEnabled: false,
 	category: "Architecture",
-	recommendation: "Use the real ellipsis \"…\" (or `&hellip;`) instead of three dots. Good for labels like \"Rename…\" and \"Loading…\".",
+	recommendation: "Use the real ellipsis character (\"…\") so UI labels look polished and consistent instead of like three separate periods.",
 	create: (context) => ({ JSXText(jsxTextNode) {
 		const textValue = typeof jsxTextNode.value === "string" ? jsxTextNode.value : "";
 		if (!TRAILING_THREE_PERIOD_ELLIPSIS_PATTERN.test(textValue)) return;
 		if (isInsideExcludedTypographyAncestor(jsxTextNode)) return;
 		context.report({
 			node: jsxTextNode,
-			message: "Three dots (\"...\") look unpolished to your users."
+			message: "Use the real ellipsis character (\"…\") instead of three period characters."
 		});
 	} })
 });
@@ -4154,7 +4663,7 @@ const noVagueButtonLabel = defineRule({
 		if (!VAGUE_BUTTON_LABELS.has(normalizedLabel)) return;
 		context.report({
 			node: jsxElementNode.openingElement ?? jsxElementNode,
-			message: `Screen reader & unsure users can't tell what "${labelText}" does.`
+			message: `Screen reader users may not know what "${labelText}" does. Use a specific action label.`
 		});
 	} })
 });
@@ -4193,13 +4702,13 @@ const isEs6Component = (node) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/display-name.ts
-const MESSAGE$46 = "This component shows up as Anonymous in React DevTools because it has no `displayName`.";
+const MESSAGE$47 = "This component shows up as Anonymous in React DevTools because it has no `displayName`.";
 const DEFAULT_ADDITIONAL_HOCS = [
 	"observer",
 	"lazy",
 	"withTracking"
 ];
-const resolveSettings$45 = (settings) => {
+const resolveSettings$44 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.displayName ?? {} : {};
 	const additionalHoCs = new Set(ruleSettings.additionalHoCs ?? DEFAULT_ADDITIONAL_HOCS);
@@ -4391,12 +4900,12 @@ const displayName = defineRule({
 	recommendation: "Give each component a `displayName` so DevTools shows a clear name.",
 	category: "Architecture",
 	create: (context) => {
-		const settings = resolveSettings$45(context.settings);
+		const settings = resolveSettings$44(context.settings);
 		const ignoreNamed = settings.ignoreTranspilerName ? false : true;
 		const reportAt = (node) => {
 			context.report({
 				node,
-				message: MESSAGE$46
+				message: MESSAGE$47
 			});
 		};
 		return {
@@ -4740,10 +5249,10 @@ const effectNeedsCleanup = defineRule({
 		if (usages.length === 0) return;
 		if (effectHasCleanupReturn(callback, usages)) return;
 		const firstUsage = usages[0];
-		const verb = firstUsage.kind === "timer" ? "schedules" : "subscribes via";
+		const resourceKind = firstUsage.kind === "timer" ? "timer" : "subscription";
 		context.report({
 			node,
-			message: `\`${firstUsage.resourceName}(...)\` leaks memory because useEffect ${verb} it but never cleans it up.`
+			message: `\`${firstUsage.resourceName}\` creates a ${resourceKind} in useEffect without returning cleanup. Return a cleanup function so it does not leak after unmount.`
 		});
 	} })
 });
@@ -5391,21 +5900,21 @@ const isOutsideAllFunctions = (symbol) => {
 //#region src/plugin/rules/react-builtins/exhaustive-deps-messages.ts
 const buildMissingDepMessage = (hookName, depName) => `\`${hookName}\` can run with a stale \`${depName}\` & show your users old data.`;
 const buildUnnecessaryDepMessage = (hookName, depName) => `\`${hookName}\` re-runs whenever \`${depName}\` changes even though it never uses it.`;
-const buildDuplicateDepMessage = (hookName, depName) => `\`${hookName}\` lists \`${depName}\` twice in its dependency array.`;
-const buildLiteralDepMessage = (hookName) => `A literal in \`${hookName}\`'s dependency array never changes & does nothing.`;
+const buildDuplicateDepMessage = (hookName, depName) => `\`${hookName}\` lists \`${depName}\` twice, adding dependency-array noise without changing when it runs.`;
+const buildLiteralDepMessage = (hookName) => `A literal in \`${hookName}\`'s dependency array never changes, so it adds noise without protecting against stale values.`;
 const buildRefCurrentDepMessage = (hookName, depName) => `\`${hookName}\` won't re-run when \`${depName}\` changes, since a ref never triggers a redraw.`;
-const buildNonArrayDepsMessage = (hookName) => `\`${hookName}\`'s dependencies can't be checked because its second argument isn't an inline array.`;
+const buildNonArrayDepsMessage = (hookName) => `\`${hookName}\`'s dependencies can't be checked because its second argument isn't an inline array, so stale values can slip through.`;
 const buildMissingDepArrayMessage = (hookName) => `\`${hookName}\` re-runs on every render with no dependency array.`;
 const buildMissingCallbackMessage = (hookName) => `\`${hookName}\` crashes without a function as its first argument.`;
-const buildEffectEventDepMessage = () => `A function from \`useEffectEvent\` is stable & shouldn't sit in the dependency array.`;
-const buildSpreadDepMessage = (hookName) => `\`${hookName}\`'s dependencies can't be checked because of a spread in the array.`;
-const buildComplexDepMessage = (hookName) => `\`${hookName}\`'s dependencies can't be checked because of a complex expression in the array.`;
+const buildEffectEventDepMessage = () => `A function from \`useEffectEvent\` is stable, so listing it adds noise and defeats the event/dependency split.`;
+const buildSpreadDepMessage = (hookName) => `A spread in \`${hookName}\`'s dependency array hides the actual deps, so stale values can slip through.`;
+const buildComplexDepMessage = (hookName) => `A complex expression in \`${hookName}\`'s dependency array hides the real value, so stale values can slip through.`;
 const buildAsyncEffectMessage = (hookName) => `\`${hookName}\` was given an async function, so its cleanup breaks.`;
-const buildUnknownCallbackMessage = (hookName) => `\`${hookName}\`'s dependencies can't be checked because its function is defined elsewhere.`;
+const buildUnknownCallbackMessage = (hookName) => `\`${hookName}\`'s callback is defined elsewhere, so dependencies can't be checked and stale values can slip through.`;
 const buildUnstableDepMessage = (hookName, depName) => `\`${depName}\` is rebuilt every render, so \`${hookName}\` runs every time.`;
 const buildSetStateWithoutDepsMessage = (hookName, setterName) => `\`${hookName}\` calls \`${setterName}\` with no dependency array, so it can loop forever & freeze the component.`;
 const buildRefCleanupMessage = (depName) => `Your cleanup may read the wrong node since the ref \`${depName}\` can change before it runs.`;
-const buildAssignmentMessage = (name) => `Assigning to \`${name}\` inside a hook is thrown away after each render.`;
+const buildAssignmentMessage = (name) => `Assigning to \`${name}\` inside a hook is thrown away after each render, so the next render reads the old value.`;
 //#endregion
 //#region src/plugin/rules/react-builtins/exhaustive-deps-settings.ts
 const resolveExhaustiveDepsSettings = (settings) => {
@@ -6263,7 +6772,7 @@ const compileGlob = (pattern) => {
 //#endregion
 //#region src/plugin/rules/react-builtins/forbid-component-props.ts
 const DEFAULT_FORBID_PROPS = ["className", "style"];
-const resolveSettings$44 = (settings) => {
+const resolveSettings$43 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const forbid = (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.forbidComponentProps ?? {} : {}).forbid;
 	if (!forbid || forbid.length === 0) return { forbid: DEFAULT_FORBID_PROPS };
@@ -6301,27 +6810,27 @@ const isForbiddenForTag = (entry, tag) => {
 	if (entry.allowedForPatterns.some((regex) => regex.test(tag))) return false;
 	return true;
 };
-const flattenJsxName$1 = (name) => {
+const flattenJsxName = (name) => {
 	if (isNodeOfType(name, "JSXIdentifier")) return name.name;
-	if (isNodeOfType(name, "JSXMemberExpression")) return `${flattenJsxName$1(name.object)}.${name.property.name}`;
+	if (isNodeOfType(name, "JSXMemberExpression")) return `${flattenJsxName(name.object)}.${name.property.name}`;
 	if (name.type === "ThisExpression" || name.type === "JSXThisExpression") return "this";
 	return "";
 };
 const isSupportedJsxName = (name) => isNodeOfType(name, "JSXIdentifier") || isNodeOfType(name, "JSXMemberExpression");
-const buildMessage$24 = (propName, message) => message ?? `Your project blocks the \`${propName}\` prop on this component.`;
+const buildMessage$24 = (propName, message) => message ?? `Your project blocks the \`${propName}\` prop on this component, so this bypasses the component API contract.`;
 const forbidComponentProps = defineRule({
 	id: "forbid-component-props",
-	title: "Forbidden prop on component",
+	title: "Blocked component prop bypasses API contract",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "List the props you want to block per component in the `forbidComponentProps.forbid` setting.",
+	recommendation: "Configure blocked component props so callers cannot bypass the component API contract.",
 	category: "Architecture",
 	create: (context) => {
-		const entries = resolveSettings$44(context.settings).forbid.map(normalizeEntry);
+		const entries = resolveSettings$43(context.settings).forbid.map(normalizeEntry);
 		return { JSXOpeningElement(node) {
 			if (entries.length === 0) return;
 			if (!isSupportedJsxName(node.name)) return;
-			const tag = flattenJsxName$1(node.name);
+			const tag = flattenJsxName(node.name);
 			if (!tag) return;
 			if (!(isReactComponentName(tag.split(".")[0]) || tag.includes("."))) return;
 			for (const attribute of node.attributes) {
@@ -6345,8 +6854,8 @@ const forbidComponentProps = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/forbid-dom-props.ts
-const buildMessage$23 = (propName, customMessage) => customMessage ?? `Your project blocks the \`${propName}\` prop on plain HTML tags.`;
-const resolveSettings$43 = (settings) => {
+const buildMessage$23 = (propName, customMessage) => customMessage ?? `Your project blocks the \`${propName}\` prop on plain HTML tags, so this bypasses the agreed DOM API contract.`;
+const resolveSettings$42 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.forbidDomProps ?? {} : {};
 	const map = /* @__PURE__ */ new Map();
@@ -6363,12 +6872,12 @@ const resolveSettings$43 = (settings) => {
 };
 const forbidDomProps = defineRule({
 	id: "forbid-dom-props",
-	title: "Forbidden DOM prop used",
+	title: "Blocked DOM prop bypasses project contract",
 	severity: "warn",
-	recommendation: "List the HTML props you want to block in the `forbidDomProps.forbid` setting.",
+	recommendation: "Configure blocked DOM props so plain HTML tags stay on the agreed DOM API surface.",
 	category: "Architecture",
 	create: (context) => {
-		const forbidMap = resolveSettings$43(context.settings);
+		const forbidMap = resolveSettings$42(context.settings);
 		return { JSXOpeningElement(node) {
 			if (forbidMap.size === 0) return;
 			if (!isNodeOfType(node.name, "JSXIdentifier")) return;
@@ -6416,34 +6925,6 @@ const flattenCalleeName = (callee) => {
 	return null;
 };
 //#endregion
-//#region src/plugin/utils/flatten-jsx-name.ts
-/**
-* Flattens a JSX opener / member-expression chain into a dotted name.
-*
-*   `<Foo />`           → `"Foo"`
-*   `<Namespace.Foo />` → `"Namespace.Foo"`
-*   `<a.b.c />`         → `"a.b.c"`
-*
-* Returns `null` when the chain root isn't a `JSXIdentifier` (e.g.
-* the rare-but-valid `<this.x />` case, which JSX surfaces as a
-* `JSXThisExpression` root).
-*
-* Used by `forbid-elements` and `jsx-props-no-spreading`. Two other
-* rules (`forbid-component-props`, `utils/get-element-type`) keep
-* their own extended variants because they handle additional node
-* types (ThisExpression / JSXNamespacedName) and return a non-
-* nullable string with a sentinel value — semantically distinct.
-*/
-const flattenJsxName = (node) => {
-	if (isNodeOfType(node, "JSXIdentifier")) return node.name;
-	if (isNodeOfType(node, "JSXMemberExpression")) {
-		const objectName = flattenJsxName(node.object);
-		if (!objectName) return null;
-		return `${objectName}.${node.property.name}`;
-	}
-	return null;
-};
-//#endregion
 //#region src/plugin/utils/is-react-function-call.ts
 const PRAGMA = "React";
 const isReactFunctionCall = (node, expectedCall) => {
@@ -6454,8 +6935,8 @@ const isReactFunctionCall = (node, expectedCall) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/forbid-elements.ts
-const buildMessage$22 = (element, customHelp) => customHelp ? `Your project blocks \`<${element}>\` here. ${customHelp}` : `Your project blocks \`<${element}>\` here.`;
-const resolveSettings$42 = (settings) => {
+const buildMessage$22 = (element, customHelp) => customHelp ? `Your project blocks \`<${element}>\` here. ${customHelp}` : `Your project blocks \`<${element}>\` here, so code stays on the approved UI surface.`;
+const resolveSettings$41 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.forbidElements ?? {} : {};
 	const map = /* @__PURE__ */ new Map();
@@ -6466,16 +6947,16 @@ const resolveSettings$42 = (settings) => {
 const flattenMemberName$1 = flattenCalleeName;
 const forbidElements = defineRule({
 	id: "forbid-elements",
-	title: "Forbidden element used",
+	title: "Blocked element bypasses approved UI primitives",
 	severity: "warn",
-	recommendation: "List the element names you want to block in the `forbidElements.forbid` setting.",
+	recommendation: "Configure blocked elements so code stays on the approved UI primitives.",
 	category: "Architecture",
 	create: (context) => {
-		const forbidMap = resolveSettings$42(context.settings);
+		const forbidMap = resolveSettings$41(context.settings);
 		return {
 			JSXOpeningElement(node) {
 				if (forbidMap.size === 0) return;
-				const fullName = flattenJsxName(node.name);
+				const fullName = flattenJsxName$1(node.name);
 				if (!fullName || !forbidMap.has(fullName)) return;
 				context.report({
 					node: node.name,
@@ -6507,12 +6988,12 @@ const forbidElements = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/forward-ref-uses-ref.ts
-const MESSAGE$45 = "The parent can't reach this component's node because the `forwardRef` wrapper ignores `ref`.";
+const MESSAGE$46 = "The parent can't reach this component's node because the `forwardRef` wrapper ignores `ref`.";
 const forwardRefUsesRef = defineRule({
 	id: "forward-ref-uses-ref",
 	title: "forwardRef without ref parameter",
 	severity: "warn",
-	recommendation: "Either accept a `ref` parameter, or drop the `forwardRef` wrapper.",
+	recommendation: "Accept the `ref` parameter or drop `forwardRef` so parents are not promised a ref that never reaches the node.",
 	category: "Architecture",
 	create: (context) => ({ CallExpression(node) {
 		if (getCalleeName$1(node) !== "forwardRef") return;
@@ -6527,13 +7008,13 @@ const forwardRefUsesRef = defineRule({
 		if (isNodeOfType(onlyParam, "RestElement")) return;
 		context.report({
 			node: inner,
-			message: MESSAGE$45
+			message: MESSAGE$46
 		});
 	} })
 });
 //#endregion
 //#region src/plugin/rules/a11y/heading-has-content.ts
-const MESSAGE$44 = "Blind users can't use this heading to navigate because screen readers skip it empty, so add text, `aria-label`, or `aria-labelledby`.";
+const MESSAGE$45 = "Blind users can't use this heading to navigate because screen readers skip it empty, so add text, `aria-label`, or `aria-labelledby`.";
 const DEFAULT_HEADING_TAGS = [
 	"h1",
 	"h2",
@@ -6542,7 +7023,7 @@ const DEFAULT_HEADING_TAGS = [
 	"h5",
 	"h6"
 ];
-const resolveSettings$41 = (settings) => {
+const resolveSettings$40 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.headingHasContent ?? {} : {};
 	return { headingTags: [...DEFAULT_HEADING_TAGS, ...ruleSettings.components ?? []] };
@@ -6555,7 +7036,7 @@ const headingHasContent = defineRule({
 	recommendation: "Put readable text in every heading.",
 	category: "Accessibility",
 	create: (context) => {
-		const settings = resolveSettings$41(context.settings);
+		const settings = resolveSettings$40(context.settings);
 		return { JSXOpeningElement(node) {
 			const elementType = getElementType(node, context.settings);
 			if (!settings.headingTags.includes(elementType)) return;
@@ -6566,16 +7047,16 @@ const headingHasContent = defineRule({
 			if (isHiddenFromScreenReader(node, context.settings)) return;
 			context.report({
 				node,
-				message: MESSAGE$44
+				message: MESSAGE$45
 			});
 		} };
 	}
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/hook-use-state.ts
-const REQUIRE_DESTRUCTURE_MESSAGE = "This `useState` result is hard to follow.";
-const NAMING_CONVENTION_MESSAGE = "The setter here is hard to spot.";
-const resolveSettings$40 = (settings) => {
+const REQUIRE_DESTRUCTURE_MESSAGE = "`useState` should be destructured as `[value, setValue]` so readers can see the state value and setter together.";
+const NAMING_CONVENTION_MESSAGE = "This `useState` setter does not match its value name, so updates are harder to trace.";
+const resolveSettings$39 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { allowDestructuredState: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.hookUseState ?? {} : {}).allowDestructuredState ?? false };
 };
@@ -6599,10 +7080,10 @@ const hookUseState = defineRule({
 	title: "useState not destructured",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Destructure useState as `const [thing, setThing] = useState(…)`.",
+	recommendation: "Destructure `useState` as `const [thing, setThing] = useState(…)` so state reads and writes stay visible together.",
 	category: "Architecture",
 	create: (context) => {
-		const { allowDestructuredState } = resolveSettings$40(context.settings);
+		const { allowDestructuredState } = resolveSettings$39(context.settings);
 		return { CallExpression(node) {
 			if (!isReactFunctionCall(node, "useState")) return;
 			const parent = node.parent;
@@ -6677,7 +7158,7 @@ const HOOKS_WITH_DEP_ARRAY = new Set([
 	"useMemo",
 	"useImperativeHandle"
 ]);
-const NAN_MESSAGE = "`NaN` in a dependency array silently breaks your hook, since React never sees it change.";
+const NAN_MESSAGE = "`NaN` in a dependency array never compares as changed with `Object.is`, so normalize the value before passing it as a dependency.";
 const isNanLiteral = (node) => {
 	if (isNodeOfType(node, "Identifier") && node.name === "NaN") return true;
 	if (isNodeOfType(node, "MemberExpression") && !node.computed && isNodeOfType(node.object, "Identifier") && node.object.name === "Number" && isNodeOfType(node.property, "Identifier") && node.property.name === "NaN") return true;
@@ -6704,8 +7185,8 @@ const hooksNoNanInDeps = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/html-has-lang.ts
-const MESSAGE$43 = "Screen readers may mispronounce this page because it doesn't declare a language, so add a `lang` attribute like `en`.";
-const resolveSettings$39 = (settings) => {
+const MESSAGE$44 = "Screen readers may mispronounce this page because it doesn't declare a language, so add a `lang` attribute like `en`.";
+const resolveSettings$38 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { htmlTags: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.htmlHasLang ?? {} : {}).htmlTags ?? ["html"] };
 };
@@ -6742,7 +7223,7 @@ const htmlHasLang = defineRule({
 	recommendation: "Set `<html lang=\"…\">` so screen readers know the page language.",
 	category: "Accessibility",
 	create: (context) => {
-		const settings = resolveSettings$39(context.settings);
+		const settings = resolveSettings$38(context.settings);
 		const tagSet = new Set(settings.htmlTags);
 		return { JSXOpeningElement(node) {
 			const tag = getElementType(node, context.settings);
@@ -6752,7 +7233,7 @@ const htmlHasLang = defineRule({
 			if (!lang) {
 				context.report({
 					node: node.name,
-					message: MESSAGE$43
+					message: MESSAGE$44
 				});
 				return;
 			}
@@ -6760,13 +7241,13 @@ const htmlHasLang = defineRule({
 			if (verdict === "missing" || verdict === "empty") {
 				context.report({
 					node: lang,
-					message: MESSAGE$43
+					message: MESSAGE$44
 				});
 				return;
 			}
 			if (hasSpread && !lang) context.report({
 				node: node.name,
-				message: MESSAGE$43
+				message: MESSAGE$44
 			});
 		} };
 	}
@@ -6980,7 +7461,7 @@ const htmlNoNestedInteractive = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/iframe-has-title.ts
-const MESSAGE$42 = "Blind users can't tell what this `<iframe>` holds because screen readers have no title to read, so add a `title` describing its content.";
+const MESSAGE$43 = "Screen reader users cannot identify this `<iframe>` because it has no title. Add a `title` that describes its content.";
 const evaluateTitleValue = (value) => {
 	if (!value) return "missing";
 	if (isNodeOfType(value, "Literal")) {
@@ -7010,7 +7491,7 @@ const iframeHasTitle = defineRule({
 	title: "iframe missing title",
 	tags: ["react-jsx-only"],
 	severity: "warn",
-	recommendation: "Add a descriptive `title` to every `<iframe>`.",
+	recommendation: "Add a descriptive `title` so screen reader users know what the embedded frame contains.",
 	category: "Accessibility",
 	create: (context) => ({ JSXOpeningElement(node) {
 		const tag = getElementType(node, context.settings);
@@ -7020,14 +7501,14 @@ const iframeHasTitle = defineRule({
 		if (!titleAttr) {
 			if (hasSpread || tag === "iframe") context.report({
 				node: node.name,
-				message: MESSAGE$42
+				message: MESSAGE$43
 			});
 			return;
 		}
 		const verdict = evaluateTitleValue(titleAttr.value);
 		if (verdict === "missing" || verdict === "empty") context.report({
 			node: titleAttr,
-			message: MESSAGE$42
+			message: MESSAGE$43
 		});
 	} })
 });
@@ -7078,7 +7559,7 @@ const iframeMissingSandbox = defineRule({
 	id: "iframe-missing-sandbox",
 	title: "iframe missing sandbox attribute",
 	severity: "warn",
-	recommendation: "Add `sandbox=\"\"` (or a curated value) to your iframe.",
+	recommendation: "Add `sandbox=\"\"` or a curated value so embedded pages cannot get full access to your site by default.",
 	category: "Security",
 	create: (context) => ({
 		JSXOpeningElement(node) {
@@ -7131,14 +7612,14 @@ const iframeMissingSandbox = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/img-redundant-alt.ts
-const MESSAGE$41 = "Screen reader users hear \"image\" or \"photo\" twice because they already announce it, so describe what the image shows instead.";
+const MESSAGE$42 = "Screen reader users hear \"image\" or \"photo\" twice because they already announce it, so describe what the image shows instead.";
 const DEFAULT_COMPONENTS = ["img"];
 const DEFAULT_REDUNDANT_WORDS = [
 	"image",
 	"photo",
 	"picture"
 ];
-const resolveSettings$38 = (settings) => {
+const resolveSettings$37 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.imgRedundantAlt ?? {} : {};
 	return {
@@ -7185,8 +7666,10 @@ const imgRedundantAlt = defineRule({
 	recommendation: "Do not put 'image' or 'photo' in alt text. Describe what is shown.",
 	category: "Accessibility",
 	create: (context) => {
-		const settings = resolveSettings$38(context.settings);
+		if (isGeneratedImageRenderContext(context)) return {};
+		const settings = resolveSettings$37(context.settings);
 		return { JSXOpeningElement(node) {
+			if (isGeneratedImageRenderContext(context, node)) return;
 			const tag = getElementType(node, context.settings);
 			if (!settings.components.includes(tag)) return;
 			if (isHiddenFromScreenReader(node, context.settings)) return;
@@ -7194,7 +7677,7 @@ const imgRedundantAlt = defineRule({
 			if (!altAttribute) return;
 			if (altValueRedundant(altAttribute, settings.words)) context.report({
 				node: altAttribute,
-				message: MESSAGE$41
+				message: MESSAGE$42
 			});
 		} };
 	}
@@ -7275,7 +7758,7 @@ const DEFAULT_TABBABLE_ROLES = [
 	"switch",
 	"textbox"
 ];
-const resolveSettings$37 = (settings) => {
+const resolveSettings$36 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { tabbable: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.interactiveSupportsFocus ?? {} : {}).tabbable ?? DEFAULT_TABBABLE_ROLES };
 };
@@ -7284,10 +7767,10 @@ const interactiveSupportsFocus = defineRule({
 	title: "Interactive element not focusable",
 	tags: ["react-jsx-only"],
 	severity: "warn",
-	recommendation: "Add `tabIndex` to elements with interactive roles and handlers.",
+	recommendation: "Add keyboard focus support so users can reach interactive elements without a pointer.",
 	category: "Accessibility",
 	create: (context) => {
-		const settings = resolveSettings$37(context.settings);
+		const settings = resolveSettings$36(context.settings);
 		const tabbableSet = new Set(settings.tabbable);
 		return { JSXOpeningElement(node) {
 			const roleAttribute = hasJsxPropIgnoreCase(node.attributes, "role");
@@ -7307,88 +7790,6 @@ const interactiveSupportsFocus = defineRule({
 		} };
 	}
 });
-//#endregion
-//#region src/plugin/utils/find-import-source-for-name.ts
-const collectFromProgram = (programRoot) => {
-	const lookup = /* @__PURE__ */ new Map();
-	const visit = (node) => {
-		if (node.type === "ImportDeclaration" && "source" in node && node.source) {
-			const source = node.source.value;
-			if (typeof source !== "string") return;
-			if ("specifiers" in node && Array.isArray(node.specifiers)) for (const specifier of node.specifiers) {
-				if (!("local" in specifier) || !specifier.local) continue;
-				const local = specifier.local;
-				if (typeof local.name !== "string") continue;
-				if (specifier.type === "ImportDefaultSpecifier") lookup.set(local.name, {
-					source,
-					imported: null,
-					isDefault: true,
-					isNamespace: false
-				});
-				else if (specifier.type === "ImportNamespaceSpecifier") lookup.set(local.name, {
-					source,
-					imported: null,
-					isDefault: false,
-					isNamespace: true
-				});
-				else if (specifier.type === "ImportSpecifier") {
-					const importedNode = specifier.imported;
-					const importedName = importedNode?.name ?? (typeof importedNode?.value === "string" ? importedNode.value : null);
-					lookup.set(local.name, {
-						source,
-						imported: importedName,
-						isDefault: false,
-						isNamespace: false
-					});
-				}
-			}
-			return;
-		}
-		const nodeRecord = node;
-		for (const key of Object.keys(nodeRecord)) {
-			if (key === "parent") continue;
-			const child = nodeRecord[key];
-			if (Array.isArray(child)) {
-				for (const item of child) if (isAstNode(item)) visit(item);
-			} else if (isAstNode(child)) visit(child);
-		}
-	};
-	visit(programRoot);
-	return lookup;
-};
-const importLookupCache = /* @__PURE__ */ new WeakMap();
-const getImportLookup = (node) => {
-	const programRoot = findProgramRoot(node);
-	if (!programRoot) return null;
-	let cached = importLookupCache.get(programRoot);
-	if (!cached) {
-		cached = collectFromProgram(programRoot);
-		importLookupCache.set(programRoot, cached);
-	}
-	return cached;
-};
-const isImportedFromModule = (contextNode, localIdentifierName, moduleSource) => {
-	const lookup = getImportLookup(contextNode);
-	if (!lookup) return false;
-	const info = lookup.get(localIdentifierName);
-	if (!info) return false;
-	return info.source === moduleSource;
-};
-const isNamespaceImportFromModule = (contextNode, localIdentifierName, moduleSource) => {
-	const lookup = getImportLookup(contextNode);
-	if (!lookup) return false;
-	const info = lookup.get(localIdentifierName);
-	if (!info) return false;
-	return info.isNamespace && info.source === moduleSource;
-};
-const getImportedNameFromModule = (contextNode, localIdentifierName, moduleSource) => {
-	const lookup = getImportLookup(contextNode);
-	if (!lookup) return null;
-	const info = lookup.get(localIdentifierName);
-	if (!info) return null;
-	if (info.source !== moduleSource) return null;
-	return info.imported;
-};
 //#endregion
 //#region src/plugin/rules/jotai/jotai-derived-atom-returns-fresh-object.ts
 const isAtomFromJotai = (callExpression) => {
@@ -8184,7 +8585,7 @@ const jsHoistRegexp = defineRule({
 	create: (context) => createLoopAwareVisitors({ NewExpression(node) {
 		if (isNodeOfType(node.callee, "Identifier") && node.callee.name === "RegExp") context.report({
 			node,
-			message: "This slows the loop because new RegExp() rebuilds the pattern every pass, so move it to a constant outside the loop"
+			message: "`new RegExp()` rebuilds the pattern on every loop pass. Move it to a constant outside the loop."
 		});
 	} })
 });
@@ -8558,7 +8959,7 @@ const jsSetMapLookups = defineRule({
 		if (isIndexedArrayElementWithStringArgument(node.callee.object, node.arguments?.[0])) return;
 		context.report({
 			node,
-			message: `This gets slow because array.${methodName}() inside a loop scans the whole list every time, so use a Set for instant lookups`
+			message: `This scales poorly because \`array.${methodName}()\` inside a loop scans the whole list every time. Use a Set for constant-time lookups.`
 		});
 	} })
 });
@@ -8569,7 +8970,7 @@ const jsTosortedImmutable = defineRule({
 	title: "Spread copy before sort()",
 	tags: ["test-noise"],
 	severity: "warn",
-	disabledBy: ["react-native"],
+	disabledBy: ["react-native", "pre-es2023"],
 	recommendation: "Use `array.toSorted()` (ES2023) instead of `[...array].sort()` so you sort without copying the array first",
 	create: (context) => ({ CallExpression(node) {
 		if (!isMemberProperty(node.callee, "sort")) return;
@@ -8582,10 +8983,10 @@ const jsTosortedImmutable = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-boolean-value.ts
-const NEVER_MESSAGE$2 = () => `This prop is written inconsistently.`;
-const ALWAYS_MESSAGE$2 = () => `This prop is written inconsistently.`;
-const FALSE_OMITTED_MESSAGE = (attributeName) => `\`${attributeName}={false}\` does nothing.`;
-const resolveSettings$36 = (settings) => {
+const NEVER_MESSAGE$2 = () => "This boolean prop style disagrees with the project setting, so equivalent true props are harder to scan consistently.";
+const ALWAYS_MESSAGE$2 = () => "This boolean prop style disagrees with the project setting, so equivalent true props are harder to scan consistently.";
+const FALSE_OMITTED_MESSAGE = (attributeName) => `\`${attributeName}={false}\` does nothing, so the explicit false value adds noise without changing output.`;
+const resolveSettings$35 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.jsxBooleanValue ?? {} : {};
 	return {
@@ -8600,10 +9001,10 @@ const jsxBooleanValue = defineRule({
 	title: "Inconsistent boolean prop notation",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Pick a single boolean-attribute style across the codebase (default: omit `={true}`).",
+	recommendation: "Use one boolean-attribute style so equivalent true props scan the same across the codebase.",
 	category: "Architecture",
 	create: (context) => {
-		const settings = resolveSettings$36(context.settings);
+		const settings = resolveSettings$35(context.settings);
 		const alwaysSet = new Set(settings.always);
 		const neverSet = new Set(settings.never);
 		return { JSXAttribute(node) {
@@ -8654,10 +9055,10 @@ const jsxBooleanValue = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-curly-brace-presence.ts
-const UNNECESSARY_BRACES_MESSAGE = "These curly braces do nothing here.";
-const REQUIRED_BRACES_MESSAGE = "This value needs curly braces `{ }` to read as an expression.";
+const UNNECESSARY_BRACES_MESSAGE = "These curly braces wrap a literal value, so they add JSX noise without changing output.";
+const REQUIRED_BRACES_MESSAGE = "This JSX value needs `{ }` so React reads it as an expression instead of text.";
 const isAllowedMode = (value) => value === "always" || value === "never" || value === "ignore";
-const resolveSettings$35 = (settings) => {
+const resolveSettings$34 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettingsRaw = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.jsxCurlyBracePresence : void 0;
 	if (isAllowedMode(ruleSettingsRaw)) return {
@@ -8750,10 +9151,10 @@ const jsxCurlyBracePresence = defineRule({
 	title: "Unnecessary curly braces in JSX",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Pick a consistent quoting style for JSX literal values.",
+	recommendation: "Use one JSX literal style so equivalent markup scans the same without extra JSX noise.",
 	category: "Architecture",
 	create: (context) => {
-		const settings = resolveSettings$35(context.settings);
+		const settings = resolveSettings$34(context.settings);
 		return {
 			JSXAttribute(node) {
 				const value = node.value;
@@ -8834,9 +9235,9 @@ const containsJsxElement = (root) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-filename-extension.ts
-const JSX_NOT_ALLOWED = (extension) => `This file has JSX but a \`${extension}\` name.`;
-const EXTENSION_ONLY_FOR_JSX = (extension) => `\`${extension}\` files are meant for JSX, but this one has none.`;
-const resolveSettings$34 = (settings) => {
+const JSX_NOT_ALLOWED = (extension) => `This file contains JSX but uses a \`${extension}\` name, so the filename no longer signals JSX to readers or tooling conventions.`;
+const EXTENSION_ONLY_FOR_JSX = (extension) => `\`${extension}\` files are reserved for JSX here, so using that extension without JSX makes file-type conventions less useful.`;
+const resolveSettings$33 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.jsxFilenameExtension ?? {} : {};
 	return {
@@ -8855,10 +9256,10 @@ const jsxFilenameExtension = defineRule({
 	title: "JSX in disallowed file extension",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Name files with JSX `.jsx` or `.tsx`, or whatever extension your project uses.",
+	recommendation: "Name JSX files with the configured extension so file names accurately signal which files contain JSX.",
 	category: "Architecture",
 	create: (context) => {
-		const settings = resolveSettings$34(context.settings);
+		const settings = resolveSettings$33(context.settings);
 		const allowedExtensions = normalizeExtensions(settings.extensions);
 		const filename = normalizeFilename$1(context.filename ?? "fixture.tsx");
 		const extensionOnly = path.extname(filename).slice(1);
@@ -8910,9 +9311,9 @@ const isJsxFragmentElement = (node) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-fragments.ts
-const SYNTAX_MESSAGE = "This fragment is written inconsistently.";
-const ELEMENT_MESSAGE = "This fragment is written inconsistently.";
-const resolveSettings$33 = (settings) => {
+const SYNTAX_MESSAGE = "`<React.Fragment>` is used where shorthand fragments are configured, so similar wrappers look different across the codebase.";
+const ELEMENT_MESSAGE = "Fragment shorthand is used where explicit fragments are configured, so similar wrappers look different across the codebase.";
+const resolveSettings$32 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { mode: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.jsxFragments ?? {} : {}).mode ?? "syntax" };
 };
@@ -8921,10 +9322,10 @@ const jsxFragments = defineRule({
 	title: "Inconsistent fragment syntax",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Pick one fragment style across the codebase.",
+	recommendation: "Use one fragment style so identical wrappers do not look different across files.",
 	category: "Architecture",
 	create: (context) => {
-		const { mode } = resolveSettings$33(context.settings);
+		const { mode } = resolveSettings$32(context.settings);
 		return {
 			JSXElement(node) {
 				if (mode !== "syntax") return;
@@ -8949,8 +9350,8 @@ const jsxFragments = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-handler-names.ts
-const buildHandlerNameMessage = (handlerName, propKey) => `The handler "${handlerName}" for "${propKey}" is hard to recognize.`;
-const buildHandlerPropMessage = (propKey, propValue) => `The prop "${propKey}" passes a handler "${propValue}".`;
+const buildHandlerNameMessage = (handlerName, propKey) => `The handler "${handlerName}" does not match the "${propKey}" event prop convention, so readers cannot trace event flow quickly.`;
+const buildHandlerPropMessage = (propKey, propValue) => `The prop "${propKey}" passes handler "${propValue}" but is not named like an event prop, so callers cannot tell it fires an event.`;
 const DEFAULT_HANDLER_PREFIX = "handle";
 const DEFAULT_HANDLER_PROP_PREFIX = "on";
 const splitPrefixes = (prefixes) => prefixes.split("|").map((token) => token.trim()).filter((token) => token.length > 0);
@@ -8968,7 +9369,7 @@ const buildPropRegex = (handlerPropPrefix) => {
 	const escaped = tokens.map((token) => token.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join("|");
 	return new RegExp(`^(${escaped})[A-Z].*$`);
 };
-const resolveSettings$32 = (settings) => {
+const resolveSettings$31 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.jsxHandlerNames ?? {} : {};
 	let handlerPrefix = DEFAULT_HANDLER_PREFIX;
@@ -9041,10 +9442,10 @@ const jsxHandlerNames = defineRule({
 	title: "Inconsistent event handler names",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Use the `on…` prefix for event-handler props and `handle…` for handlers.",
+	recommendation: "Use the `on…` prefix for event-handler props and `handle…` for handlers so readers can trace event flow.",
 	category: "Architecture",
 	create: (context) => {
-		const settings = resolveSettings$32(context.settings);
+		const settings = resolveSettings$31(context.settings);
 		return { JSXAttribute(node) {
 			if (settings.ignoreComponentNames.length > 0) {
 				const opening = node.parent;
@@ -9129,7 +9530,7 @@ const MISSING_KEY_ARRAY = "Your users can see the wrong data when this array reo
 const MISSING_KEY_ITERATOR = "Your users can see the wrong data when this list reorders.";
 const KEY_BEFORE_SPREAD = "The `{...spread}` can overwrite this `key` & break React's tracking.";
 const DUPLICATE_KEY = (keyValue) => `Your users can see the wrong data because two elements share the key "${keyValue}".`;
-const resolveSettings$31 = (settings) => {
+const resolveSettings$30 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.jsxKey ?? {} : {};
 	return {
@@ -9275,9 +9676,9 @@ const jsxKey = defineRule({
 	id: "jsx-key",
 	title: "Missing key in list",
 	severity: "error",
-	recommendation: "Add a `key={...}` prop to each element produced inside `.map` / array literal.",
+	recommendation: "Add a stable `key` prop so React can keep list items matched to the right data when the list changes.",
 	create: (context) => {
-		const settings = resolveSettings$31(context.settings);
+		const settings = resolveSettings$30(context.settings);
 		return {
 			JSXElement(node) {
 				const openingElement = node.openingElement;
@@ -9327,194 +9728,10 @@ const jsxKey = defineRule({
 	}
 });
 //#endregion
-//#region src/plugin/utils/find-variable-initializer.ts
-const FUNCTION_LIKE_TYPES = new Set([
-	"FunctionDeclaration",
-	"FunctionExpression",
-	"ArrowFunctionExpression",
-	"MethodDefinition",
-	"Program"
-]);
-const findScopeOwner = (node) => {
-	let ancestor = node;
-	while (ancestor) {
-		if (FUNCTION_LIKE_TYPES.has(ancestor.type)) return ancestor;
-		ancestor = ancestor.parent ?? null;
-	}
-	return null;
-};
-const findBlockScopeOwner = (declaratorNode, declarationKind) => {
-	if (declarationKind !== "let" && declarationKind !== "const") return findScopeOwner(declaratorNode);
-	let ancestor = declaratorNode.parent;
-	while (ancestor) {
-		if (ancestor.type === "BlockStatement") {
-			const blockParent = ancestor.parent;
-			if (blockParent && (blockParent.type === "FunctionDeclaration" || blockParent.type === "FunctionExpression" || blockParent.type === "ArrowFunctionExpression" || blockParent.type === "MethodDefinition")) return findScopeOwner(declaratorNode);
-			return ancestor;
-		}
-		if (FUNCTION_LIKE_TYPES.has(ancestor.type)) return ancestor;
-		ancestor = ancestor.parent ?? null;
-	}
-	return null;
-};
-const collectFromBindingPattern = (pattern, initializer, scopeOwner, out) => {
-	if (isNodeOfType(pattern, "Identifier")) {
-		const list = out.get(pattern.name) ?? [];
-		list.push({
-			bindingIdentifier: pattern,
-			initializer,
-			scopeOwner
-		});
-		out.set(pattern.name, list);
-		return;
-	}
-	if (isNodeOfType(pattern, "ObjectPattern")) {
-		for (const property of pattern.properties) if (isNodeOfType(property, "Property")) {
-			const valueNode = property.value;
-			collectFromBindingPattern(valueNode, isNodeOfType(valueNode, "AssignmentPattern") ? valueNode.right : null, scopeOwner, out);
-		} else if (isNodeOfType(property, "RestElement")) collectFromBindingPattern(property.argument, null, scopeOwner, out);
-		return;
-	}
-	if (isNodeOfType(pattern, "ArrayPattern")) {
-		for (const element of pattern.elements) {
-			if (!element) continue;
-			collectFromBindingPattern(element, isNodeOfType(element, "AssignmentPattern") ? element.right ?? null : null, scopeOwner, out);
-		}
-		return;
-	}
-	if (isNodeOfType(pattern, "AssignmentPattern")) {
-		collectFromBindingPattern(pattern.left, pattern.right ?? null, scopeOwner, out);
-		return;
-	}
-	if (isNodeOfType(pattern, "RestElement")) collectFromBindingPattern(pattern.argument, null, scopeOwner, out);
-};
-const buildBindingIndex = (root) => {
-	const out = /* @__PURE__ */ new Map();
-	const visit = (node) => {
-		if (isNodeOfType(node, "VariableDeclarator")) {
-			const declaration = node.parent;
-			const scopeOwner = findBlockScopeOwner(node, declaration && isNodeOfType(declaration, "VariableDeclaration") ? declaration.kind : void 0);
-			if (scopeOwner) collectFromBindingPattern(node.id, node.init ?? null, scopeOwner, out);
-		}
-		if ((isNodeOfType(node, "FunctionDeclaration") || isNodeOfType(node, "FunctionExpression")) && node.id) {
-			const enclosing = node.parent ? findScopeOwner(node.parent) : null;
-			if (enclosing) {
-				const list = out.get(node.id.name) ?? [];
-				list.push({
-					bindingIdentifier: node.id,
-					initializer: node,
-					scopeOwner: enclosing
-				});
-				out.set(node.id.name, list);
-			}
-		}
-		if ((isNodeOfType(node, "ClassDeclaration") || isNodeOfType(node, "ClassExpression")) && node.id) {
-			const enclosing = node.parent ? findScopeOwner(node.parent) : null;
-			if (enclosing) {
-				const list = out.get(node.id.name) ?? [];
-				list.push({
-					bindingIdentifier: node.id,
-					initializer: node,
-					scopeOwner: enclosing
-				});
-				out.set(node.id.name, list);
-			}
-		}
-		if (isNodeOfType(node, "FunctionDeclaration") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "ArrowFunctionExpression")) {
-			if (Array.isArray(node.params)) for (const param of node.params) {
-				if (!param) continue;
-				collectFromBindingPattern(param, null, node, out);
-				if (isNodeOfType(param, "AssignmentPattern")) collectFromBindingPattern(param.left ?? null, param.right ?? null, node, out);
-			}
-		}
-		if (isNodeOfType(node, "ImportDeclaration")) {
-			const scopeOwner = findScopeOwner(node);
-			if (scopeOwner && Array.isArray(node.specifiers)) for (const specifier of node.specifiers) {
-				const local = specifier.local;
-				if (local && isNodeOfType(local, "Identifier")) {
-					const list = out.get(local.name) ?? [];
-					list.push({
-						bindingIdentifier: local,
-						initializer: specifier,
-						scopeOwner
-					});
-					out.set(local.name, list);
-				}
-			}
-		}
-		if (node.type === "TSImportEqualsDeclaration" || node.type === "TSEnumDeclaration" || node.type === "TSModuleDeclaration") {
-			const idNode = node.id;
-			if (idNode && idNode.type === "Identifier") {
-				const idObject = idNode;
-				const scopeOwner = findScopeOwner(node);
-				if (scopeOwner && typeof idObject.name === "string") {
-					const list = out.get(idObject.name) ?? [];
-					list.push({
-						bindingIdentifier: idNode,
-						initializer: null,
-						scopeOwner
-					});
-					out.set(idObject.name, list);
-				}
-			}
-		}
-		const nodeRecord = node;
-		for (const key of Object.keys(nodeRecord)) {
-			if (key === "parent") continue;
-			const child = nodeRecord[key];
-			if (Array.isArray(child)) {
-				for (const item of child) if (isAstNode(item)) visit(item);
-			} else if (isAstNode(child)) visit(child);
-		}
-	};
-	visit(root);
-	return out;
-};
-const programRootCache = /* @__PURE__ */ new WeakMap();
-const getBindingIndex = (referenceNode) => {
-	const programRoot = findProgramRoot(referenceNode);
-	if (!programRoot) return null;
-	let index = programRootCache.get(programRoot);
-	if (!index) {
-		index = buildBindingIndex(programRoot);
-		programRootCache.set(programRoot, index);
-	}
-	return index;
-};
-const findVariableInitializer = (referenceNode, bindingName) => {
-	const index = getBindingIndex(referenceNode);
-	if (!index) return null;
-	const candidates = index.get(bindingName);
-	if (!candidates || candidates.length === 0) return null;
-	const referenceAncestors = /* @__PURE__ */ new Set();
-	let walker = referenceNode;
-	while (walker) {
-		referenceAncestors.add(walker);
-		walker = walker.parent ?? null;
-	}
-	let best = null;
-	for (const candidate of candidates) {
-		if (!referenceAncestors.has(candidate.scopeOwner)) continue;
-		if (best === null) {
-			best = candidate;
-			continue;
-		}
-		let cursor = candidate.scopeOwner;
-		while (cursor) {
-			if (cursor === best.scopeOwner) {
-				best = candidate;
-				break;
-			}
-			cursor = cursor.parent ?? null;
-		}
-	}
-	return best;
-};
-//#endregion
 //#region src/plugin/rules/react-builtins/jsx-max-depth.ts
 const buildMessage$18 = (depth, max) => `This JSX is hard to read at ${depth} levels deep, past the limit of ${max}.`;
 const DEFAULT_MAX_DEPTH = 14;
-const resolveSettings$30 = (settings) => {
+const resolveSettings$29 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { max: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.jsxMaxDepth ?? {} : {}).max ?? DEFAULT_MAX_DEPTH };
 };
@@ -9574,7 +9791,7 @@ const jsxMaxDepth = defineRule({
 	recommendation: "Pull deeply nested JSX into smaller components so it's easier to read.",
 	category: "Architecture",
 	create: (context) => {
-		const { max } = resolveSettings$30(context.settings);
+		const { max } = resolveSettings$29(context.settings);
 		const checkNode = (node) => {
 			if (!isLeafJsxNode(node)) return;
 			const total = computeJsxAncestorDepth(node) + computeChildrenDepth(node.children ?? [], /* @__PURE__ */ new Set());
@@ -9595,7 +9812,7 @@ const jsxMaxDepth = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-comment-textnodes.ts
-const MESSAGE$40 = "Your users see this comment as text on the page because `//` & `/*` aren't hidden in JSX.";
+const MESSAGE$41 = "Your users see this comment as text on the page because `//` & `/*` aren't hidden in JSX.";
 const LITERAL_TEXT_TAGS = new Set([
 	"code",
 	"pre",
@@ -9625,13 +9842,13 @@ const jsxNoCommentTextnodes = defineRule({
 	id: "jsx-no-comment-textnodes",
 	title: "Comment rendered as JSX text",
 	severity: "warn",
-	recommendation: "Wrap JSX comments in `{/* … */}` so they're parsed as comments, not children.",
+	recommendation: "Wrap JSX comments in `{/* … */}` so users do not see comment text rendered as children.",
 	create: (context) => ({ JSXText(node) {
 		if (!hasCommentLikePattern(node.value)) return;
 		if (isInsideLiteralTextTag(node)) return;
 		context.report({
 			node,
-			message: MESSAGE$40
+			message: MESSAGE$41
 		});
 	} })
 });
@@ -9662,7 +9879,7 @@ const isInsideFunctionScope = (node) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-constructed-context-values.ts
-const MESSAGE$39 = "Every reader of this context redraws on each render because you build its `value` inline.";
+const MESSAGE$40 = "Every reader of this context redraws on each render because you build its `value` inline.";
 const CONTEXT_MODULES$1 = [
 	"react",
 	"use-context-selector",
@@ -9732,7 +9949,7 @@ const jsxNoConstructedContextValues = defineRule({
 	tags: ["react-jsx-only"],
 	severity: "warn",
 	disabledBy: ["react-compiler"],
-	recommendation: "Wrap the context value in `useMemo`, or move it outside the component.",
+	recommendation: "Wrap the context value in `useMemo` or move it outside the component so consumers do not redraw every render.",
 	category: "Performance",
 	create: (context) => {
 		const isTestlikeFile = isTestlikeFilename(context.filename);
@@ -9760,7 +9977,7 @@ const jsxNoConstructedContextValues = defineRule({
 					if (!isConstructedValue(innerExpression)) continue;
 					context.report({
 						node: attribute,
-						message: MESSAGE$39
+						message: MESSAGE$40
 					});
 				}
 			}
@@ -9773,7 +9990,7 @@ const jsxNoDuplicateProps = defineRule({
 	id: "jsx-no-duplicate-props",
 	title: "Duplicate props on element",
 	severity: "error",
-	recommendation: "Remove or rename one of the duplicate props.",
+	recommendation: "Remove or rename one of the duplicate props so the later value does not silently override the earlier one.",
 	create: (context) => ({ JSXOpeningElement(node) {
 		const seenPropNames = /* @__PURE__ */ new Set();
 		for (const attribute of node.attributes) {
@@ -9846,7 +10063,7 @@ const isJsxAttributeOnIntrinsicHtmlElement = (attribute) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-jsx-as-prop.ts
-const MESSAGE$38 = "This child redraws every render because the prop gets brand new JSX each time.";
+const MESSAGE$39 = "This child redraws every render because the prop gets brand new JSX each time.";
 const KNOWN_SLOT_PROP_NAMES = new Set([
 	"icon",
 	"Icon",
@@ -10090,7 +10307,7 @@ const jsxNoJsxAsProp = defineRule({
 	tags: ["react-jsx-only"],
 	severity: "warn",
 	disabledBy: ["react-compiler"],
-	recommendation: "Move the JSX outside the component, or wrap it in `useMemo`.",
+	recommendation: "Move the JSX outside the component or wrap it in `useMemo` so memoized children do not redraw every render.",
 	category: "Performance",
 	create: (context) => {
 		const isTestlikeFile = isTestlikeFilename(context.filename);
@@ -10115,7 +10332,7 @@ const jsxNoJsxAsProp = defineRule({
 				if (!isJsxProducingExpression(expressionNode) && !followsRenderLocalJsxBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$38
+					message: MESSAGE$39
 				});
 			}
 		};
@@ -10403,7 +10620,7 @@ const DATA_ARRAY_PROP_SUFFIXES = [
 ];
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-new-array-as-prop.ts
-const MESSAGE$37 = "This child redraws every render because the prop gets a brand new array each time.";
+const MESSAGE$38 = "This child redraws every render because the prop gets a brand new array each time.";
 const isDataArrayPropName = (propName) => {
 	if (DATA_ARRAY_PROP_NAMES.has(propName)) return true;
 	for (const suffix of DATA_ARRAY_PROP_SUFFIXES) if (propName.length > suffix.length && propName.endsWith(suffix)) return true;
@@ -10462,7 +10679,7 @@ const jsxNoNewArrayAsProp = defineRule({
 	tags: ["react-jsx-only"],
 	severity: "warn",
 	disabledBy: ["react-compiler"],
-	recommendation: "Wrap the array in `useMemo`, or move it outside the component.",
+	recommendation: "Wrap the array in `useMemo` or move it outside the component so memoized children do not redraw every render.",
 	category: "Performance",
 	create: (context) => {
 		const isTestlikeFile = isTestlikeFilename(context.filename);
@@ -10487,7 +10704,7 @@ const jsxNoNewArrayAsProp = defineRule({
 				if (!isArrayProducingExpression(expressionNode) && !followsRenderLocalArrayBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$37
+					message: MESSAGE$38
 				});
 			}
 		};
@@ -10745,7 +10962,7 @@ const SAFE_RECEIVER_NAMES = new Set([
 ]);
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-new-function-as-prop.ts
-const MESSAGE$36 = "This child redraws every render because the prop gets a brand new function each time.";
+const MESSAGE$37 = "This child redraws every render because the prop gets a brand new function each time.";
 const isAccessorPredicateName = (propName) => {
 	for (const prefix of ACCESSOR_PREDICATE_PREFIXES) {
 		if (propName.length <= prefix.length) continue;
@@ -10925,7 +11142,7 @@ const jsxNoNewFunctionAsProp = defineRule({
 	tags: ["react-jsx-only"],
 	severity: "warn",
 	disabledBy: ["react-compiler"],
-	recommendation: "Wrap the callback in `useCallback`, or move it outside the component.",
+	recommendation: "Wrap the callback in `useCallback` or move it outside the component so memoized children do not redraw every render.",
 	category: "Performance",
 	create: (context) => {
 		const isTestlikeFile = isTestlikeFilename(context.filename);
@@ -10951,7 +11168,7 @@ const jsxNoNewFunctionAsProp = defineRule({
 				if (!isFunctionProducingExpression(expressionNode) && !followsRenderLocalFunctionBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$36
+					message: MESSAGE$37
 				});
 			}
 		};
@@ -11171,7 +11388,7 @@ const CONFIG_OBJECT_PROP_SUFFIXES = [
 ];
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-new-object-as-prop.ts
-const MESSAGE$35 = "This child redraws every render because the prop gets a brand new object each time.";
+const MESSAGE$36 = "This child redraws every render because the prop gets a brand new object each time.";
 const isConfigObjectPropName = (propName) => {
 	if (CONFIG_OBJECT_PROP_NAMES.has(propName)) return true;
 	for (const suffix of CONFIG_OBJECT_PROP_SUFFIXES) if (propName.length > suffix.length && propName.endsWith(suffix)) return true;
@@ -11232,7 +11449,7 @@ const jsxNoNewObjectAsProp = defineRule({
 	tags: ["react-jsx-only"],
 	severity: "warn",
 	disabledBy: ["react-compiler"],
-	recommendation: "Wrap the object in `useMemo`, or move it outside the component.",
+	recommendation: "Wrap the object in `useMemo` or move it outside the component so memoized children do not redraw every render.",
 	category: "Performance",
 	create: (context) => {
 		const isTestlikeFile = isTestlikeFilename(context.filename);
@@ -11259,7 +11476,7 @@ const jsxNoNewObjectAsProp = defineRule({
 				if (!isObjectProducingExpression(expressionNode) && !followsRenderLocalObjectBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$35
+					message: MESSAGE$36
 				});
 			}
 		};
@@ -11267,9 +11484,9 @@ const jsxNoNewObjectAsProp = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-script-url.ts
-const MESSAGE$34 = "A `javascript:` URL is an XSS hole that runs injected input as code.";
+const MESSAGE$35 = "A `javascript:` URL is an XSS hole that runs injected input as code.";
 const JAVASCRIPT_URL_PATTERN = /j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
-const resolveSettings$29 = (settings) => {
+const resolveSettings$28 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	if (typeof reactDoctor !== "object" || reactDoctor === null) return {};
 	return reactDoctor.jsxNoScriptUrl ?? {};
@@ -11292,10 +11509,10 @@ const jsxNoScriptUrl = defineRule({
 	id: "jsx-no-script-url",
 	title: "javascript: URL in JSX",
 	severity: "error",
-	recommendation: "Replace `javascript:` URLs with `onClick` or `onSubmit` handlers. React 19 blocks them anyway.",
+	recommendation: "Use real event handlers instead of `javascript:` URLs so injected URL text cannot execute as code.",
 	category: "Security",
 	create: (context) => {
-		const options = resolveSettings$29(context.settings);
+		const options = resolveSettings$28(context.settings);
 		return { JSXOpeningElement(node) {
 			const elementName = getElementName(node);
 			if (!elementName) return;
@@ -11308,288 +11525,7 @@ const jsxNoScriptUrl = defineRule({
 				if (!value || !isNodeOfType(value, "Literal") || typeof value.value !== "string") continue;
 				if (JAVASCRIPT_URL_PATTERN.test(value.value)) context.report({
 					node: attribute,
-					message: MESSAGE$34
-				});
-			}
-		} };
-	}
-});
-//#endregion
-//#region src/plugin/rules/react-builtins/jsx-no-target-blank.ts
-const NOREFERRER_MESSAGE = "`target=\"_blank\"` without `rel=\"noreferrer\"` lets the linked page hijack your tab to a phishing site.";
-const NOOPENER_MESSAGE = "`target=\"_blank\"` without `rel` lets the linked page hijack your tab to a phishing site.";
-const SPREAD_MESSAGE = "A spread here can add `target=\"_blank\"`, letting the linked page hijack your tab to a phishing site.";
-const resolveSettings$28 = (settings) => {
-	const reactDoctor = settings?.["react-doctor"];
-	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.jsxNoTargetBlank ?? {} : {};
-	const reactSettings = typeof settings?.react === "object" && settings.react !== null ? settings.react : {};
-	const linkComponents = /* @__PURE__ */ new Map();
-	for (const entry of reactSettings.linkComponents ?? []) if (typeof entry === "string") linkComponents.set(entry, ["href"]);
-	else if (typeof entry === "object" && entry !== null) {
-		const linkAttribute = entry.linkAttribute ?? "href";
-		linkComponents.set(entry.name, Array.isArray(linkAttribute) ? linkAttribute : [linkAttribute]);
-	}
-	const formComponents = /* @__PURE__ */ new Map();
-	for (const entry of reactSettings.formComponents ?? []) if (typeof entry === "string") formComponents.set(entry, ["action"]);
-	else if (typeof entry === "object" && entry !== null) {
-		const formAttribute = entry.formAttribute ?? "action";
-		formComponents.set(entry.name, Array.isArray(formAttribute) ? formAttribute : [formAttribute]);
-	}
-	return {
-		enforceDynamicLinks: ruleSettings.enforceDynamicLinks ?? "always",
-		warnOnSpreadAttributes: ruleSettings.warnOnSpreadAttributes ?? false,
-		allowReferrer: ruleSettings.allowReferrer ?? false,
-		links: ruleSettings.links ?? true,
-		forms: ruleSettings.forms ?? false,
-		linkComponents,
-		formComponents
-	};
-};
-const isExternalLink = (href) => href.includes("//");
-const matchHrefExpression = (expression, state) => {
-	if (isNodeOfType(expression, "Literal") && typeof expression.value === "string") {
-		if (isExternalLink(expression.value)) state.isExternal = true;
-		return;
-	}
-	if (isNodeOfType(expression, "Identifier")) {
-		state.isDynamic = true;
-		return;
-	}
-	if (isNodeOfType(expression, "ConditionalExpression")) {
-		matchHrefExpression(expression.consequent, state);
-		matchHrefExpression(expression.alternate, state);
-	}
-};
-const checkHref = (attributeValue, enforceDynamicLinks) => {
-	const state = {
-		isExternal: false,
-		isDynamic: false
-	};
-	if (isNodeOfType(attributeValue, "Literal") && typeof attributeValue.value === "string") state.isExternal = isExternalLink(attributeValue.value);
-	else if (isNodeOfType(attributeValue, "JSXExpressionContainer")) matchHrefExpression(attributeValue.expression, state);
-	if (enforceDynamicLinks === "never") return !state.isExternal || state.isDynamic;
-	return !(state.isExternal || state.isDynamic);
-};
-const checkRelValue = (text, allowReferrer) => {
-	const tokens = text.split(/\s+/);
-	if (allowReferrer) return tokens.includes("noopener") || tokens.includes("noreferrer");
-	return tokens.some((token) => token.toLowerCase() === "noreferrer");
-};
-const matchRelExpression = (expression, allowReferrer) => {
-	const empty = {
-		combined: false,
-		testName: "",
-		consequent: false,
-		alternate: false
-	};
-	if (isNodeOfType(expression, "Literal") && typeof expression.value === "string") return {
-		combined: checkRelValue(expression.value, allowReferrer),
-		testName: "",
-		consequent: false,
-		alternate: false
-	};
-	if (isNodeOfType(expression, "ConditionalExpression")) {
-		const consequent = matchRelExpression(expression.consequent, allowReferrer);
-		const alternate = matchRelExpression(expression.alternate, allowReferrer);
-		const test = expression.test;
-		if (isNodeOfType(test, "Identifier")) return {
-			combined: consequent.combined && alternate.combined,
-			testName: test.name,
-			consequent: consequent.combined,
-			alternate: alternate.combined
-		};
-		return {
-			combined: consequent.combined && alternate.combined,
-			testName: "",
-			consequent: consequent.combined,
-			alternate: alternate.combined
-		};
-	}
-	return empty;
-};
-const checkRel = (attributeValue, allowReferrer) => {
-	const empty = {
-		combined: false,
-		testName: "",
-		consequent: false,
-		alternate: false
-	};
-	if (isNodeOfType(attributeValue, "Literal") && typeof attributeValue.value === "string") return {
-		combined: checkRelValue(attributeValue.value, allowReferrer),
-		testName: "",
-		consequent: false,
-		alternate: false
-	};
-	if (isNodeOfType(attributeValue, "JSXExpressionContainer")) {
-		const expression = attributeValue.expression;
-		if (expression.type === "JSXEmptyExpression") return empty;
-		return matchRelExpression(expression, allowReferrer);
-	}
-	return empty;
-};
-const matchTargetExpression = (expression) => {
-	const empty = {
-		combined: false,
-		testName: "",
-		consequent: false,
-		alternate: false
-	};
-	if (isNodeOfType(expression, "Literal") && typeof expression.value === "string") return {
-		combined: expression.value.toLowerCase() === "_blank",
-		testName: "",
-		consequent: false,
-		alternate: false
-	};
-	if (isNodeOfType(expression, "ConditionalExpression")) {
-		const consequent = matchTargetExpression(expression.consequent);
-		const alternate = matchTargetExpression(expression.alternate);
-		const test = expression.test;
-		const combined = consequent.combined || alternate.combined;
-		if (isNodeOfType(test, "Identifier")) return {
-			combined,
-			testName: test.name,
-			consequent: consequent.combined,
-			alternate: alternate.combined
-		};
-		return {
-			combined,
-			testName: "",
-			consequent: consequent.combined,
-			alternate: alternate.combined
-		};
-	}
-	return empty;
-};
-const checkTarget = (attributeValue) => {
-	if (isNodeOfType(attributeValue, "Literal") && typeof attributeValue.value === "string") return {
-		combined: attributeValue.value.toLowerCase() === "_blank",
-		testName: "",
-		consequent: false,
-		alternate: false
-	};
-	if (isNodeOfType(attributeValue, "JSXExpressionContainer")) {
-		const expression = attributeValue.expression;
-		if (expression.type === "JSXEmptyExpression") return {
-			combined: false,
-			testName: "",
-			consequent: false,
-			alternate: false
-		};
-		return matchTargetExpression(expression);
-	}
-	return {
-		combined: false,
-		testName: "",
-		consequent: false,
-		alternate: false
-	};
-};
-const getOpeningElementName = (node) => {
-	const name = node.name;
-	if (isNodeOfType(name, "JSXIdentifier")) return name.name;
-	return null;
-};
-const jsxNoTargetBlank = defineRule({
-	id: "jsx-no-target-blank",
-	title: "Unsafe target=_blank link",
-	severity: "warn",
-	recommendation: "Add `rel=\"noreferrer\"` (or `\"noopener\"`) when using `target=\"_blank\"`.",
-	category: "Security",
-	create: (context) => {
-		const settings = resolveSettings$28(context.settings);
-		const isLink = (tagName) => {
-			if (!settings.links) return false;
-			if (tagName === "a") return true;
-			return settings.linkComponents.has(tagName);
-		};
-		const isForm = (tagName) => {
-			if (!settings.forms) return false;
-			if (tagName === "form") return true;
-			return settings.formComponents.has(tagName);
-		};
-		return { JSXOpeningElement(node) {
-			const tagName = getOpeningElementName(node);
-			if (!tagName) return;
-			if (!isLink(tagName) && !isForm(tagName)) return;
-			const linkAttributeNames = settings.linkComponents.get(tagName) ?? ["href"];
-			const formAttributeNames = settings.formComponents.get(tagName) ?? ["action"];
-			let targetTuple = {
-				combined: false,
-				testName: "",
-				consequent: false,
-				alternate: false
-			};
-			let relTuple = {
-				combined: false,
-				testName: "",
-				consequent: false,
-				alternate: false
-			};
-			let isHrefValid = true;
-			let hasHrefValue = false;
-			let warnSpread = false;
-			let targetReportNode = node.name;
-			let spreadReportNode = null;
-			for (const attribute of node.attributes) {
-				if (isNodeOfType(attribute, "JSXSpreadAttribute")) {
-					if (settings.warnOnSpreadAttributes) {
-						warnSpread = true;
-						spreadReportNode = attribute;
-						targetTuple = {
-							combined: false,
-							testName: "",
-							consequent: false,
-							alternate: false
-						};
-						relTuple = {
-							combined: false,
-							testName: "",
-							consequent: false,
-							alternate: false
-						};
-						isHrefValid = false;
-						hasHrefValue = true;
-					}
-					continue;
-				}
-				if (!isNodeOfType(attribute, "JSXAttribute")) continue;
-				const attributeName = attribute.name;
-				if (!isNodeOfType(attributeName, "JSXIdentifier")) continue;
-				const propName = attributeName.name;
-				const value = attribute.value;
-				if (propName === "target") {
-					if (value) {
-						targetTuple = checkTarget(value);
-						targetReportNode = value;
-					}
-				} else if (propName === "href" || propName === "action" || linkAttributeNames.includes(propName) || formAttributeNames.includes(propName)) {
-					if (value) {
-						hasHrefValue = true;
-						isHrefValid = checkHref(value, settings.enforceDynamicLinks);
-					}
-				} else if (propName === "rel" && value) relTuple = checkRel(value, settings.allowReferrer);
-			}
-			if (warnSpread) {
-				if (hasHrefValue && isHrefValid || relTuple.combined) return;
-				context.report({
-					node: spreadReportNode ?? node,
-					message: SPREAD_MESSAGE
-				});
-				return;
-			}
-			if (!isHrefValid) {
-				if (targetTuple.testName !== "" && targetTuple.testName === relTuple.testName) {
-					const consequentBad = targetTuple.consequent && !relTuple.consequent;
-					const alternateBad = targetTuple.alternate && !relTuple.alternate;
-					if (consequentBad || alternateBad) context.report({
-						node: targetReportNode,
-						message: settings.allowReferrer ? NOOPENER_MESSAGE : NOREFERRER_MESSAGE
-					});
-					return;
-				}
-				if (targetTuple.combined && !relTuple.combined) context.report({
-					node: targetReportNode,
-					message: settings.allowReferrer ? NOOPENER_MESSAGE : NOREFERRER_MESSAGE
+					message: MESSAGE$35
 				});
 			}
 		} };
@@ -11624,7 +11560,7 @@ const jsxNoUndef = defineRule({
 	id: "jsx-no-undef",
 	title: "Undefined JSX component",
 	severity: "error",
-	recommendation: "Import the component or check for typos.",
+	recommendation: "Import the component or fix the typo so React can resolve the JSX identifier at runtime.",
 	create: (context) => ({ JSXOpeningElement(node) {
 		const rootIdentifier = getRootIdentifier(node.name);
 		if (!rootIdentifier) return;
@@ -11816,7 +11752,7 @@ const jsxPascalCase = defineRule({
 	severity: "warn",
 	defaultEnabled: false,
 	tags: ["test-noise"],
-	recommendation: "Rename custom JSX components to PascalCase.",
+	recommendation: "Rename custom JSX components to PascalCase so React treats them as components, not intrinsic DOM tags.",
 	category: "Architecture",
 	create: (context) => {
 		const settings = resolveSettings$26(context.settings);
@@ -11880,7 +11816,7 @@ const jsxPropsNoSpreadMulti = defineRule({
 	id: "jsx-props-no-spread-multi",
 	title: "Same prop spread multiple times",
 	severity: "warn",
-	recommendation: "Spread the same value at most once per element.",
+	recommendation: "Spread each value at most once so later props cannot silently override earlier props from the same object.",
 	create: (context) => ({ JSXOpeningElement(node) {
 		const seenNames = /* @__PURE__ */ new Map();
 		const reportedNames = /* @__PURE__ */ new Set();
@@ -11904,7 +11840,7 @@ const jsxPropsNoSpreadMulti = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-props-no-spreading.ts
-const MESSAGE$33 = "You can't tell what props reach this element when you spread them.";
+const MESSAGE$34 = "You can't tell what props reach this element when you spread them.";
 const resolveSettings$25 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.jsxPropsNoSpreading ?? {} : {};
@@ -11920,12 +11856,12 @@ const jsxPropsNoSpreading = defineRule({
 	title: "Props spread onto element",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "List each prop explicitly so consumers can see what's being passed.",
+	recommendation: "List each prop explicitly so consumers can see the component API instead of receiving hidden spread props.",
 	category: "Architecture",
 	create: (context) => {
 		const settings = resolveSettings$25(context.settings);
 		return { JSXOpeningElement(node) {
-			const tagName = flattenJsxName(node.name);
+			const tagName = flattenJsxName$1(node.name);
 			if (!tagName) return;
 			const isCustom = isReactComponentName(tagName) || tagName.includes(".");
 			const isHtml = !isCustom;
@@ -11945,7 +11881,7 @@ const jsxPropsNoSpreading = defineRule({
 				}
 				context.report({
 					node: attribute,
-					message: MESSAGE$33
+					message: MESSAGE$34
 				});
 			}
 		} };
@@ -12101,7 +12037,7 @@ const labelHasAssociatedControl = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/lang.ts
-const MESSAGE$32 = "Screen readers can't pick the right voice because this `lang` isn't a real language code, so use a valid one like `en` or `en-US`.";
+const MESSAGE$33 = "Screen readers can't pick the right voice because this `lang` isn't a real language code, so use a valid one like `en` or `en-US`.";
 const COMMON_LANGUAGE_PRIMARY_TAGS = new Set([
 	"aa",
 	"ab",
@@ -12301,7 +12237,7 @@ const lang = defineRule({
 	title: "Invalid lang attribute value",
 	tags: ["react-jsx-only"],
 	severity: "warn",
-	recommendation: "Use a valid language code, like `en` or `en-US`.",
+	recommendation: "Use a valid language code like `en` or `en-US` so screen readers choose the right pronunciation rules.",
 	category: "Accessibility",
 	create: (context) => ({ JSXOpeningElement(node) {
 		if (getElementType(node, context.settings) !== "html") return;
@@ -12313,7 +12249,7 @@ const lang = defineRule({
 			if (expression.type === "Identifier" && expression.name === "undefined" || expression.type === "Literal" && expression.value === null) {
 				context.report({
 					node: langAttr,
-					message: MESSAGE$32
+					message: MESSAGE$33
 				});
 				return;
 			}
@@ -12322,13 +12258,13 @@ const lang = defineRule({
 		if (value === null) return;
 		if (!isValidLangTag(value)) context.report({
 			node: langAttr,
-			message: MESSAGE$32
+			message: MESSAGE$33
 		});
 	} })
 });
 //#endregion
 //#region src/plugin/rules/a11y/media-has-caption.ts
-const MESSAGE$31 = "Deaf & hard-of-hearing users miss this media without captions, so add a `<track kind=\"captions\">` inside the `<audio>` or `<video>`.";
+const MESSAGE$32 = "Deaf and hard-of-hearing users need captions for this media. Add a `<track kind=\"captions\">` inside the `<audio>` or `<video>`.";
 const DEFAULT_AUDIO = ["audio"];
 const DEFAULT_VIDEO = ["video"];
 const DEFAULT_TRACK = ["track"];
@@ -12369,7 +12305,7 @@ const mediaHasCaption = defineRule({
 			if (!parent || !isNodeOfType(parent, "JSXElement")) {
 				context.report({
 					node: node.name,
-					message: MESSAGE$31
+					message: MESSAGE$32
 				});
 				return;
 			}
@@ -12386,7 +12322,7 @@ const mediaHasCaption = defineRule({
 				return kindValue.value.toLowerCase() === "captions";
 			})) context.report({
 				node: node.name,
-				message: MESSAGE$31
+				message: MESSAGE$32
 			});
 		} };
 	}
@@ -12511,17 +12447,70 @@ const nextjsAsyncClientComponent = defineRule({
 	}
 });
 //#endregion
+//#region src/plugin/rules/nextjs/nextjs-error-boundary-missing-use-client.ts
+const nextjsErrorBoundaryMissingUseClient = defineRule({
+	id: "nextjs-error-boundary-missing-use-client",
+	title: "Error boundary missing 'use client'",
+	tags: ["test-noise"],
+	requires: ["nextjs"],
+	severity: "error",
+	recommendation: "Add `'use client'` at the top of this file. Error boundaries must be Client Components to catch and render fallback UI",
+	create: (context) => ({ Program(programNode) {
+		const filename = normalizeFilename$1(context.filename ?? "");
+		if (!APP_DIRECTORY_PATTERN.test(filename)) return;
+		if (!ERROR_BOUNDARY_FILE_PATTERN.test(filename)) return;
+		if (hasDirective(programNode, "use client")) return;
+		context.report({
+			node: programNode,
+			message: "This error boundary silently does nothing without 'use client'. Next.js requires error.tsx to be a Client Component."
+		});
+	} })
+});
+//#endregion
+//#region src/plugin/utils/file-contains-jsx-elements.ts
+const fileContainsJsxElements = (programNode, tagNames) => {
+	const targetTagNames = new Set(tagNames);
+	const foundTagNames = /* @__PURE__ */ new Set();
+	walkAst(programNode, (child) => {
+		if (foundTagNames.size === targetTagNames.size) return false;
+		if (isNodeOfType(child, "JSXOpeningElement") && isNodeOfType(child.name, "JSXIdentifier") && targetTagNames.has(child.name.name)) foundTagNames.add(child.name.name);
+	});
+	return foundTagNames;
+};
+//#endregion
+//#region src/plugin/rules/nextjs/nextjs-global-error-missing-html-body.ts
+const REQUIRED_HTML_TAGS = ["html", "body"];
+const nextjsGlobalErrorMissingHtmlBody = defineRule({
+	id: "nextjs-global-error-missing-html-body",
+	title: "global-error.tsx missing <html>/<body>",
+	tags: ["test-noise"],
+	requires: ["nextjs"],
+	severity: "error",
+	recommendation: "Wrap your error UI in `<html><body>...</body></html>`. The root layout is unmounted when global-error renders",
+	create: (context) => ({ Program(programNode) {
+		const filename = normalizeFilename$1(context.filename ?? "");
+		if (!APP_DIRECTORY_PATTERN.test(filename)) return;
+		if (!GLOBAL_ERROR_FILE_PATTERN.test(filename)) return;
+		const foundTags = fileContainsJsxElements(programNode, REQUIRED_HTML_TAGS);
+		const missingTags = REQUIRED_HTML_TAGS.filter((tagName) => !foundTags.has(tagName)).map((tagName) => `<${tagName}>`);
+		if (missingTags.length > 0) context.report({
+			node: programNode,
+			message: `global-error.tsx is missing ${missingTags.join(" and ")}. The root layout unmounts on error, so this page renders broken HTML.`
+		});
+	} })
+});
+//#endregion
 //#region src/plugin/utils/has-jsx-attribute.ts
 const hasJsxAttribute = (attributes, attributeName) => Boolean(findJsxAttribute(attributes, attributeName));
 //#endregion
 //#region src/plugin/rules/nextjs/nextjs-image-missing-sizes.ts
 const nextjsImageMissingSizes = defineRule({
 	id: "nextjs-image-missing-sizes",
-	title: "Image fill missing sizes",
+	title: "next/image fill image is missing sizes",
 	tags: ["test-noise"],
 	requires: ["nextjs"],
 	severity: "warn",
-	recommendation: "Add sizes for responsive behavior: `sizes=\"(max-width: 768px) 100vw, 50vw\"` matching your layout breakpoints",
+	recommendation: "Add `sizes` matching your layout so `next/image` does not assume the largest candidate and make users download oversized images.",
 	create: (context) => ({ JSXOpeningElement(node) {
 		if (!isNodeOfType(node.name, "JSXIdentifier") || node.name.name !== "Image") return;
 		const attributes = node.attributes ?? [];
@@ -12554,45 +12543,14 @@ const nextjsInlineScriptMissingId = defineRule({
 	} })
 });
 //#endregion
-//#region src/plugin/constants/nextjs.ts
-const PAGE_FILE_PATTERN = /\/page\.(tsx?|jsx?)$/;
-const PAGE_OR_LAYOUT_FILE_PATTERN = /\/(page|layout)\.(tsx?|jsx?)$/;
-const INTERNAL_PAGE_PATH_PATTERN = /\/(?:(?:\((?:dashboard|admin|settings|account|internal|manage|console|portal|auth|onboarding|app|ee|protected)\))|(?:dashboard|admin|settings|account|internal|manage|console|portal))\//i;
-const OG_ROUTE_PATTERN = /\/og\b/i;
-const PAGES_DIRECTORY_PATTERN = /\/pages\//;
-const NEXTJS_NAVIGATION_FUNCTIONS = new Set([
-	"redirect",
-	"permanentRedirect",
-	"notFound",
-	"forbidden",
-	"unauthorized"
-]);
-const GOOGLE_FONTS_PATTERN = /fonts\.googleapis\.com/;
-const POLYFILL_SCRIPT_PATTERN = /polyfill\.io|polyfill\.min\.js|cdn\.polyfill/;
-const APP_DIRECTORY_PATTERN = /\/app\//;
-const ROUTE_HANDLER_FILE_PATTERN = /\/route\.(tsx?|jsx?)$/;
-const CRON_ROUTE_PATTERN = /\/(?:cron|jobs\/cron)(?:\/|$)/i;
-const MUTATING_ROUTE_SEGMENTS = new Set([
-	"logout",
-	"log-out",
-	"signout",
-	"sign-out",
-	"unsubscribe",
-	"delete",
-	"remove",
-	"revoke",
-	"cancel",
-	"deactivate"
-]);
-//#endregion
 //#region src/plugin/rules/nextjs/nextjs-missing-metadata.ts
 const nextjsMissingMetadata = defineRule({
 	id: "nextjs-missing-metadata",
-	title: "Page missing metadata",
+	title: "Page missing metadata for search previews",
 	tags: ["test-noise"],
 	requires: ["nextjs"],
 	severity: "warn",
-	recommendation: "Add `export const metadata = { title: '...', description: '...' }` or `export async function generateMetadata()`",
+	recommendation: "Add metadata or `generateMetadata()` so search engines and social previews get a title and description.",
 	create: (context) => ({ Program(programNode) {
 		const filename = normalizeFilename$1(context.filename ?? "");
 		if (!PAGE_FILE_PATTERN.test(filename)) return;
@@ -12605,7 +12563,7 @@ const nextjsMissingMetadata = defineRule({
 			return false;
 		})) context.report({
 			node: programNode,
-			message: "This page has no metadata, so search engines & social previews get no title or description."
+			message: "This page has no metadata, so search engines and social previews get no title or description."
 		});
 	} })
 });
@@ -12613,7 +12571,7 @@ const nextjsMissingMetadata = defineRule({
 //#region src/plugin/rules/nextjs/nextjs-no-a-element.ts
 const nextjsNoAElement = defineRule({
 	id: "nextjs-no-a-element",
-	title: "Plain anchor for internal link",
+	title: "Plain anchor reloads internal Next.js links",
 	tags: ["test-noise"],
 	requires: ["nextjs"],
 	severity: "warn",
@@ -12627,7 +12585,7 @@ const nextjsNoAElement = defineRule({
 		else if (isNodeOfType(hrefAttribute.value, "JSXExpressionContainer") && isNodeOfType(hrefAttribute.value.expression, "Literal")) hrefValue = hrefAttribute.value.expression.value;
 		if (typeof hrefValue === "string" && hrefValue.startsWith("/")) context.report({
 			node,
-			message: "Plain <a> reloads the whole page on internal links."
+			message: "Plain <a> reloads the whole page for internal links, so Next.js loses client-side navigation and prefetching."
 		});
 	} })
 });
@@ -12712,11 +12670,11 @@ const nextjsNoClientSideRedirect = defineRule({
 //#region src/plugin/rules/nextjs/nextjs-no-css-link.ts
 const nextjsNoCssLink = defineRule({
 	id: "nextjs-no-css-link",
-	title: "Stylesheet loaded via link",
+	title: "Linked stylesheet bypasses Next.js CSS optimization",
 	tags: ["test-noise"],
 	requires: ["nextjs"],
 	severity: "warn",
-	recommendation: "Import CSS directly: `import './styles.css'` or use CSS Modules: `import styles from './Button.module.css'`",
+	recommendation: "Import CSS directly or use CSS Modules so Next.js can bundle, order, and optimize the stylesheet.",
 	create: (context) => ({ JSXOpeningElement(node) {
 		if (!isNodeOfType(node.name, "JSXIdentifier") || node.name.name !== "link") return;
 		const attributes = node.attributes ?? [];
@@ -12729,9 +12687,92 @@ const nextjsNoCssLink = defineRule({
 		if (typeof hrefValue === "string" && GOOGLE_FONTS_PATTERN.test(hrefValue)) return;
 		context.report({
 			node,
-			message: "This <link rel=\"stylesheet\"> loads unbundled, unoptimized CSS."
+			message: "This <link rel=\"stylesheet\"> bypasses Next.js CSS handling, so the CSS loads unbundled and unoptimized."
 		});
 	} })
+});
+//#endregion
+//#region src/plugin/rules/nextjs/nextjs-no-default-export-in-route-handler.ts
+const programHasNamedHttpMethodExport = (programNode) => {
+	for (const statement of programNode.body ?? []) {
+		if (!isNodeOfType(statement, "ExportNamedDeclaration")) continue;
+		const declaration = statement.declaration;
+		if (isNodeOfType(declaration, "FunctionDeclaration") && declaration.id?.name && ROUTE_HANDLER_HTTP_METHODS.has(declaration.id.name)) return true;
+		if (isNodeOfType(declaration, "VariableDeclaration")) {
+			for (const declarator of declaration.declarations ?? []) if (isNodeOfType(declarator.id, "Identifier") && ROUTE_HANDLER_HTTP_METHODS.has(declarator.id.name)) return true;
+		}
+		for (const specifier of statement.specifiers ?? []) if (isNodeOfType(specifier, "ExportSpecifier") && isNodeOfType(specifier.exported, "Identifier") && ROUTE_HANDLER_HTTP_METHODS.has(specifier.exported.name)) return true;
+	}
+	return false;
+};
+const nextjsNoDefaultExportInRouteHandler = defineRule({
+	id: "nextjs-no-default-export-in-route-handler",
+	title: "Default export in route handler",
+	tags: ["test-noise"],
+	requires: ["nextjs"],
+	severity: "error",
+	recommendation: "Replace `export default` with named HTTP method exports because Next.js ignores default exports in `route.ts`.",
+	create: (context) => {
+		let isAppRouteHandler = false;
+		let programNode = null;
+		return {
+			Program(node) {
+				const filename = normalizeFilename$1(context.filename ?? "");
+				isAppRouteHandler = APP_DIRECTORY_PATTERN.test(filename) && ROUTE_HANDLER_FILE_PATTERN.test(filename);
+				programNode = node;
+			},
+			ExportDefaultDeclaration(node) {
+				if (!isAppRouteHandler || !programNode) return;
+				if (programHasNamedHttpMethodExport(programNode)) return;
+				context.report({
+					node,
+					message: "Default exports in route.ts are silently ignored. Next.js only recognizes named HTTP method exports (GET, POST, etc.)."
+				});
+			},
+			ExportNamedDeclaration(node) {
+				if (!isAppRouteHandler || !programNode) return;
+				if (!(node.specifiers ?? []).some((specifier) => isNodeOfType(specifier, "ExportSpecifier") && isNodeOfType(specifier.exported, "Identifier") && specifier.exported.name === "default")) return;
+				if (programHasNamedHttpMethodExport(programNode)) return;
+				context.report({
+					node,
+					message: "Default exports in route.ts are silently ignored. Next.js only recognizes named HTTP method exports (GET, POST, etc.)."
+				});
+			}
+		};
+	}
+});
+//#endregion
+//#region src/plugin/rules/nextjs/nextjs-no-edge-og-runtime.ts
+const nextjsNoEdgeOgRuntime = defineRule({
+	id: "nextjs-no-edge-og-runtime",
+	title: "Edge runtime in OG image route",
+	tags: ["test-noise"],
+	requires: ["nextjs"],
+	severity: "warn",
+	recommendation: "Remove `export const runtime = 'edge'` from OG image files. The default Node.js runtime supports more fonts and APIs",
+	create: (context) => {
+		let isOgImageFile = false;
+		return {
+			Program() {
+				const filename = normalizeFilename$1(context.filename ?? "");
+				isOgImageFile = OG_IMAGE_FILE_PATTERN.test(filename);
+			},
+			ExportNamedDeclaration(node) {
+				if (!isOgImageFile) return;
+				const declaration = node.declaration;
+				if (!isNodeOfType(declaration, "VariableDeclaration")) return;
+				for (const declarator of declaration.declarations ?? []) {
+					if (!isNodeOfType(declarator, "VariableDeclarator")) continue;
+					if (!isNodeOfType(declarator.id, "Identifier")) continue;
+					if (declarator.id.name !== "runtime") continue;
+					if ((isNodeOfType(declarator.init, "Literal") ? declarator.init.value : null) === "edge") context.report({
+						node,
+						message: "Edge runtime limits OG image generation. Node.js runtime supports more fonts, filesystem access, and larger response sizes."
+					});
+				}
+			}
+		};
+	}
 });
 //#endregion
 //#region src/plugin/rules/nextjs/nextjs-no-font-link.ts
@@ -12754,6 +12795,27 @@ const nextjsNoFontLink = defineRule({
 	} })
 });
 //#endregion
+//#region src/plugin/rules/nextjs/nextjs-no-google-analytics-script.ts
+const nextjsNoGoogleAnalyticsScript = defineRule({
+	id: "nextjs-no-google-analytics-script",
+	title: "Manual Google Analytics script blocks optimized loading",
+	tags: ["test-noise"],
+	requires: ["nextjs"],
+	severity: "warn",
+	recommendation: "Use `import { GoogleAnalytics } from '@next/third-parties/google'` for automatic optimization and smaller bundles.",
+	create: (context) => ({ JSXOpeningElement(node) {
+		if (!isNodeOfType(node.name, "JSXIdentifier")) return;
+		if (node.name.name !== "script" && node.name.name !== "Script") return;
+		const srcAttribute = findJsxAttribute(node.attributes ?? [], "src");
+		if (!srcAttribute?.value) return;
+		const srcValue = isNodeOfType(srcAttribute.value, "Literal") ? srcAttribute.value.value : null;
+		if (typeof srcValue === "string" && GOOGLE_ANALYTICS_SCRIPT_PATTERN.test(srcValue)) context.report({
+			node,
+			message: "Manual Google Analytics scripts block rendering without Next.js' optimized loading strategy."
+		});
+	} })
+});
+//#endregion
 //#region src/plugin/rules/nextjs/nextjs-no-head-import.ts
 const nextjsNoHeadImport = defineRule({
 	id: "nextjs-no-head-import",
@@ -12761,7 +12823,7 @@ const nextjsNoHeadImport = defineRule({
 	tags: ["test-noise"],
 	requires: ["nextjs"],
 	severity: "error",
-	recommendation: "Use the Metadata API instead. Add `export const metadata = { title: '...' }` or `export async function generateMetadata()`",
+	recommendation: "Use the Metadata API because `next/head` is ignored in the App Router and meta tags will not render.",
 	create: (context) => ({ ImportDeclaration(node) {
 		if (node.source?.value !== "next/head") return;
 		const filename = normalizeFilename$1(context.filename ?? "");
@@ -12776,19 +12838,18 @@ const nextjsNoHeadImport = defineRule({
 //#region src/plugin/rules/nextjs/nextjs-no-img-element.ts
 const nextjsNoImgElement = defineRule({
 	id: "nextjs-no-img-element",
-	title: "Plain img element",
+	title: "Plain img ships unoptimized images",
 	tags: ["test-noise"],
 	requires: ["nextjs"],
 	severity: "warn",
-	recommendation: "`import Image from 'next/image'` for automatic WebP/AVIF, lazy loading, and responsive srcset",
+	recommendation: "Use `next/image` so users get optimized formats, responsive srcsets, and lazy loading instead of oversized image downloads.",
 	create: (context) => {
-		const filename = normalizeFilename$1(context.filename ?? "");
-		const isOgRoute = OG_ROUTE_PATTERN.test(filename);
+		if (isGeneratedImageRenderContext(context)) return {};
 		return { JSXOpeningElement(node) {
-			if (isOgRoute) return;
+			if (isGeneratedImageRenderContext(context, node)) return;
 			if (isNodeOfType(node.name, "JSXIdentifier") && node.name.name === "img") context.report({
 				node,
-				message: "Plain <img> ships unoptimized, oversized images to your users."
+				message: "Plain <img> ships unoptimized, oversized images."
 			});
 		} };
 	}
@@ -12797,11 +12858,11 @@ const nextjsNoImgElement = defineRule({
 //#region src/plugin/rules/nextjs/nextjs-no-native-script.ts
 const nextjsNoNativeScript = defineRule({
 	id: "nextjs-no-native-script",
-	title: "Plain script tag",
+	title: "Plain script can block Next.js rendering",
 	tags: ["test-noise"],
 	requires: ["nextjs"],
 	severity: "warn",
-	recommendation: "`import Script from \"next/script\"`. Use `strategy=\"afterInteractive\"` for analytics or `\"lazyOnload\"` for widgets",
+	recommendation: "Use `next/script` with `strategy=\"afterInteractive\"` or `\"lazyOnload\"` so third-party scripts do not block rendering.",
 	create: (context) => ({ JSXOpeningElement(node) {
 		if (!isNodeOfType(node.name, "JSXIdentifier") || node.name.name !== "script") return;
 		const typeAttribute = findJsxAttribute(node.attributes ?? [], "type");
@@ -12809,7 +12870,7 @@ const nextjsNoNativeScript = defineRule({
 		if (typeof typeValue === "string" && !EXECUTABLE_SCRIPT_TYPES.has(typeValue)) return;
 		context.report({
 			node,
-			message: "Plain <script> blocks rendering with no loading strategy."
+			message: "Plain <script> has no Next.js loading strategy, so it can block rendering."
 		});
 	} })
 });
@@ -12842,7 +12903,7 @@ const nextjsNoRedirectInTryCatch = defineRule({
 	tags: ["test-noise"],
 	requires: ["nextjs"],
 	severity: "warn",
-	recommendation: "Move the redirect/notFound call outside the try block, or add `unstable_rethrow(error)` in the catch",
+	recommendation: "Move `redirect()` or `notFound()` outside the try block, or rethrow in `catch`, because these APIs throw control-flow errors that catch blocks swallow.",
 	create: (context) => {
 		let tryCatchDepth = 0;
 		return {
@@ -12860,6 +12921,32 @@ const nextjsNoRedirectInTryCatch = defineRule({
 					node,
 					message: `${node.callee.name}() inside try-catch gets swallowed, so the redirect silently fails.`
 				});
+			}
+		};
+	}
+});
+//#endregion
+//#region src/plugin/rules/nextjs/nextjs-no-script-in-head.ts
+const nextjsNoScriptInHead = defineRule({
+	id: "nextjs-no-script-in-head",
+	title: "next/script inside next/head",
+	tags: ["test-noise"],
+	requires: ["nextjs"],
+	severity: "error",
+	recommendation: "Move `<Script>` outside of `<Head>`. next/script manages its own placement and ignores head context",
+	create: (context) => {
+		let insideHeadDepth = 0;
+		return {
+			JSXOpeningElement(node) {
+				if (!isNodeOfType(node.name, "JSXIdentifier")) return;
+				if (node.name.name === "Head" && !node.selfClosing) insideHeadDepth++;
+				if (node.name.name === "Script" && insideHeadDepth > 0) context.report({
+					node,
+					message: "next/script inside next/head is silently ignored. Move <Script> outside <Head> so it actually loads."
+				});
+			},
+			JSXClosingElement(node) {
+				if (isNodeOfType(node.name, "JSXIdentifier") && node.name.name === "Head") insideHeadDepth = Math.max(0, insideHeadDepth - 1);
 			}
 		};
 	}
@@ -13170,23 +13257,796 @@ const nextjsNoSideEffectInGetHandler = defineRule({
 	}
 });
 //#endregion
-//#region src/plugin/rules/nextjs/nextjs-no-use-search-params-without-suspense.ts
-const fileMentionsSuspense = (programNode) => {
-	let didSee = false;
+//#region src/plugin/utils/find-exported-function-body.ts
+const isFunctionLike = (node) => {
+	if (!node) return false;
+	return isNodeOfType(node, "FunctionDeclaration") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "ArrowFunctionExpression");
+};
+const findExportedFunctionBody = (programRoot, exportedName) => {
+	if (!isNodeOfType(programRoot, "Program")) return null;
+	const localBindings = /* @__PURE__ */ new Map();
+	const namedExports = /* @__PURE__ */ new Map();
+	let defaultExport = null;
+	let defaultExportIdentifierName = null;
+	const recordVariableDeclaration = (declaration) => {
+		for (const declarator of declaration.declarations ?? []) {
+			if (!isNodeOfType(declarator, "VariableDeclarator")) continue;
+			if (!isNodeOfType(declarator.id, "Identifier")) continue;
+			const initializer = declarator.init ? stripParenExpression(declarator.init) : null;
+			if (initializer && isFunctionLike(initializer)) localBindings.set(declarator.id.name, initializer);
+		}
+	};
+	for (const statement of programRoot.body ?? []) {
+		if (isNodeOfType(statement, "VariableDeclaration")) {
+			recordVariableDeclaration(statement);
+			continue;
+		}
+		if (isNodeOfType(statement, "FunctionDeclaration") && statement.id) {
+			localBindings.set(statement.id.name, statement);
+			continue;
+		}
+		if (isNodeOfType(statement, "ExportNamedDeclaration")) {
+			const declaration = statement.declaration;
+			if (declaration && isNodeOfType(declaration, "VariableDeclaration")) {
+				recordVariableDeclaration(declaration);
+				for (const declarator of declaration.declarations ?? []) {
+					if (!isNodeOfType(declarator, "VariableDeclarator")) continue;
+					if (!isNodeOfType(declarator.id, "Identifier")) continue;
+					namedExports.set(declarator.id.name, declarator.id.name);
+				}
+			} else if (declaration && isNodeOfType(declaration, "FunctionDeclaration") && declaration.id) {
+				localBindings.set(declaration.id.name, declaration);
+				namedExports.set(declaration.id.name, declaration.id.name);
+			}
+			for (const specifier of statement.specifiers ?? []) {
+				if (!isNodeOfType(specifier, "ExportSpecifier")) continue;
+				const local = specifier.local;
+				const exported = specifier.exported;
+				if (!isNodeOfType(local, "Identifier")) continue;
+				const exportedNameSpec = isNodeOfType(exported, "Identifier") ? exported.name : isNodeOfType(exported, "Literal") && typeof exported.value === "string" ? exported.value : null;
+				if (!exportedNameSpec) continue;
+				namedExports.set(exportedNameSpec, local.name);
+			}
+			continue;
+		}
+		if (isNodeOfType(statement, "ExportDefaultDeclaration")) {
+			const declaration = statement.declaration;
+			if (!declaration) continue;
+			if (isNodeOfType(declaration, "FunctionDeclaration") && declaration.id) {
+				localBindings.set(declaration.id.name, declaration);
+				defaultExport = declaration;
+				continue;
+			}
+			if (isFunctionLike(declaration)) {
+				defaultExport = declaration;
+				continue;
+			}
+			if (isNodeOfType(declaration, "Identifier")) {
+				defaultExportIdentifierName = declaration.name;
+				continue;
+			}
+		}
+	}
+	if (exportedName === "default") {
+		if (defaultExport) return defaultExport;
+		if (defaultExportIdentifierName) {
+			const binding = localBindings.get(defaultExportIdentifierName);
+			if (binding) return binding;
+		}
+	}
+	const localName = namedExports.get(exportedName);
+	if (!localName) return null;
+	return localBindings.get(localName) ?? null;
+};
+const resolveImportedExportName = (importSpecifier) => {
+	if (isNodeOfType(importSpecifier, "ImportSpecifier")) {
+		const imported = importSpecifier.imported;
+		if (isNodeOfType(imported, "Identifier")) return imported.name;
+		if (isNodeOfType(imported, "Literal") && typeof imported.value === "string") return imported.value;
+		return null;
+	}
+	if (isNodeOfType(importSpecifier, "ImportDefaultSpecifier")) return "default";
+	return null;
+};
+const findReExportSourcesForName = (programRoot, exportedName) => {
+	if (!isNodeOfType(programRoot, "Program")) return [];
+	const exportAllSources = [];
+	for (const statement of programRoot.body ?? []) {
+		if (isNodeOfType(statement, "ExportNamedDeclaration") && statement.source) {
+			const sourceValue = statement.source.value;
+			if (typeof sourceValue !== "string") continue;
+			for (const specifier of statement.specifiers ?? []) {
+				if (!isNodeOfType(specifier, "ExportSpecifier")) continue;
+				const exported = specifier.exported;
+				if ((isNodeOfType(exported, "Identifier") ? exported.name : isNodeOfType(exported, "Literal") && typeof exported.value === "string" ? exported.value : null) === exportedName) return [sourceValue];
+			}
+		}
+		if (isNodeOfType(statement, "ExportAllDeclaration") && statement.source) {
+			const sourceValue = statement.source.value;
+			if (typeof sourceValue === "string") exportAllSources.push(sourceValue);
+		}
+	}
+	return exportAllSources;
+};
+//#endregion
+//#region src/plugin/utils/attach-parent-references.ts
+const attachParentReferences = (root) => {
+	const visit = (node, parent) => {
+		const writableNode = node;
+		writableNode.parent = parent;
+		const nodeRecord = node;
+		for (const key of Object.keys(nodeRecord)) {
+			if (key === "parent") continue;
+			const child = nodeRecord[key];
+			if (Array.isArray(child)) {
+				for (const item of child) if (isAstNode(item)) visit(item, node);
+			} else if (isAstNode(child)) visit(child, node);
+		}
+	};
+	visit(root, null);
+};
+//#endregion
+//#region src/plugin/utils/parse-source-file.ts
+const FILENAME_TO_LANG = {
+	".ts": "ts",
+	".tsx": "tsx",
+	".js": "js",
+	".jsx": "jsx",
+	".mjs": "js",
+	".cjs": "js",
+	".mts": "ts",
+	".cts": "ts"
+};
+const resolveLang = (filename) => {
+	return FILENAME_TO_LANG[path.extname(filename).toLowerCase()] ?? "tsx";
+};
+const parseCache = /* @__PURE__ */ new Map();
+const parseSourceFile = (absoluteFilePath) => {
+	let fileStat;
+	try {
+		fileStat = fs.statSync(absoluteFilePath);
+	} catch {
+		return null;
+	}
+	if (!fileStat.isFile()) return null;
+	if (fileStat.size > 2e6) return null;
+	const cached = parseCache.get(absoluteFilePath);
+	if (cached && cached.mtimeMs === fileStat.mtimeMs && cached.size === fileStat.size) return cached.program;
+	if (absoluteFilePath.endsWith(".d.ts") || absoluteFilePath.endsWith(".d.mts") || absoluteFilePath.endsWith(".d.cts")) {
+		parseCache.set(absoluteFilePath, {
+			mtimeMs: fileStat.mtimeMs,
+			size: fileStat.size,
+			program: null
+		});
+		return null;
+	}
+	let sourceText;
+	try {
+		sourceText = fs.readFileSync(absoluteFilePath, "utf8");
+	} catch {
+		parseCache.set(absoluteFilePath, {
+			mtimeMs: fileStat.mtimeMs,
+			size: fileStat.size,
+			program: null
+		});
+		return null;
+	}
+	let parsedProgram = null;
+	try {
+		const result = parseSync(absoluteFilePath, sourceText, {
+			astType: "ts",
+			lang: resolveLang(absoluteFilePath)
+		});
+		if (!result.errors.some((parseError) => parseError.severity === "Error")) {
+			parsedProgram = result.program;
+			attachParentReferences(parsedProgram);
+		}
+	} catch {
+		parsedProgram = null;
+	}
+	parseCache.set(absoluteFilePath, {
+		mtimeMs: fileStat.mtimeMs,
+		size: fileStat.size,
+		program: parsedProgram
+	});
+	return parsedProgram;
+};
+//#endregion
+//#region src/plugin/utils/parse-export-specifiers.ts
+const getSpecifierName = (rawName) => rawName.replace(/^type\s+/, "").trim();
+const parseExportSpecifiers = (specifiersText, declarationIsTypeOnly) => specifiersText.split(",").map((specifierText) => specifierText.trim()).filter(Boolean).map((specifierText) => {
+	const isTypeOnly = declarationIsTypeOnly || specifierText.startsWith("type ");
+	const [rawLocalName, rawExportedName] = specifierText.split(/\s+as\s+/);
+	const localName = getSpecifierName(rawLocalName ?? "");
+	return {
+		localName,
+		exportedName: getSpecifierName(rawExportedName ?? localName),
+		isTypeOnly
+	};
+});
+//#endregion
+//#region src/plugin/utils/strip-js-comments.ts
+const BLOCK_COMMENT_PATTERN = /\/\*[\s\S]*?\*\//g;
+const LINE_COMMENT_PATTERN = /^\s*\/\/.*$/gm;
+const stripJsComments = (sourceText) => sourceText.replace(BLOCK_COMMENT_PATTERN, "").replace(LINE_COMMENT_PATTERN, "");
+//#endregion
+//#region src/plugin/utils/does-module-export-name.ts
+const DEFAULT_EXPORT_DECLARATION_PATTERN = /^\s*export\s+default\b/m;
+const NAMED_EXPORT_DECLARATION_PATTERN = /^\s*export\s+(?:declare\s+)?(?:(?:async\s+)?function|(?:abstract\s+)?class|const|let|var|enum|interface|type)\s+([\w$]+)/gm;
+const LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1 = /^\s*export\s+(?:type\s+)?\{([\s\S]*?)\}(?:\s+from\s+["'][^"']+["'])?\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
+const doesSourceTextExportName = (sourceText, exportedName) => {
+	const strippedSource = stripJsComments(sourceText);
+	if (exportedName === "default" && DEFAULT_EXPORT_DECLARATION_PATTERN.test(strippedSource)) return true;
+	for (const match of strippedSource.matchAll(NAMED_EXPORT_DECLARATION_PATTERN)) if (match[1] === exportedName) return true;
+	for (const match of strippedSource.matchAll(LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1)) if (parseExportSpecifiers(match[1] ?? "", false).map((specifier) => specifier.exportedName).includes(exportedName)) return true;
+	return false;
+};
+const doesModuleExportName = (filePath, exportedName) => {
+	try {
+		return doesSourceTextExportName(fs.readFileSync(filePath, "utf8"), exportedName);
+	} catch {
+		return false;
+	}
+};
+//#endregion
+//#region src/plugin/utils/is-barrel-index-module.ts
+const INDEX_MODULE_FILE_PATTERN = /^index\.(?:[cm]?[jt]sx?|mjs)$/;
+const BINDING_IMPORT_DECLARATION_PATTERN = /^\s*import\s+(type\s+)?(?!["'])([^;]*?)\s+from\s+["']([^"']+)["']\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
+const BARREL_REEXPORT_DECLARATION_PATTERN = /^\s*export\s+(type\s+)?(?:\*(?:\s+as\s+([\w$]+))?|\{([\s\S]*?)\})\s+from\s+["']([^"']+)["']\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
+const LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN = /^\s*export\s+(type\s+)?\{([\s\S]*?)\}\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
+const barrelIndexModuleInfoCache = /* @__PURE__ */ new Map();
+const isIndexModuleFilePath = (filePath) => INDEX_MODULE_FILE_PATTERN.test(path.basename(filePath));
+const createNonBarrelInfo = () => ({
+	isBarrel: false,
+	exportsByName: /* @__PURE__ */ new Map(),
+	starExportSources: []
+});
+const addImportedBinding = (importedBindings, binding) => {
+	importedBindings.set(binding.localName, {
+		...binding,
+		didExport: false
+	});
+};
+const collectNamedImportBindings = (namedSpecifiersText, source, declarationIsTypeOnly, importedBindings) => {
+	for (const specifier of parseExportSpecifiers(namedSpecifiersText, declarationIsTypeOnly)) addImportedBinding(importedBindings, {
+		localName: specifier.exportedName,
+		importedName: specifier.localName,
+		source,
+		isTypeOnly: specifier.isTypeOnly
+	});
+};
+const collectImportBindings = (importClause, source, declarationIsTypeOnly, importedBindings) => {
+	const trimmedImportClause = importClause.trim();
+	const namespaceMatch = trimmedImportClause.match(/(?:^|,\s*)\*\s+as\s+([\w$]+)/);
+	if (namespaceMatch?.[1]) addImportedBinding(importedBindings, {
+		localName: namespaceMatch[1],
+		importedName: "*",
+		source,
+		isTypeOnly: declarationIsTypeOnly
+	});
+	const namedImportMatch = trimmedImportClause.match(/\{([\s\S]*?)\}/);
+	if (namedImportMatch?.[1]) collectNamedImportBindings(namedImportMatch[1], source, declarationIsTypeOnly, importedBindings);
+	const defaultImportName = trimmedImportClause.split(",")[0]?.trim();
+	if (defaultImportName && !defaultImportName.startsWith("{") && !defaultImportName.startsWith("*")) addImportedBinding(importedBindings, {
+		localName: defaultImportName,
+		importedName: "default",
+		source,
+		isTypeOnly: declarationIsTypeOnly
+	});
+};
+const replaceKnownDeclarations = (sourceText, importedBindings, exportsByName, starExportSources) => {
+	let withoutKnownDeclarations = sourceText.replace(BINDING_IMPORT_DECLARATION_PATTERN, (_match, typeKeyword, importClause, source) => {
+		collectImportBindings(importClause, source, Boolean(typeKeyword), importedBindings);
+		return "";
+	});
+	withoutKnownDeclarations = withoutKnownDeclarations.replace(BARREL_REEXPORT_DECLARATION_PATTERN, (_match, typeKeyword, namespaceExportName, specifiersText, source) => {
+		const isTypeOnly = Boolean(typeKeyword);
+		if (namespaceExportName) {
+			exportsByName.set(namespaceExportName, {
+				exportedName: namespaceExportName,
+				importedName: "*",
+				source,
+				isTypeOnly
+			});
+			return "";
+		}
+		if (specifiersText) {
+			for (const specifier of parseExportSpecifiers(specifiersText, isTypeOnly)) exportsByName.set(specifier.exportedName, {
+				exportedName: specifier.exportedName,
+				importedName: specifier.localName,
+				source,
+				isTypeOnly: specifier.isTypeOnly
+			});
+			return "";
+		}
+		starExportSources.push(source);
+		return "";
+	});
+	withoutKnownDeclarations = withoutKnownDeclarations.replace(LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN, (_match, typeKeyword, specifiersText) => {
+		for (const specifier of parseExportSpecifiers(specifiersText, Boolean(typeKeyword))) {
+			const importedBinding = importedBindings.get(specifier.localName);
+			if (!importedBinding) return _match;
+			importedBinding.didExport = true;
+			exportsByName.set(specifier.exportedName, {
+				exportedName: specifier.exportedName,
+				importedName: importedBinding.importedName,
+				source: importedBinding.source,
+				isTypeOnly: specifier.isTypeOnly || importedBinding.isTypeOnly
+			});
+		}
+		return "";
+	});
+	return withoutKnownDeclarations;
+};
+const hasUnexportedRuntimeImport = (importedBindings) => {
+	for (const binding of importedBindings.values()) if (!binding.isTypeOnly && !binding.didExport) return true;
+	return false;
+};
+const classifyBarrelModule = (sourceText) => {
+	const strippedSource = stripJsComments(sourceText).trim();
+	if (!strippedSource) return createNonBarrelInfo();
+	const importedBindings = /* @__PURE__ */ new Map();
+	const exportsByName = /* @__PURE__ */ new Map();
+	const starExportSources = [];
+	if (replaceKnownDeclarations(strippedSource, importedBindings, exportsByName, starExportSources).trim() || hasUnexportedRuntimeImport(importedBindings)) return createNonBarrelInfo();
+	return {
+		isBarrel: exportsByName.size > 0 || starExportSources.length > 0,
+		exportsByName,
+		starExportSources
+	};
+};
+const getBarrelIndexModuleInfo = (filePath) => {
+	if (!isIndexModuleFilePath(filePath)) return createNonBarrelInfo();
+	const cachedResult = barrelIndexModuleInfoCache.get(filePath);
+	if (cachedResult !== void 0) return cachedResult;
+	let moduleInfo = createNonBarrelInfo();
+	try {
+		moduleInfo = classifyBarrelModule(fs.readFileSync(filePath, "utf8"));
+	} catch {
+		moduleInfo = createNonBarrelInfo();
+	}
+	barrelIndexModuleInfoCache.set(filePath, moduleInfo);
+	return moduleInfo;
+};
+const isBarrelIndexModule = (filePath) => getBarrelIndexModuleInfo(filePath).isBarrel;
+//#endregion
+//#region src/plugin/utils/resolve-relative-import-path.ts
+const MODULE_FILE_EXTENSIONS = [
+	".ts",
+	".tsx",
+	".js",
+	".jsx",
+	".mjs",
+	".cjs",
+	".mts",
+	".cts"
+];
+const PACKAGE_EXPORT_CONDITIONS = [
+	"import",
+	"default",
+	"module",
+	"browser",
+	"require"
+];
+const PACKAGE_ENTRY_FIELDS = [
+	"module",
+	"main",
+	"browser"
+];
+const getExistingFilePath = (filePath) => {
+	try {
+		return fs.statSync(filePath).isFile() ? filePath : null;
+	} catch {
+		return null;
+	}
+};
+const getExistingDirectoryPath = (directoryPath) => {
+	try {
+		return fs.statSync(directoryPath).isDirectory() ? directoryPath : null;
+	} catch {
+		return null;
+	}
+};
+const getModuleFilePathCandidates = (modulePath) => {
+	const extension = path.extname(modulePath);
+	if (!extension) return MODULE_FILE_EXTENSIONS.map((moduleExtension) => `${modulePath}${moduleExtension}`);
+	const modulePathWithoutExtension = modulePath.slice(0, -extension.length);
+	if (extension === ".js") return [
+		modulePath,
+		`${modulePathWithoutExtension}.ts`,
+		`${modulePathWithoutExtension}.tsx`,
+		`${modulePathWithoutExtension}.jsx`
+	];
+	if (extension === ".jsx") return [modulePath, `${modulePathWithoutExtension}.tsx`];
+	if (extension === ".mjs") return [modulePath, `${modulePathWithoutExtension}.mts`];
+	if (extension === ".cjs") return [modulePath, `${modulePathWithoutExtension}.cts`];
+	return [modulePath];
+};
+const isObjectRecord$1 = (value) => typeof value === "object" && value !== null;
+const getConditionalExportEntry = (exportEntry) => {
+	if (typeof exportEntry === "string") return exportEntry;
+	if (Array.isArray(exportEntry)) {
+		for (const fallbackEntry of exportEntry) {
+			const resolvedFallbackEntry = getConditionalExportEntry(fallbackEntry);
+			if (resolvedFallbackEntry) return resolvedFallbackEntry;
+		}
+		return null;
+	}
+	if (!isObjectRecord$1(exportEntry)) return null;
+	for (const condition of PACKAGE_EXPORT_CONDITIONS) {
+		const nestedEntry = getConditionalExportEntry(exportEntry[condition]);
+		if (nestedEntry) return nestedEntry;
+	}
+	return null;
+};
+const getPackageExportEntry = (packageJson) => {
+	const exportsField = packageJson.exports;
+	if (!exportsField) return null;
+	const directExportEntry = getConditionalExportEntry(exportsField);
+	if (directExportEntry) return directExportEntry;
+	if (!isObjectRecord$1(exportsField)) return null;
+	return getConditionalExportEntry(exportsField["."]);
+};
+const resolveModulePathWithIndexFallback = (modulePath) => {
+	const filePath = resolveModuleFilePath(modulePath);
+	if (filePath) return filePath;
+	return resolveModuleFilePath(path.join(modulePath, "index"));
+};
+const resolvePackageDirectoryEntry = (directoryPath) => {
+	const existingDirectoryPath = getExistingDirectoryPath(directoryPath);
+	if (!existingDirectoryPath) return null;
+	const packageJsonPath = path.join(existingDirectoryPath, "package.json");
+	try {
+		const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+		const packageEntry = getPackageExportEntry(packageJson) ?? PACKAGE_ENTRY_FIELDS.map((fieldName) => packageJson[fieldName]).find((value) => typeof value === "string");
+		if (!packageEntry) return null;
+		return resolveModulePathWithIndexFallback(path.resolve(existingDirectoryPath, packageEntry));
+	} catch {
+		return null;
+	}
+};
+const resolveModuleFilePath = (modulePath) => {
+	const exactFilePath = getExistingFilePath(modulePath);
+	if (exactFilePath) return exactFilePath;
+	for (const candidateFilePath of getModuleFilePathCandidates(modulePath)) {
+		const filePath = getExistingFilePath(candidateFilePath);
+		if (filePath) return filePath;
+	}
+	return null;
+};
+const resolveModuleFileFromAbsolutePath = (importPath) => {
+	const directFilePath = resolveModuleFilePath(importPath);
+	if (directFilePath) return directFilePath;
+	const packageEntryFilePath = resolvePackageDirectoryEntry(importPath);
+	if (packageEntryFilePath) return packageEntryFilePath;
+	return resolveModuleFilePath(path.join(importPath, "index"));
+};
+const resolveRelativeImportPath = (filename, source) => resolveModuleFileFromAbsolutePath(path.resolve(path.dirname(filename), source));
+//#endregion
+//#region src/plugin/utils/resolve-barrel-export-file-path.ts
+const getUniqueFilePath = (filePaths) => {
+	const uniqueFilePaths = new Set(filePaths);
+	if (uniqueFilePaths.size !== 1) return null;
+	const [filePath] = uniqueFilePaths;
+	return filePath ?? null;
+};
+const resolveStarExportFilePath = (barrelFilePath, exportedName, source, visitedFilePaths) => {
+	const resolvedTargetPath = resolveRelativeImportPath(barrelFilePath, source);
+	if (!resolvedTargetPath) return null;
+	const nestedTargetPath = resolveBarrelExportFilePath(resolvedTargetPath, exportedName, new Set(visitedFilePaths));
+	if (nestedTargetPath) return nestedTargetPath;
+	return doesModuleExportName(resolvedTargetPath, exportedName) ? resolvedTargetPath : null;
+};
+const resolveBarrelExportFilePath = (barrelFilePath, exportedName, visitedFilePaths = /* @__PURE__ */ new Set()) => {
+	if (visitedFilePaths.has(barrelFilePath)) return null;
+	visitedFilePaths.add(barrelFilePath);
+	const moduleInfo = getBarrelIndexModuleInfo(barrelFilePath);
+	if (!moduleInfo.isBarrel) return null;
+	const target = moduleInfo.exportsByName.get(exportedName);
+	if (target) {
+		const resolvedTargetPath = resolveRelativeImportPath(barrelFilePath, target.source);
+		if (!resolvedTargetPath) return null;
+		return resolveBarrelExportFilePath(resolvedTargetPath, target.importedName, visitedFilePaths) ?? resolvedTargetPath;
+	}
+	if (exportedName === "default") return null;
+	return getUniqueFilePath(moduleInfo.starExportSources.map((source) => resolveStarExportFilePath(barrelFilePath, exportedName, source, visitedFilePaths)).filter((filePath) => Boolean(filePath)));
+};
+//#endregion
+//#region src/plugin/utils/resolve-tsconfig-alias.ts
+const TSCONFIG_FILE_NAMES = ["tsconfig.json", "jsconfig.json"];
+const isObjectRecord = (value) => typeof value === "object" && value !== null;
+const stripJsonComments = (text) => {
+	let output = "";
+	let inString = false;
+	let inLineComment = false;
+	let inBlockComment = false;
+	for (let index = 0; index < text.length; index++) {
+		const character = text[index];
+		const nextCharacter = text[index + 1];
+		if (inLineComment) {
+			if (character === "\n") {
+				inLineComment = false;
+				output += character;
+			}
+			continue;
+		}
+		if (inBlockComment) {
+			if (character === "*" && nextCharacter === "/") {
+				inBlockComment = false;
+				index++;
+			}
+			continue;
+		}
+		if (inString) {
+			output += character;
+			if (character === "\\") {
+				output += nextCharacter ?? "";
+				index++;
+			} else if (character === "\"") inString = false;
+			continue;
+		}
+		if (character === "\"") {
+			inString = true;
+			output += character;
+			continue;
+		}
+		if (character === "/" && nextCharacter === "/") {
+			inLineComment = true;
+			index++;
+			continue;
+		}
+		if (character === "/" && nextCharacter === "*") {
+			inBlockComment = true;
+			index++;
+			continue;
+		}
+		output += character;
+	}
+	return output.replace(/,(\s*[}\]])/g, "$1");
+};
+const parseTsconfigFile = (configFilePath) => {
+	let sourceText;
+	try {
+		sourceText = fs.readFileSync(configFilePath, "utf8");
+	} catch {
+		return null;
+	}
+	try {
+		const parsed = JSON.parse(stripJsonComments(sourceText));
+		return isObjectRecord(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+};
+const resolveExtendsPath = (extendsValue, fromConfigDirectory) => {
+	const withExtension = extendsValue.endsWith(".json") ? extendsValue : `${extendsValue}.json`;
+	if (extendsValue.startsWith("./") || extendsValue.startsWith("../")) return path.resolve(fromConfigDirectory, withExtension);
+	return path.join(fromConfigDirectory, "node_modules", withExtension);
+};
+const parsePathsField = (pathsField) => {
+	const paths = /* @__PURE__ */ new Map();
+	if (!isObjectRecord(pathsField)) return paths;
+	for (const [pattern, targets] of Object.entries(pathsField)) {
+		if (!Array.isArray(targets)) continue;
+		const stringTargets = targets.filter((target) => typeof target === "string");
+		if (stringTargets.length > 0) paths.set(pattern, stringTargets);
+	}
+	return paths;
+};
+const readResolvedTsconfig = (configFilePath, extendsDepth) => {
+	const parsed = parseTsconfigFile(configFilePath);
+	if (!parsed) return null;
+	const configDirectory = path.dirname(configFilePath);
+	const compilerOptions = isObjectRecord(parsed.compilerOptions) ? parsed.compilerOptions : {};
+	const baseUrlValue = typeof compilerOptions.baseUrl === "string" ? compilerOptions.baseUrl : null;
+	const hasExplicitBaseUrl = baseUrlValue !== null;
+	const baseAbsolutePath = baseUrlValue !== null ? path.resolve(configDirectory, baseUrlValue) : configDirectory;
+	if (isObjectRecord(compilerOptions.paths)) return {
+		baseAbsolutePath,
+		hasExplicitBaseUrl,
+		paths: parsePathsField(compilerOptions.paths)
+	};
+	if (typeof parsed.extends === "string" && extendsDepth < 8) {
+		const parentPath = resolveExtendsPath(parsed.extends, configDirectory);
+		const inherited = parentPath ? readResolvedTsconfig(parentPath, extendsDepth + 1) : null;
+		if (inherited) return inherited;
+	}
+	return hasExplicitBaseUrl ? {
+		baseAbsolutePath,
+		hasExplicitBaseUrl,
+		paths: /* @__PURE__ */ new Map()
+	} : null;
+};
+const configByFilePath = /* @__PURE__ */ new Map();
+const loadTsconfigCached = (configFilePath) => {
+	let fileStat;
+	try {
+		fileStat = fs.statSync(configFilePath);
+	} catch {
+		return null;
+	}
+	const cached = configByFilePath.get(configFilePath);
+	if (cached && cached.mtimeMs === fileStat.mtimeMs) return cached.config;
+	const config = readResolvedTsconfig(configFilePath, 0);
+	configByFilePath.set(configFilePath, {
+		mtimeMs: fileStat.mtimeMs,
+		config
+	});
+	return config;
+};
+const findNearestTsconfig = (fromDirectory) => {
+	let currentDirectory = fromDirectory;
+	for (let level = 0; level < 30; level++) {
+		for (const fileName of TSCONFIG_FILE_NAMES) {
+			const candidate = loadTsconfigCached(path.join(currentDirectory, fileName));
+			if (candidate) return candidate;
+		}
+		const parentDirectory = path.dirname(currentDirectory);
+		if (parentDirectory === currentDirectory) break;
+		currentDirectory = parentDirectory;
+	}
+	return null;
+};
+const matchPathPattern = (source, pattern) => {
+	const starIndex = pattern.indexOf("*");
+	if (starIndex === -1) return source === pattern ? "" : null;
+	const prefix = pattern.slice(0, starIndex);
+	const suffix = pattern.slice(starIndex + 1);
+	if (source.length >= prefix.length + suffix.length && source.startsWith(prefix) && source.endsWith(suffix)) return source.slice(prefix.length, source.length - suffix.length);
+	return null;
+};
+const resolveTsconfigAliasPath = (fromFilename, source) => {
+	const config = findNearestTsconfig(path.dirname(fromFilename));
+	if (!config) return null;
+	let bestPattern = null;
+	let bestCapture = "";
+	let bestPrefixLength = -1;
+	for (const pattern of config.paths.keys()) {
+		const capture = matchPathPattern(source, pattern);
+		if (capture === null) continue;
+		const starIndex = pattern.indexOf("*");
+		const prefixLength = starIndex === -1 ? pattern.length : starIndex;
+		if (prefixLength > bestPrefixLength) {
+			bestPattern = pattern;
+			bestCapture = capture;
+			bestPrefixLength = prefixLength;
+		}
+	}
+	if (bestPattern) for (const target of config.paths.get(bestPattern) ?? []) {
+		const substituted = target.replaceAll("*", bestCapture);
+		const resolved = resolveModuleFileFromAbsolutePath(path.resolve(config.baseAbsolutePath, substituted));
+		if (resolved) return resolved;
+	}
+	if (config.hasExplicitBaseUrl) return resolveModuleFileFromAbsolutePath(path.resolve(config.baseAbsolutePath, source));
+	return null;
+};
+//#endregion
+//#region src/plugin/utils/resolve-module-path.ts
+const resolveModulePath = (fromFilename, source) => resolveRelativeImportPath(fromFilename, source) ?? resolveTsconfigAliasPath(fromFilename, source);
+//#endregion
+//#region src/plugin/utils/resolve-cross-file-function-export.ts
+const resolveFunctionExportInFile = (filePath, exportedName, visitedFilePaths) => {
+	if (visitedFilePaths.size >= 4) return null;
+	if (visitedFilePaths.has(filePath)) return null;
+	visitedFilePaths.add(filePath);
+	const actualFilePath = resolveBarrelExportFilePath(filePath, exportedName) ?? filePath;
+	const programRoot = parseSourceFile(actualFilePath);
+	if (!programRoot) return null;
+	const exported = findExportedFunctionBody(programRoot, exportedName);
+	if (exported) return exported;
+	for (const reExportSource of findReExportSourcesForName(programRoot, exportedName)) {
+		const nextFilePath = resolveModulePath(actualFilePath, reExportSource);
+		if (!nextFilePath) continue;
+		const resolved = resolveFunctionExportInFile(nextFilePath, exportedName, visitedFilePaths);
+		if (resolved) return resolved;
+	}
+	return null;
+};
+const resolveCrossFileFunctionExport = (fromFilename, source, exportedName) => {
+	const resolvedFilePath = resolveModulePath(fromFilename, source);
+	if (!resolvedFilePath) return null;
+	return resolveFunctionExportInFile(resolvedFilePath, exportedName, /* @__PURE__ */ new Set());
+};
+//#endregion
+//#region src/plugin/utils/ast-mentions-suspense.ts
+const isSuspenseJsxOpeningName = (name) => {
+	if (isNodeOfType(name, "JSXIdentifier")) return name.name === "Suspense";
+	return isNodeOfType(name, "JSXMemberExpression") && isNodeOfType(name.property, "JSXIdentifier") && name.property.name === "Suspense";
+};
+const astMentionsSuspense = (programNode) => {
+	let didDetect = false;
 	walkAst(programNode, (child) => {
-		if (didSee) return false;
-		if (isNodeOfType(child, "JSXOpeningElement") && isNodeOfType(child.name, "JSXIdentifier") && child.name.name === "Suspense") {
-			didSee = true;
+		if (didDetect) return false;
+		if (isNodeOfType(child, "JSXOpeningElement") && isSuspenseJsxOpeningName(child.name)) {
+			didDetect = true;
 			return false;
 		}
 		if (isNodeOfType(child, "ImportDeclaration") && child.source?.value === "react") {
 			if ((child.specifiers ?? []).some((specifier) => isNodeOfType(specifier, "ImportSpecifier") && getImportedName$1(specifier) === "Suspense")) {
-				didSee = true;
+				didDetect = true;
 				return false;
 			}
 		}
 	});
-	return didSee;
+	return didDetect;
+};
+//#endregion
+//#region src/plugin/utils/find-ancestor-suspense-layout.ts
+const LAYOUT_FILE_NAMES = [
+	"layout.tsx",
+	"layout.jsx",
+	"layout.ts",
+	"layout.js"
+];
+const hasAncestorSuspenseLayout = (pageFilename) => {
+	const normalizedPage = pageFilename.replaceAll("\\", "/");
+	let currentDirectory = path.dirname(normalizedPage);
+	for (let level = 0; level < 30; level++) {
+		for (const layoutFileName of LAYOUT_FILE_NAMES) {
+			const layoutPath = path.join(currentDirectory, layoutFileName);
+			if (layoutPath.replaceAll("\\", "/") === normalizedPage) continue;
+			const programRoot = parseSourceFile(layoutPath);
+			if (programRoot && astMentionsSuspense(programRoot)) return true;
+		}
+		if (path.basename(currentDirectory) === "app") break;
+		const parentDirectory = path.dirname(currentDirectory);
+		if (parentDirectory === currentDirectory) break;
+		currentDirectory = parentDirectory;
+	}
+	return false;
+};
+//#endregion
+//#region src/plugin/rules/nextjs/nextjs-no-use-search-params-without-suspense.ts
+const astContainsUseSearchParams = (root) => {
+	let didFind = false;
+	walkAst(root, (child) => {
+		if (didFind) return false;
+		if (isHookCall$1(child, "useSearchParams")) {
+			didFind = true;
+			return false;
+		}
+	});
+	return didFind;
+};
+const isSuspenseJsxName = (name, suspenseLocalNames) => {
+	if (isNodeOfType(name, "JSXIdentifier")) return name.name === "Suspense" || suspenseLocalNames.has(name.name);
+	return isNodeOfType(name, "JSXMemberExpression") && isNodeOfType(name.property, "JSXIdentifier") && name.property.name === "Suspense";
+};
+const isInsideSuspenseBoundary = (node, suspenseLocalNames) => {
+	let ancestor = node.parent;
+	while (ancestor) {
+		if (isNodeOfType(ancestor, "JSXElement") && isSuspenseJsxName(ancestor.openingElement?.name, suspenseLocalNames)) return true;
+		ancestor = ancestor.parent ?? null;
+	}
+	return false;
+};
+const collectSuspenseLocalNames = (programNode) => {
+	const names = /* @__PURE__ */ new Set();
+	for (const statement of programNode.body ?? []) {
+		if (!isNodeOfType(statement, "ImportDeclaration")) continue;
+		if (statement.source?.value !== "react") continue;
+		for (const specifier of statement.specifiers ?? []) if (isNodeOfType(specifier, "ImportSpecifier") && getImportedName$1(specifier) === "Suspense" && specifier.local?.name) names.add(specifier.local.name);
+	}
+	return names;
+};
+const collectImportedComponents = (programNode) => {
+	const entries = /* @__PURE__ */ new Map();
+	for (const statement of programNode.body ?? []) {
+		if (!isNodeOfType(statement, "ImportDeclaration")) continue;
+		if (typeof statement.source?.value !== "string") continue;
+		const source = statement.source.value;
+		for (const specifier of statement.specifiers ?? []) {
+			const localName = specifier.local?.name;
+			if (!localName) continue;
+			const exportedName = resolveImportedExportName(specifier);
+			if (!exportedName) continue;
+			entries.set(localName, {
+				source,
+				exportedName
+			});
+		}
+	}
+	return entries;
 };
 const nextjsNoUseSearchParamsWithoutSuspense = defineRule({
 	id: "nextjs-no-use-search-params-without-suspense",
@@ -13194,27 +14054,70 @@ const nextjsNoUseSearchParamsWithoutSuspense = defineRule({
 	tags: ["test-noise"],
 	requires: ["nextjs"],
 	severity: "warn",
-	recommendation: "Wrap the component using useSearchParams: `<Suspense fallback={<Skeleton />}><SearchComponent /></Suspense>`",
+	recommendation: "Wrap the component using `useSearchParams` in `<Suspense>` so the rest of the page can stay statically rendered.",
 	create: (context) => {
+		let isPageOrLayoutFile = false;
+		let hasAncestorLayoutSuspense = false;
 		let hasSuspenseInFile = false;
+		let importedComponents = /* @__PURE__ */ new Map();
+		let suspenseLocalNames = /* @__PURE__ */ new Set();
 		return {
 			Program(programNode) {
-				hasSuspenseInFile = fileMentionsSuspense(programNode);
+				const filename = normalizeFilename$1(context.filename ?? "");
+				isPageOrLayoutFile = PAGE_OR_LAYOUT_FILE_PATTERN.test(filename);
+				if (!isPageOrLayoutFile) return;
+				hasAncestorLayoutSuspense = hasAncestorSuspenseLayout(context.filename ?? "");
+				if (hasAncestorLayoutSuspense) return;
+				hasSuspenseInFile = astMentionsSuspense(programNode);
+				importedComponents = collectImportedComponents(programNode);
+				suspenseLocalNames = collectSuspenseLocalNames(programNode);
 			},
 			CallExpression(node) {
-				if (hasSuspenseInFile) return;
+				if (!isPageOrLayoutFile || hasAncestorLayoutSuspense || hasSuspenseInFile) return;
 				if (!isHookCall$1(node, "useSearchParams")) return;
 				context.report({
 					node,
 					message: "useSearchParams() without a <Suspense> boundary forces the whole page into client-side rendering."
+				});
+			},
+			JSXOpeningElement(node) {
+				if (!isPageOrLayoutFile || hasAncestorLayoutSuspense) return;
+				if (!isNodeOfType(node.name, "JSXIdentifier")) return;
+				const importEntry = importedComponents.get(node.name.name);
+				if (!importEntry) return;
+				const jsxElement = node.parent;
+				if (!jsxElement) return;
+				if (isInsideSuspenseBoundary(jsxElement, suspenseLocalNames)) return;
+				const componentBody = resolveCrossFileFunctionExport(context.filename ?? "", importEntry.source, importEntry.exportedName);
+				if (!componentBody || !astContainsUseSearchParams(componentBody)) return;
+				context.report({
+					node,
+					message: `<${node.name.name}> uses useSearchParams() outside <Suspense>, so this page falls back to client-side rendering.`
 				});
 			}
 		};
 	}
 });
 //#endregion
+//#region src/plugin/rules/nextjs/nextjs-no-vercel-og-import.ts
+const nextjsNoVercelOgImport = defineRule({
+	id: "nextjs-no-vercel-og-import",
+	title: "@vercel/og import instead of next/og",
+	tags: ["test-noise"],
+	requires: ["nextjs"],
+	severity: "warn",
+	recommendation: "Use `import { ImageResponse } from \"next/og\"`; do not import `@vercel/og` directly because Next.js already bundles it.",
+	create: (context) => ({ ImportDeclaration(node) {
+		if (node.source?.value !== "@vercel/og") return;
+		context.report({
+			node,
+			message: "@vercel/og is bundled into Next.js. Import from \"next/og\" instead to avoid duplicate code and version mismatch."
+		});
+	} })
+});
+//#endregion
 //#region src/plugin/rules/a11y/no-access-key.ts
-const MESSAGE$30 = "Screen reader users can lose their shortcuts because `accessKey` clashes with them, so remove it.";
+const MESSAGE$31 = "Screen reader users can lose their shortcuts because `accessKey` clashes with them, so remove it.";
 const isUndefinedIdentifier = (expression) => isNodeOfType(expression, "Identifier") && expression.name === "undefined";
 const noAccessKey = defineRule({
 	id: "no-access-key",
@@ -13231,7 +14134,7 @@ const noAccessKey = defineRule({
 		if (isNodeOfType(attributeValue, "Literal") && typeof attributeValue.value === "string") {
 			context.report({
 				node: accessKey,
-				message: MESSAGE$30
+				message: MESSAGE$31
 			});
 			return;
 		}
@@ -13241,7 +14144,7 @@ const noAccessKey = defineRule({
 			if (isUndefinedIdentifier(expression)) return;
 			context.report({
 				node: accessKey,
-				message: MESSAGE$30
+				message: MESSAGE$31
 			});
 		}
 	} })
@@ -13432,6 +14335,14 @@ const isSynchronous = (node, within) => {
 	if (isNodeOfType(node, "AwaitExpression") || isNodeOfType(node, "UnaryExpression") && node.operator === "void" || isNodeOfType(node, "FunctionDeclaration") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "ArrowFunctionExpression")) return false;
 	return isSynchronous(node.parent, within);
 };
+const resolveToFunction = (ref) => {
+	const definitionNode = ref.resolved?.defs[0]?.node;
+	if (!definitionNode) return null;
+	if (isFunctionLike$2(definitionNode)) return definitionNode;
+	if (isNodeOfType(definitionNode, "VariableDeclarator") && isFunctionLike$2(definitionNode.init)) return definitionNode.init;
+	return null;
+};
+const resolvesToAsyncFunction = (ref) => Boolean(resolveToFunction(ref)?.async);
 const isEventualCallTo = (analysis, ref, predicate) => {
 	const callExprRefs = [];
 	ascend(analysis, ref, (upRef) => {
@@ -13558,12 +14469,8 @@ const getEffectFn = (analysis, node) => {
 	if (!fn) return null;
 	if (isNodeOfType(fn, "ArrowFunctionExpression") || isNodeOfType(fn, "FunctionExpression")) return fn;
 	if (isNodeOfType(fn, "Identifier")) {
-		const definitionNode = getRef(analysis, fn)?.resolved?.defs[0]?.node;
-		if (definitionNode && isFunctionLike$2(definitionNode)) return definitionNode;
-		if (definitionNode && isNodeOfType(definitionNode, "VariableDeclarator")) {
-			const initializer = definitionNode.init;
-			if (isNodeOfType(initializer, "ArrowFunctionExpression") || isNodeOfType(initializer, "FunctionExpression")) return initializer;
-		}
+		const ref = getRef(analysis, fn);
+		return ref ? resolveToFunction(ref) : null;
 	}
 	return null;
 };
@@ -13644,6 +14551,7 @@ const isRefCurrent = (ref) => {
 	return parent.property.name === "current";
 };
 const isStateSetterCall = (analysis, ref) => isEventualCallTo(analysis, ref, (innerRef) => isStateSetter(analysis, innerRef));
+const isSyncStateSetterCall = (analysis, ref, effectFn) => isStateSetterCall(analysis, ref) && isSynchronous(ref.identifier, effectFn) && !resolvesToAsyncFunction(ref);
 const isPropCall = (analysis, ref) => isEventualCallTo(analysis, ref, (innerRef) => isPropAlias(analysis, innerRef));
 const isRefCall = (analysis, ref) => isEventualCallTo(analysis, ref, (innerRef) => isRefCurrent(innerRef) || isRef(analysis, innerRef));
 const getUseStateDecl = (analysis, ref) => {
@@ -13655,12 +14563,8 @@ const isCleanupReturnArgument = (analysis, node) => {
 	if (isFunctionLike$2(node)) return true;
 	if (isNodeOfType(node, "MemberExpression")) return true;
 	if (isNodeOfType(node, "Identifier")) {
-		const definitionNode = getRef(analysis, node)?.resolved?.defs[0]?.node;
-		if (definitionNode && isFunctionLike$2(definitionNode)) return true;
-		if (definitionNode && isNodeOfType(definitionNode, "VariableDeclarator")) {
-			const initializer = definitionNode.init;
-			return isFunctionLike$2(initializer);
-		}
+		const ref = getRef(analysis, node);
+		if (ref && resolveToFunction(ref)) return true;
 	}
 	if (isNodeOfType(node, "ConditionalExpression")) return isCleanupReturnArgument(analysis, node.consequent) || isCleanupReturnArgument(analysis, node.alternate);
 	return false;
@@ -13710,27 +14614,26 @@ const noAdjustStateOnPropChange = defineRule({
 		if (!effectFn) return;
 		if (!depsRefs.flatMap((ref) => getUpstreamRefs(analysis, ref)).some((ref) => isProp(analysis, ref))) return;
 		for (const ref of effectFnRefs) {
-			if (!isStateSetterCall(analysis, ref)) continue;
-			if (!isSynchronous(ref.identifier, effectFn)) continue;
+			if (!isSyncStateSetterCall(analysis, ref, effectFn)) continue;
 			const callExpr = getCallExpr(ref);
 			if (!callExpr) continue;
 			if (getArgsUpstreamRefs(analysis, ref).some((argRef) => isProp(analysis, argRef))) continue;
 			context.report({
 				node: callExpr,
-				message: "Your users briefly see the wrong value when the prop changes."
+				message: "This effect adjusts state after a prop changes, so users briefly see the stale value."
 			});
 		}
 	} })
 });
 //#endregion
 //#region src/plugin/rules/a11y/no-aria-hidden-on-focusable.ts
-const MESSAGE$29 = "Screen reader users tab to this focusable element but hear nothing because `aria-hidden` skips it, so remove `aria-hidden` or stop it being focusable.";
+const MESSAGE$30 = "Screen reader users tab to this focusable element but hear nothing because `aria-hidden` skips it, so remove `aria-hidden` or stop it being focusable.";
 const noAriaHiddenOnFocusable = defineRule({
 	id: "no-aria-hidden-on-focusable",
 	title: "aria-hidden on focusable element",
 	tags: ["react-jsx-only"],
 	severity: "warn",
-	recommendation: "Remove `aria-hidden` from focusable elements, or stop them being focusable.",
+	recommendation: "Remove `aria-hidden` from focusable elements, or stop them being focusable, so keyboard users do not land on content screen readers hide.",
 	category: "Accessibility",
 	create: (context) => ({ JSXOpeningElement(node) {
 		const ariaHidden = hasJsxPropIgnoreCase(node.attributes, "aria-hidden");
@@ -13751,7 +14654,7 @@ const noAriaHiddenOnFocusable = defineRule({
 		const isImplicitlyFocusable = isInteractiveElement(tag, node);
 		if (isExplicitlyFocusable || isImplicitlyFocusable) context.report({
 			node: ariaHidden,
-			message: MESSAGE$29
+			message: MESSAGE$30
 		});
 	} })
 });
@@ -14119,7 +15022,7 @@ const noArrayIndexAsKey = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-array-index-key.ts
-const MESSAGE$28 = "Your users can see & submit the wrong data when this list reorders.";
+const MESSAGE$29 = "Your users can see & submit the wrong data when this list reorders.";
 const SECOND_INDEX_METHODS = new Set([
 	"every",
 	"filter",
@@ -14274,7 +15177,7 @@ const noArrayIndexKey = defineRule({
 	title: "Array index used as a key",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Use a stable `key` from your data instead of the array index.",
+	recommendation: "Use a stable `key` from your data so reordered items keep the right state and DOM.",
 	category: "Performance",
 	create: (context) => ({
 		JSXOpeningElement(node) {
@@ -14323,7 +15226,7 @@ const noArrayIndexKey = defineRule({
 			}
 			context.report({
 				node: keyAttribute,
-				message: MESSAGE$28
+				message: MESSAGE$29
 			});
 		},
 		CallExpression(node) {
@@ -14343,7 +15246,7 @@ const noArrayIndexKey = defineRule({
 				if (propName !== "key") continue;
 				if (expressionUsesIndex(property.value, indexBinding.name)) context.report({
 					node: property,
-					message: MESSAGE$28
+					message: MESSAGE$29
 				});
 			}
 		}
@@ -14351,7 +15254,7 @@ const noArrayIndexKey = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/no-autofocus.ts
-const MESSAGE$27 = "Screen reader & keyboard users get disoriented because `autoFocus` jumps focus on load, so remove it and let people choose where to focus.";
+const MESSAGE$28 = "`autoFocus` moves focus on load, which can disrupt screen reader and keyboard users. Remove it and let users choose where to focus.";
 const resolveSettings$21 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { ignoreNonDOM: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noAutofocus ?? {} : {}).ignoreNonDOM ?? true };
@@ -14407,7 +15310,7 @@ const noAutofocus = defineRule({
 			}
 			context.report({
 				node: autoFocusAttribute,
-				message: MESSAGE$27
+				message: MESSAGE$28
 			});
 		} };
 	}
@@ -14419,306 +15322,6 @@ const createRelativeImportSource = (filename, targetFilePath) => {
 	const targetModulePath = path.basename(targetPathWithoutExtension) === "index" ? path.dirname(targetPathWithoutExtension) : targetPathWithoutExtension;
 	const relativePath = path.relative(path.dirname(filename), targetModulePath).split(path.sep).join("/");
 	return relativePath.startsWith(".") ? relativePath : `./${relativePath}`;
-};
-//#endregion
-//#region src/plugin/utils/parse-export-specifiers.ts
-const getSpecifierName = (rawName) => rawName.replace(/^type\s+/, "").trim();
-const parseExportSpecifiers = (specifiersText, declarationIsTypeOnly) => specifiersText.split(",").map((specifierText) => specifierText.trim()).filter(Boolean).map((specifierText) => {
-	const isTypeOnly = declarationIsTypeOnly || specifierText.startsWith("type ");
-	const [rawLocalName, rawExportedName] = specifierText.split(/\s+as\s+/);
-	const localName = getSpecifierName(rawLocalName ?? "");
-	return {
-		localName,
-		exportedName: getSpecifierName(rawExportedName ?? localName),
-		isTypeOnly
-	};
-});
-//#endregion
-//#region src/plugin/utils/strip-js-comments.ts
-const BLOCK_COMMENT_PATTERN = /\/\*[\s\S]*?\*\//g;
-const LINE_COMMENT_PATTERN = /^\s*\/\/.*$/gm;
-const stripJsComments = (sourceText) => sourceText.replace(BLOCK_COMMENT_PATTERN, "").replace(LINE_COMMENT_PATTERN, "");
-//#endregion
-//#region src/plugin/utils/is-barrel-index-module.ts
-const INDEX_MODULE_FILE_PATTERN = /^index\.(?:[cm]?[jt]sx?|mjs)$/;
-const BINDING_IMPORT_DECLARATION_PATTERN = /^\s*import\s+(type\s+)?(?!["'])([^;]*?)\s+from\s+["']([^"']+)["']\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
-const BARREL_REEXPORT_DECLARATION_PATTERN = /^\s*export\s+(type\s+)?(?:\*(?:\s+as\s+([\w$]+))?|\{([\s\S]*?)\})\s+from\s+["']([^"']+)["']\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
-const LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1 = /^\s*export\s+(type\s+)?\{([\s\S]*?)\}\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
-const barrelIndexModuleInfoCache = /* @__PURE__ */ new Map();
-const isIndexModuleFilePath = (filePath) => INDEX_MODULE_FILE_PATTERN.test(path.basename(filePath));
-const createNonBarrelInfo = () => ({
-	isBarrel: false,
-	exportsByName: /* @__PURE__ */ new Map(),
-	starExportSources: []
-});
-const addImportedBinding = (importedBindings, binding) => {
-	importedBindings.set(binding.localName, {
-		...binding,
-		didExport: false
-	});
-};
-const collectNamedImportBindings = (namedSpecifiersText, source, declarationIsTypeOnly, importedBindings) => {
-	for (const specifier of parseExportSpecifiers(namedSpecifiersText, declarationIsTypeOnly)) addImportedBinding(importedBindings, {
-		localName: specifier.exportedName,
-		importedName: specifier.localName,
-		source,
-		isTypeOnly: specifier.isTypeOnly
-	});
-};
-const collectImportBindings = (importClause, source, declarationIsTypeOnly, importedBindings) => {
-	const trimmedImportClause = importClause.trim();
-	const namespaceMatch = trimmedImportClause.match(/(?:^|,\s*)\*\s+as\s+([\w$]+)/);
-	if (namespaceMatch?.[1]) addImportedBinding(importedBindings, {
-		localName: namespaceMatch[1],
-		importedName: "*",
-		source,
-		isTypeOnly: declarationIsTypeOnly
-	});
-	const namedImportMatch = trimmedImportClause.match(/\{([\s\S]*?)\}/);
-	if (namedImportMatch?.[1]) collectNamedImportBindings(namedImportMatch[1], source, declarationIsTypeOnly, importedBindings);
-	const defaultImportName = trimmedImportClause.split(",")[0]?.trim();
-	if (defaultImportName && !defaultImportName.startsWith("{") && !defaultImportName.startsWith("*")) addImportedBinding(importedBindings, {
-		localName: defaultImportName,
-		importedName: "default",
-		source,
-		isTypeOnly: declarationIsTypeOnly
-	});
-};
-const replaceKnownDeclarations = (sourceText, importedBindings, exportsByName, starExportSources) => {
-	let withoutKnownDeclarations = sourceText.replace(BINDING_IMPORT_DECLARATION_PATTERN, (_match, typeKeyword, importClause, source) => {
-		collectImportBindings(importClause, source, Boolean(typeKeyword), importedBindings);
-		return "";
-	});
-	withoutKnownDeclarations = withoutKnownDeclarations.replace(BARREL_REEXPORT_DECLARATION_PATTERN, (_match, typeKeyword, namespaceExportName, specifiersText, source) => {
-		const isTypeOnly = Boolean(typeKeyword);
-		if (namespaceExportName) {
-			exportsByName.set(namespaceExportName, {
-				exportedName: namespaceExportName,
-				importedName: "*",
-				source,
-				isTypeOnly
-			});
-			return "";
-		}
-		if (specifiersText) {
-			for (const specifier of parseExportSpecifiers(specifiersText, isTypeOnly)) exportsByName.set(specifier.exportedName, {
-				exportedName: specifier.exportedName,
-				importedName: specifier.localName,
-				source,
-				isTypeOnly: specifier.isTypeOnly
-			});
-			return "";
-		}
-		starExportSources.push(source);
-		return "";
-	});
-	withoutKnownDeclarations = withoutKnownDeclarations.replace(LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1, (_match, typeKeyword, specifiersText) => {
-		for (const specifier of parseExportSpecifiers(specifiersText, Boolean(typeKeyword))) {
-			const importedBinding = importedBindings.get(specifier.localName);
-			if (!importedBinding) return _match;
-			importedBinding.didExport = true;
-			exportsByName.set(specifier.exportedName, {
-				exportedName: specifier.exportedName,
-				importedName: importedBinding.importedName,
-				source: importedBinding.source,
-				isTypeOnly: specifier.isTypeOnly || importedBinding.isTypeOnly
-			});
-		}
-		return "";
-	});
-	return withoutKnownDeclarations;
-};
-const hasUnexportedRuntimeImport = (importedBindings) => {
-	for (const binding of importedBindings.values()) if (!binding.isTypeOnly && !binding.didExport) return true;
-	return false;
-};
-const classifyBarrelModule = (sourceText) => {
-	const strippedSource = stripJsComments(sourceText).trim();
-	if (!strippedSource) return createNonBarrelInfo();
-	const importedBindings = /* @__PURE__ */ new Map();
-	const exportsByName = /* @__PURE__ */ new Map();
-	const starExportSources = [];
-	if (replaceKnownDeclarations(strippedSource, importedBindings, exportsByName, starExportSources).trim() || hasUnexportedRuntimeImport(importedBindings)) return createNonBarrelInfo();
-	return {
-		isBarrel: exportsByName.size > 0 || starExportSources.length > 0,
-		exportsByName,
-		starExportSources
-	};
-};
-const getBarrelIndexModuleInfo = (filePath) => {
-	if (!isIndexModuleFilePath(filePath)) return createNonBarrelInfo();
-	const cachedResult = barrelIndexModuleInfoCache.get(filePath);
-	if (cachedResult !== void 0) return cachedResult;
-	let moduleInfo = createNonBarrelInfo();
-	try {
-		moduleInfo = classifyBarrelModule(fs.readFileSync(filePath, "utf8"));
-	} catch {
-		moduleInfo = createNonBarrelInfo();
-	}
-	barrelIndexModuleInfoCache.set(filePath, moduleInfo);
-	return moduleInfo;
-};
-const isBarrelIndexModule = (filePath) => getBarrelIndexModuleInfo(filePath).isBarrel;
-//#endregion
-//#region src/plugin/utils/does-module-export-name.ts
-const DEFAULT_EXPORT_DECLARATION_PATTERN = /^\s*export\s+default\b/m;
-const NAMED_EXPORT_DECLARATION_PATTERN = /^\s*export\s+(?:declare\s+)?(?:(?:async\s+)?function|(?:abstract\s+)?class|const|let|var|enum|interface|type)\s+([\w$]+)/gm;
-const LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN = /^\s*export\s+(?:type\s+)?\{([\s\S]*?)\}(?:\s+from\s+["'][^"']+["'])?\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
-const doesSourceTextExportName = (sourceText, exportedName) => {
-	const strippedSource = stripJsComments(sourceText);
-	if (exportedName === "default" && DEFAULT_EXPORT_DECLARATION_PATTERN.test(strippedSource)) return true;
-	for (const match of strippedSource.matchAll(NAMED_EXPORT_DECLARATION_PATTERN)) if (match[1] === exportedName) return true;
-	for (const match of strippedSource.matchAll(LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN)) if (parseExportSpecifiers(match[1] ?? "", false).map((specifier) => specifier.exportedName).includes(exportedName)) return true;
-	return false;
-};
-const doesModuleExportName = (filePath, exportedName) => {
-	try {
-		return doesSourceTextExportName(fs.readFileSync(filePath, "utf8"), exportedName);
-	} catch {
-		return false;
-	}
-};
-//#endregion
-//#region src/plugin/utils/resolve-relative-import-path.ts
-const MODULE_FILE_EXTENSIONS = [
-	".ts",
-	".tsx",
-	".js",
-	".jsx",
-	".mjs",
-	".cjs",
-	".mts",
-	".cts"
-];
-const PACKAGE_EXPORT_CONDITIONS = [
-	"import",
-	"default",
-	"module",
-	"browser",
-	"require"
-];
-const PACKAGE_ENTRY_FIELDS = [
-	"module",
-	"main",
-	"browser"
-];
-const getExistingFilePath = (filePath) => {
-	try {
-		return fs.statSync(filePath).isFile() ? filePath : null;
-	} catch {
-		return null;
-	}
-};
-const getExistingDirectoryPath = (directoryPath) => {
-	try {
-		return fs.statSync(directoryPath).isDirectory() ? directoryPath : null;
-	} catch {
-		return null;
-	}
-};
-const getModuleFilePathCandidates = (modulePath) => {
-	const extension = path.extname(modulePath);
-	if (!extension) return MODULE_FILE_EXTENSIONS.map((moduleExtension) => `${modulePath}${moduleExtension}`);
-	const modulePathWithoutExtension = modulePath.slice(0, -extension.length);
-	if (extension === ".js") return [
-		modulePath,
-		`${modulePathWithoutExtension}.ts`,
-		`${modulePathWithoutExtension}.tsx`,
-		`${modulePathWithoutExtension}.jsx`
-	];
-	if (extension === ".jsx") return [modulePath, `${modulePathWithoutExtension}.tsx`];
-	if (extension === ".mjs") return [modulePath, `${modulePathWithoutExtension}.mts`];
-	if (extension === ".cjs") return [modulePath, `${modulePathWithoutExtension}.cts`];
-	return [modulePath];
-};
-const isObjectRecord = (value) => typeof value === "object" && value !== null;
-const getConditionalExportEntry = (exportEntry) => {
-	if (typeof exportEntry === "string") return exportEntry;
-	if (Array.isArray(exportEntry)) {
-		for (const fallbackEntry of exportEntry) {
-			const resolvedFallbackEntry = getConditionalExportEntry(fallbackEntry);
-			if (resolvedFallbackEntry) return resolvedFallbackEntry;
-		}
-		return null;
-	}
-	if (!isObjectRecord(exportEntry)) return null;
-	for (const condition of PACKAGE_EXPORT_CONDITIONS) {
-		const nestedEntry = getConditionalExportEntry(exportEntry[condition]);
-		if (nestedEntry) return nestedEntry;
-	}
-	return null;
-};
-const getPackageExportEntry = (packageJson) => {
-	const exportsField = packageJson.exports;
-	if (!exportsField) return null;
-	const directExportEntry = getConditionalExportEntry(exportsField);
-	if (directExportEntry) return directExportEntry;
-	if (!isObjectRecord(exportsField)) return null;
-	return getConditionalExportEntry(exportsField["."]);
-};
-const resolveModulePathWithIndexFallback = (modulePath) => {
-	const filePath = resolveModuleFilePath(modulePath);
-	if (filePath) return filePath;
-	return resolveModuleFilePath(path.join(modulePath, "index"));
-};
-const resolvePackageDirectoryEntry = (directoryPath) => {
-	const existingDirectoryPath = getExistingDirectoryPath(directoryPath);
-	if (!existingDirectoryPath) return null;
-	const packageJsonPath = path.join(existingDirectoryPath, "package.json");
-	try {
-		const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-		const packageEntry = getPackageExportEntry(packageJson) ?? PACKAGE_ENTRY_FIELDS.map((fieldName) => packageJson[fieldName]).find((value) => typeof value === "string");
-		if (!packageEntry) return null;
-		return resolveModulePathWithIndexFallback(path.resolve(existingDirectoryPath, packageEntry));
-	} catch {
-		return null;
-	}
-};
-const resolveModuleFilePath = (modulePath) => {
-	const exactFilePath = getExistingFilePath(modulePath);
-	if (exactFilePath) return exactFilePath;
-	for (const candidateFilePath of getModuleFilePathCandidates(modulePath)) {
-		const filePath = getExistingFilePath(candidateFilePath);
-		if (filePath) return filePath;
-	}
-	return null;
-};
-const resolveRelativeImportPath = (filename, source) => {
-	const importPath = path.resolve(path.dirname(filename), source);
-	const directFilePath = resolveModuleFilePath(importPath);
-	if (directFilePath) return directFilePath;
-	const packageEntryFilePath = resolvePackageDirectoryEntry(importPath);
-	if (packageEntryFilePath) return packageEntryFilePath;
-	return resolveModuleFilePath(path.join(importPath, "index"));
-};
-//#endregion
-//#region src/plugin/utils/resolve-barrel-export-file-path.ts
-const getUniqueFilePath = (filePaths) => {
-	const uniqueFilePaths = new Set(filePaths);
-	if (uniqueFilePaths.size !== 1) return null;
-	const [filePath] = uniqueFilePaths;
-	return filePath ?? null;
-};
-const resolveStarExportFilePath = (barrelFilePath, exportedName, source, visitedFilePaths) => {
-	const resolvedTargetPath = resolveRelativeImportPath(barrelFilePath, source);
-	if (!resolvedTargetPath) return null;
-	const nestedTargetPath = resolveBarrelExportFilePath(resolvedTargetPath, exportedName, new Set(visitedFilePaths));
-	if (nestedTargetPath) return nestedTargetPath;
-	return doesModuleExportName(resolvedTargetPath, exportedName) ? resolvedTargetPath : null;
-};
-const resolveBarrelExportFilePath = (barrelFilePath, exportedName, visitedFilePaths = /* @__PURE__ */ new Set()) => {
-	if (visitedFilePaths.has(barrelFilePath)) return null;
-	visitedFilePaths.add(barrelFilePath);
-	const moduleInfo = getBarrelIndexModuleInfo(barrelFilePath);
-	if (!moduleInfo.isBarrel) return null;
-	const target = moduleInfo.exportsByName.get(exportedName);
-	if (target) {
-		const resolvedTargetPath = resolveRelativeImportPath(barrelFilePath, target.source);
-		if (!resolvedTargetPath) return null;
-		return resolveBarrelExportFilePath(resolvedTargetPath, target.importedName, visitedFilePaths) ?? resolvedTargetPath;
-	}
-	if (exportedName === "default") return null;
-	return getUniqueFilePath(moduleInfo.starExportSources.map((source) => resolveStarExportFilePath(barrelFilePath, exportedName, source, visitedFilePaths)).filter((filePath) => Boolean(filePath)));
 };
 //#endregion
 //#region src/plugin/rules/bundle-size/no-barrel-import.ts
@@ -14885,7 +15488,7 @@ const noCascadingSetState = defineRule({
 	title: "Multiple setState calls in one effect",
 	severity: "warn",
 	tags: ["test-noise"],
-	recommendation: "Combine into useReducer: `const [state, dispatch] = useReducer(reducer, initialState)`",
+	recommendation: "Combine related updates in `useReducer` so one effect does not redraw the screen once per `setState` call.",
 	create: (context) => ({ CallExpression(node) {
 		if (!isHookCall$1(node, EFFECT_HOOK_NAMES$1)) return;
 		if (isInitOnlyEffect(node)) return;
@@ -14918,8 +15521,7 @@ const noChainStateUpdates = defineRule({
 		if (!effectFn) return;
 		if (!depsRefs.flatMap((ref) => getUpstreamRefs(analysis, ref)).some((ref) => isState(analysis, ref))) return;
 		for (const ref of effectFnRefs) {
-			if (!isStateSetterCall(analysis, ref)) continue;
-			if (!isSynchronous(ref.identifier, effectFn)) continue;
+			if (!isSyncStateSetterCall(analysis, ref, effectFn)) continue;
 			const callExpr = getCallExpr(ref);
 			if (!callExpr) continue;
 			if (getArgsUpstreamRefs(analysis, ref).some((argRef) => isState(analysis, argRef))) continue;
@@ -14932,19 +15534,19 @@ const noChainStateUpdates = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-children-prop.ts
-const MESSAGE$26 = "Your component can render the wrong children when you pass them through a `children` prop.";
+const MESSAGE$27 = "A `children` prop can override or hide nested children, so the component may render different content than the JSX shows.";
 const noChildrenProp = defineRule({
 	id: "no-children-prop",
 	title: "Children passed as a prop",
 	severity: "warn",
-	recommendation: "Nest children between the tags instead of passing a `children` prop.",
+	recommendation: "Nest children between the tags so the rendered content is visible in JSX and cannot be hidden inside a props object.",
 	create: (context) => ({
 		JSXAttribute(node) {
 			if (!isNodeOfType(node.name, "JSXIdentifier")) return;
 			if (node.name.name !== "children") return;
 			context.report({
 				node: node.name,
-				message: MESSAGE$26
+				message: MESSAGE$27
 			});
 		},
 		CallExpression(node) {
@@ -14957,7 +15559,7 @@ const noChildrenProp = defineRule({
 				const propertyKey = property.key;
 				if (isNodeOfType(propertyKey, "Identifier") && propertyKey.name === "children" || isNodeOfType(propertyKey, "Literal") && propertyKey.value === "children") context.report({
 					node: propertyKey,
-					message: MESSAGE$26
+					message: MESSAGE$27
 				});
 			}
 		}
@@ -14965,20 +15567,20 @@ const noChildrenProp = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-clone-element.ts
-const MESSAGE$25 = "`React.cloneElement` breaks easily when the cloned element's props change.";
+const MESSAGE$26 = "`React.cloneElement` couples the parent to the child's prop shape, so child prop changes can silently break injected behavior.";
 const noCloneElement = defineRule({
 	id: "no-clone-element",
-	title: "Use of cloneElement",
+	title: "cloneElement makes child props fragile",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Pass children, render props, or use `Children.map` instead of cloning elements.",
+	recommendation: "Pass children or render props instead so parent code does not depend on fragile cloned child props.",
 	category: "Architecture",
 	create: (context) => ({ CallExpression(node) {
 		const callee = stripParenExpression(node.callee);
 		if (isNodeOfType(callee, "Identifier") && callee.name === "cloneElement") {
 			if (isImportedFromModule(node, "cloneElement", "react")) context.report({
 				node: callee,
-				message: MESSAGE$25
+				message: MESSAGE$26
 			});
 			return;
 		}
@@ -14991,7 +15593,7 @@ const noCloneElement = defineRule({
 			if (!isImportedFromModule(node, callee.object.name, "react")) return;
 			context.report({
 				node: callee,
-				message: MESSAGE$25
+				message: MESSAGE$26
 			});
 		}
 	} })
@@ -15040,7 +15642,7 @@ const enclosingComponentOrHookName = (node) => {
 };
 //#endregion
 //#region src/plugin/rules/state-and-effects/no-create-context-in-render.ts
-const MESSAGE$24 = "createContext() builds a new context every render, so every consumer gets cut off & resets.";
+const MESSAGE$25 = "createContext() builds a new context every render, so every consumer gets cut off & resets.";
 const CONTEXT_MODULES = [
 	"react",
 	"use-context-selector",
@@ -15076,7 +15678,7 @@ const noCreateContextInRender = defineRule({
 		if (!componentOrHookName) return;
 		context.report({
 			node,
-			message: `${MESSAGE$24} (called inside "${componentOrHookName}")`
+			message: `${MESSAGE$25} (called inside "${componentOrHookName}")`
 		});
 	} })
 });
@@ -15203,7 +15805,7 @@ const noCreateStoreInRender = defineRule({
 	title: "Store created during render",
 	severity: "error",
 	category: "Correctness",
-	recommendation: "Create the store, atom, or observable at the top level of the file, not inside a component or hook.",
+	recommendation: "Create stores at module scope so subscribers are not cut off and saved state does not reset every render.",
 	create: (context) => ({ CallExpression(node) {
 		const factory = resolveStoreFactoryForCallee(node.callee);
 		if (!factory) return;
@@ -15216,20 +15818,20 @@ const noCreateStoreInRender = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-danger.ts
-const MESSAGE$23 = "`dangerouslySetInnerHTML` is an XSS hole that runs attacker-controlled HTML in your users' browsers.";
+const MESSAGE$24 = "`dangerouslySetInnerHTML` is an XSS hole that runs attacker-controlled HTML in your users' browsers.";
 const noDanger = defineRule({
 	id: "no-danger",
-	title: "Use of dangerouslySetInnerHTML",
+	title: "Raw HTML injection can run unsafe markup",
 	severity: "warn",
 	category: "Security",
-	recommendation: "Render trusted content as React children rather than injecting raw HTML.",
+	recommendation: "Render trusted content as React children so attacker-controlled HTML cannot run in users' browsers.",
 	create: (context) => ({
 		JSXOpeningElement(node) {
 			const propAttribute = hasJsxProp(node.attributes, "dangerouslySetInnerHTML");
 			if (!propAttribute) return;
 			context.report({
 				node: propAttribute.name,
-				message: MESSAGE$23
+				message: MESSAGE$24
 			});
 		},
 		CallExpression(node) {
@@ -15241,7 +15843,7 @@ const noDanger = defineRule({
 				const propertyKey = property.key;
 				if (isNodeOfType(propertyKey, "Identifier") && propertyKey.name === "dangerouslySetInnerHTML" || isNodeOfType(propertyKey, "Literal") && propertyKey.value === "dangerouslySetInnerHTML") context.report({
 					node: propertyKey,
-					message: MESSAGE$23
+					message: MESSAGE$24
 				});
 			}
 		}
@@ -15249,7 +15851,7 @@ const noDanger = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-danger-with-children.ts
-const MESSAGE$22 = "React throws an error when you set both children & `dangerouslySetInnerHTML`.";
+const MESSAGE$23 = "React throws an error when you set both children & `dangerouslySetInnerHTML`.";
 const isLineBreak = (child) => {
 	if (!isNodeOfType(child, "JSXText")) return false;
 	return child.value.trim().length === 0 && child.value.includes("\n");
@@ -15308,7 +15910,7 @@ const noDangerWithChildren = defineRule({
 	id: "no-danger-with-children",
 	title: "dangerouslySetInnerHTML with children",
 	severity: "error",
-	recommendation: "Use either `children` or `dangerouslySetInnerHTML`, never both.",
+	recommendation: "Use either `children` or `dangerouslySetInnerHTML` so React does not ignore one source of content.",
 	category: "Correctness",
 	create: (context) => ({
 		JSXElement(node) {
@@ -15319,7 +15921,7 @@ const noDangerWithChildren = defineRule({
 			if (!hasChildrenProp && !hasNestedChildren) return;
 			if (hasJsxPropIgnoreCase(opening.attributes, "dangerouslySetInnerHTML") || spreadPropsShape.hasDangerously) context.report({
 				node: opening,
-				message: MESSAGE$22
+				message: MESSAGE$23
 			});
 		},
 		CallExpression(node) {
@@ -15331,7 +15933,7 @@ const noDangerWithChildren = defineRule({
 			if (!propsShape.hasDangerously) return;
 			if (node.arguments.length >= 3 || propsShape.hasChildren) context.report({
 				node,
-				message: MESSAGE$22
+				message: MESSAGE$23
 			});
 		}
 	})
@@ -15467,7 +16069,7 @@ const noDarkModeGlow = defineRule({
 		if (!hasDarkBackground || !shadowValue || !shadowProperty) return;
 		if (hasColoredGlowShadow(shadowValue)) context.report({
 			node: shadowProperty,
-			message: "Your users see a cheap, overdone colored glow on the dark background, so use a subtle, neutral shadow instead."
+			message: "A strong colored glow on a dark background can feel heavy. Use a subtle, neutral shadow instead."
 		});
 	} })
 });
@@ -15537,8 +16139,7 @@ const noDerivedState = defineRule({
 		const effectFn = getEffectFn(analysis, node);
 		if (!effectFn) return;
 		for (const ref of effectFnRefs) {
-			if (!isStateSetterCall(analysis, ref)) continue;
-			if (!isSynchronous(ref.identifier, effectFn)) continue;
+			if (!isSyncStateSetterCall(analysis, ref, effectFn)) continue;
 			const callExpr = getCallExpr(ref);
 			if (!callExpr) continue;
 			const stateName = getStateNameForUseStateDecl(getUseStateDecl(analysis, ref)) ?? "<state>";
@@ -15844,7 +16445,7 @@ const noDerivedUseState = defineRule({
 	title: "Prop derived into useState",
 	tags: ["test-noise"],
 	severity: "warn",
-	recommendation: "Remove useState and compute the value inline: `const value = transform(propName)`",
+	recommendation: "Compute the value inline so prop changes do not leave `useState` holding a stale copy.",
 	create: (context) => {
 		const propStackTracker = createComponentPropStackTracker();
 		return {
@@ -15909,7 +16510,7 @@ const isSetStateCallInLifecycle = (setStateCall, lifecycleNames, options = {}) =
 //#endregion
 //#region src/plugin/rules/react-builtins/no-did-mount-set-state.ts
 const LIFECYCLE_NAMES$2 = new Set(["componentDidMount"]);
-const MESSAGE$21 = "Your users see an extra render right after mount when you call `setState` in `componentDidMount`.";
+const MESSAGE$22 = "Your users see an extra render right after mount when you call `setState` in `componentDidMount`.";
 const resolveSettings$20 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { mode: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noDidMountSetState ?? {} : {}).mode ?? "allowed" };
@@ -15928,7 +16529,7 @@ const noDidMountSetState = defineRule({
 			if (!isSetStateCallInLifecycle(node, LIFECYCLE_NAMES$2, { disallowInNestedFunctions: mode === "disallow-in-func" })) return;
 			context.report({
 				node: node.callee,
-				message: MESSAGE$21
+				message: MESSAGE$22
 			});
 		} };
 	}
@@ -15936,7 +16537,7 @@ const noDidMountSetState = defineRule({
 //#endregion
 //#region src/plugin/rules/react-builtins/no-did-update-set-state.ts
 const LIFECYCLE_NAMES$1 = new Set(["componentDidUpdate"]);
-const MESSAGE$20 = "This can loop forever & freeze the component.";
+const MESSAGE$21 = "Calling setState in componentDidUpdate can trigger another update immediately, loop forever, and freeze the component.";
 const resolveSettings$19 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { mode: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noDidUpdateSetState ?? {} : {}).mode ?? "allowed" };
@@ -15955,7 +16556,7 @@ const noDidUpdateSetState = defineRule({
 			if (!isSetStateCallInLifecycle(node, LIFECYCLE_NAMES$1, { disallowInNestedFunctions: mode === "disallow-in-func" })) return;
 			context.report({
 				node: node.callee,
-				message: MESSAGE$20
+				message: MESSAGE$21
 			});
 		} };
 	}
@@ -15978,7 +16579,7 @@ const isStateMemberExpression = (node) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/no-direct-mutation-state.ts
-const MESSAGE$19 = "Your users see stale data because mutating `this.state` by hand never redraws & gets overwritten.";
+const MESSAGE$20 = "Your users see stale data because mutating `this.state` by hand never redraws & gets overwritten.";
 const shouldIgnoreMutation = (node) => {
 	let isConstructor = false;
 	let isInsideCallExpression = false;
@@ -16000,7 +16601,7 @@ const reportIfStateMutation = (context, reportNode, target) => {
 	if (shouldIgnoreMutation(reportNode)) return;
 	context.report({
 		node: reportNode,
-		message: MESSAGE$19
+		message: MESSAGE$20
 	});
 };
 const noDirectMutationState = defineRule({
@@ -16176,7 +16777,7 @@ const noDistractingElements = defineRule({
 	title: "Distracting marquee or blink element",
 	tags: ["react-jsx-only"],
 	severity: "error",
-	recommendation: "Replace `<marquee>` and `<blink>` with normal, accessible markup.",
+	recommendation: "Replace `<marquee>` and `<blink>` with normal markup so motion does not distract or disorient users.",
 	category: "Accessibility",
 	create: (context) => {
 		const { distractingTags } = resolveSettings$18(context.settings);
@@ -16205,7 +16806,7 @@ const noDocumentStartViewTransition = defineRule({
 		if (!isNodeOfType(callee.property, "Identifier") || callee.property.name !== "startViewTransition") return;
 		context.report({
 			node,
-			message: "Your users lose React's <ViewTransition> animations when document.startViewTransition() runs directly."
+			message: "Calling `document.startViewTransition()` directly can bypass React's `<ViewTransition>` animation lifecycle."
 		});
 	} })
 });
@@ -16223,13 +16824,13 @@ const noDynamicImportPath = defineRule({
 			if (source && !isNodeOfType(source, "Literal") && !isNodeOfType(source, "TemplateLiteral")) {
 				context.report({
 					node,
-					message: "This ships in the main bundle & slows page load, since the bundler can't code-split a dynamic import path. Use a plain string path instead."
+					message: "This can stay in the main bundle because the bundler cannot code-split a dynamic import path. Use a plain string path instead."
 				});
 				return;
 			}
 			if (isNodeOfType(source, "TemplateLiteral") && (source.expressions?.length ?? 0) > 0) context.report({
 				node,
-				message: "This ships in the main bundle & slows page load, since the bundler can't code-split a dynamic import path. Use a plain string path instead of one with `${...}`."
+				message: "This can stay in the main bundle because the bundler cannot code-split a dynamic import path with `${dynamic_path}`. Use a plain string path instead."
 			});
 		},
 		CallExpression(node) {
@@ -16520,7 +17121,7 @@ const noEffectEventHandler = defineRule({
 	title: "Effect used as an event handler",
 	tags: ["test-noise"],
 	severity: "warn",
-	recommendation: "Move the conditional logic into onClick, onChange, or onSubmit handlers directly",
+	recommendation: "Move event logic into the handler that starts it so the side effect does not run late after an extra render.",
 	create: (context) => {
 		const propStackTracker = createComponentPropStackTracker();
 		return {
@@ -16697,7 +17298,7 @@ const noEffectWithFreshDeps = defineRule({
 //#region src/plugin/rules/security/no-eval.ts
 const noEval = defineRule({
 	id: "no-eval",
-	title: "Use of eval()",
+	title: "eval() runs untrusted code strings",
 	severity: "error",
 	recommendation: "Use `JSON.parse` for data, or rewrite the code so it doesn't build and run code from strings.",
 	create: (context) => ({
@@ -17570,14 +18171,14 @@ const noFetchInEffect = defineRule({
 	id: "no-fetch-in-effect",
 	title: "Data fetching inside an effect",
 	severity: "warn",
-	recommendation: "Use `useQuery()` from @tanstack/react-query, `useSWR()`, or fetch in a Server Component instead",
+	recommendation: "Use a data-fetching layer or Server Component so fetches do not race, double-fire, or leak from `useEffect`.",
 	create: (context) => ({ CallExpression(node) {
 		if (!isHookCall$1(node, EFFECT_HOOK_NAMES$1)) return;
 		const callback = getEffectCallback(node);
 		if (!callback) return;
 		if (containsFetchCall(callback)) context.report({
 			node,
-			message: "fetch() inside useEffect races, double-fires & leaks for your users."
+			message: "fetch() inside useEffect can race, double-fire, or leak. Use a data-fetching layer or Server Component instead."
 		});
 	} })
 });
@@ -17588,18 +18189,18 @@ const ALLOWED_NAMESPACES = new Set([
 	"ReactDOM",
 	"ReactDom"
 ]);
-const MESSAGE$18 = "`findDOMNode` crashes your app in React 19 because it was removed.";
+const MESSAGE$19 = "`findDOMNode` crashes your app in React 19 because it was removed.";
 const noFindDomNode = defineRule({
 	id: "no-find-dom-node",
-	title: "Use of findDOMNode",
+	title: "findDOMNode breaks component encapsulation",
 	severity: "warn",
-	recommendation: "Use a ref (`useRef` or `createRef`) to reach DOM nodes instead of `findDOMNode`.",
+	recommendation: "Use a ref to reach DOM nodes because `findDOMNode` was removed in React 19 and can crash the app.",
 	create: (context) => ({ CallExpression(node) {
 		const callee = node.callee;
 		if (isNodeOfType(callee, "Identifier") && callee.name === "findDOMNode") {
 			context.report({
 				node: callee,
-				message: MESSAGE$18
+				message: MESSAGE$19
 			});
 			return;
 		}
@@ -17610,7 +18211,7 @@ const noFindDomNode = defineRule({
 			if (callee.property.name !== "findDOMNode") return;
 			context.report({
 				node: callee.property,
-				message: MESSAGE$18
+				message: MESSAGE$19
 			});
 		}
 	} })
@@ -17630,7 +18231,7 @@ const noFlushSync = defineRule({
 			if (!isNodeOfType(specifier, "ImportSpecifier")) continue;
 			if (getImportedName$1(specifier) === "flushSync") context.report({
 				node: specifier,
-				message: "Your users lose View Transitions & concurrent rendering when flushSync from react-dom forces an immediate update."
+				message: "`flushSync` forces an immediate update, which skips View Transitions and concurrent rendering."
 			});
 		}
 	} })
@@ -17734,10 +18335,10 @@ const functionContainsReactRenderOutput = (functionNode, scopes) => containsRend
 //#region src/plugin/rules/architecture/no-giant-component.ts
 const noGiantComponent = defineRule({
 	id: "no-giant-component",
-	title: "Component is too large",
+	title: "Large component is hard to read and change",
 	severity: "warn",
 	tags: ["test-noise", "react-jsx-only"],
-	recommendation: "Pull each section into its own component, like `<UserHeader />` and `<UserActions />`.",
+	recommendation: "Pull each section into its own component so the parent is easier to read, test, and change.",
 	create: (context) => {
 		const getOversizedComponentLineCount = (bodyNode) => {
 			if (!bodyNode.loc) return null;
@@ -17927,8 +18528,7 @@ const noInitializeState = defineRule({
 		if (!effectFn) return;
 		if (!(depsRefs.filter((ref) => !isStateSetter(analysis, ref)).length === 0)) return;
 		for (const ref of effectFnRefs) {
-			if (!isStateSetterCall(analysis, ref)) continue;
-			if (!isSynchronous(ref.identifier, effectFn)) continue;
+			if (!isSyncStateSetterCall(analysis, ref, effectFn)) continue;
 			const callExpr = getCallExpr(ref);
 			if (!callExpr || !isNodeOfType(callExpr, "CallExpression")) continue;
 			const useStateDecl = getUseStateDecl(analysis, ref);
@@ -17976,11 +18576,11 @@ const noInlineBounceEasing = defineRule({
 				if (!value) continue;
 				if ((key === "transition" || key === "transitionTimingFunction" || key === "animation" || key === "animationTimingFunction") && isOvershootCubicBezier(value)) context.report({
 					node: property,
-					message: "Your users see a dated, bouncy animation, so use ease-out or cubic-bezier(0.16, 1, 0.3, 1) for a smooth finish."
+					message: "This bouncy easing can feel distracting. Use ease-out or cubic-bezier(0.16, 1, 0.3, 1) for a smoother finish."
 				});
 				if ((key === "animation" || key === "animationName") && hasBounceAnimationName(value)) context.report({
 					node: property,
-					message: "Your users see a tacky bounce animation, so use a smooth ease-out (like ease-out-quart or expo) for a natural finish."
+					message: "This bounce animation can feel distracting. Use a smooth ease-out, like ease-out-quart or expo, for a natural finish."
 				});
 			}
 		},
@@ -17998,7 +18598,7 @@ const noInlineBounceEasing = defineRule({
 //#region src/plugin/rules/design/no-inline-exhaustive-style.ts
 const noInlineExhaustiveStyle = defineRule({
 	id: "no-inline-exhaustive-style",
-	title: "Too many inline style properties",
+	title: "Large inline style object rebuilds every render",
 	severity: "warn",
 	tags: ["test-noise", "react-jsx-only"],
 	recommendation: "Move the styles to a CSS class, CSS module, Tailwind utilities, or a styled component. Big inline objects are hard to read and rebuild on every update.",
@@ -18118,7 +18718,7 @@ const noInteractiveElementToNoninteractiveRole = defineRule({
 //#region src/plugin/rules/react-builtins/no-is-mounted.ts
 const noIsMounted = defineRule({
 	id: "no-is-mounted",
-	title: "Use of isMounted",
+	title: "isMounted lets async callbacks update after unmount",
 	severity: "warn",
 	recommendation: "`isMounted` doesn't work in modern React. Track mount state with a ref, or cancel the async work instead.",
 	create: (context) => ({ CallExpression(node) {
@@ -18130,13 +18730,58 @@ const noIsMounted = defineRule({
 			if (ancestor.type === "MethodDefinition" || ancestor.type === "Property") {
 				context.report({
 					node,
-					message: "`isMounted` is unreliable in modern React & leads to bugs."
+					message: "`isMounted` is unreliable in modern React, so async callbacks can update state after unmount."
 				});
 				return;
 			}
 			ancestor = ancestor.parent ?? null;
 		}
 	} })
+});
+//#endregion
+//#region src/plugin/rules/correctness/no-jsx-element-type.ts
+const MESSAGE$18 = "`JSX.Element` is too narrow: it excludes `null`, strings, numbers, and fragments that components commonly return. Use `React.ReactNode` instead.";
+const isJsxElementTypeReference = (node) => {
+	if (!isNodeOfType(node, "TSTypeReference")) return false;
+	const typeName = node.typeName;
+	if (!isNodeOfType(typeName, "TSQualifiedName")) return false;
+	return isNodeOfType(typeName.left, "Identifier") && typeName.left.name === "JSX" && isNodeOfType(typeName.right, "Identifier") && typeName.right.name === "Element";
+};
+const extractReturnTypeAnnotation = (returnType) => {
+	if (!returnType) return null;
+	if (!isNodeOfType(returnType, "TSTypeAnnotation")) return null;
+	return returnType.typeAnnotation ?? null;
+};
+const checkReturnType = (context, returnType) => {
+	const typeAnnotation = extractReturnTypeAnnotation(returnType);
+	if (!typeAnnotation) return;
+	if (isJsxElementTypeReference(typeAnnotation)) context.report({
+		node: typeAnnotation,
+		message: MESSAGE$18
+	});
+};
+const noJsxElementType = defineRule({
+	id: "no-jsx-element-type",
+	title: "No JSX.Element",
+	severity: "error",
+	recommendation: "Replace `JSX.Element` with `React.ReactNode`. `JSX.Element` is too narrow: it excludes `null`, strings, numbers, and fragments that components commonly return.",
+	create: (context) => ({
+		FunctionDeclaration(node) {
+			checkReturnType(context, node.returnType);
+		},
+		ArrowFunctionExpression(node) {
+			checkReturnType(context, node.returnType);
+		},
+		FunctionExpression(node) {
+			checkReturnType(context, node.returnType);
+		},
+		TSDeclareFunction(node) {
+			checkReturnType(context, node.returnType);
+		},
+		TSMethodSignature(node) {
+			checkReturnType(context, node.returnType);
+		}
+	})
 });
 //#endregion
 //#region src/plugin/rules/design/no-justified-text.ts
@@ -18190,7 +18835,7 @@ const noLargeAnimatedBlur = defineRule({
 			const blurRadius = Number.parseFloat(match[1]);
 			if (blurRadius > 10) context.report({
 				node: property,
-				message: `This can run out of GPU memory on phones because blur(${blurRadius}px) gets heavier as the blur & element grow, so use a smaller blur or a smaller element`
+				message: `Large animated blurs can use significant GPU memory on phones because blur(${blurRadius}px) gets heavier as the blur and element grow. Use a smaller blur or a smaller element.`
 			});
 		}
 	} })
@@ -18284,6 +18929,7 @@ const noLegacyClassLifecycles = defineRule({
 	title: "Legacy class lifecycle methods",
 	severity: "error",
 	category: "Correctness",
+	requires: ["react"],
 	tags: ["migration-hint"],
 	recommendation: "Move `componentWillMount` work to `componentDidMount`, `componentWillReceiveProps` to `componentDidUpdate` or the static `getDerivedStateFromProps`, and `componentWillUpdate` to `getSnapshotBeforeUpdate` plus `componentDidUpdate`. The `UNSAFE_` prefix only hides the warning. React 19 removes both.",
 	create: (context) => {
@@ -18327,6 +18973,7 @@ const noLegacyContextApi = defineRule({
 	title: "Legacy context API",
 	severity: "error",
 	category: "Correctness",
+	requires: ["react"],
 	tags: ["migration-hint"],
 	recommendation: "Swap `childContextTypes` + `getChildContext` for `const MyContext = createContext(...)` and `<MyContext.Provider value={...}>`. Swap `contextTypes` for `static contextType = MyContext` or `useContext()` in a function component. Move the provider and every consumer together, or some consumers read the wrong context.",
 	create: (context) => {
@@ -18410,11 +19057,14 @@ const noLongTransitionDuration = defineRule({
 	} })
 });
 //#endregion
+//#region src/plugin/utils/is-boolean-prefixed-prop-name.ts
+const BOOLEAN_PROP_PREFIX_PATTERN = /^(?:is|has|should|can|show|hide|enable|disable|with)[A-Z]/;
+const isBooleanPrefixedPropName = (propName) => BOOLEAN_PROP_PREFIX_PATTERN.test(propName);
+//#endregion
 //#region src/plugin/utils/is-component-declaration.ts
 const isComponentDeclaration = (node) => isNodeOfType(node, "FunctionDeclaration") && node.id !== null && Boolean(node.id?.name) && isUppercaseName(node.id.name);
 //#endregion
 //#region src/plugin/rules/architecture/no-many-boolean-props.ts
-const BOOLEAN_PROP_PREFIX_PATTERN = /^(?:is|has|should|can|show|hide|enable|disable|with)[A-Z]/;
 const collectBooleanLikePropsFromBody = (componentBody, propsParamName) => {
 	const found = /* @__PURE__ */ new Set();
 	if (!componentBody) return found;
@@ -18424,17 +19074,17 @@ const collectBooleanLikePropsFromBody = (componentBody, propsParamName) => {
 		if (!isNodeOfType(child.object, "Identifier")) return;
 		if (child.object.name !== propsParamName) return;
 		if (!isNodeOfType(child.property, "Identifier")) return;
-		if (!BOOLEAN_PROP_PREFIX_PATTERN.test(child.property.name)) return;
+		if (!isBooleanPrefixedPropName(child.property.name)) return;
 		found.add(child.property.name);
 	});
 	return found;
 };
 const noManyBooleanProps = defineRule({
 	id: "no-many-boolean-props",
-	title: "Too many boolean props",
+	title: "Boolean prop combinations are hard to test",
 	severity: "warn",
 	tags: ["test-noise", "react-jsx-only"],
-	recommendation: "Split into smaller components or named variants, like `<Button.Primary />` and `<DialogConfirm />`, instead of stacking `isPrimary` and `isConfirm` flags.",
+	recommendation: "Split boolean-heavy APIs into smaller components or named variants so combinations stay testable.",
 	create: (context) => {
 		const reportIfMany = (booleanLikePropNames, componentName, reportNode) => {
 			if (booleanLikePropNames.length >= 4) context.report({
@@ -18450,7 +19100,7 @@ const noManyBooleanProps = defineRule({
 					if (!isNodeOfType(property, "Property")) continue;
 					const keyName = isNodeOfType(property.key, "Identifier") ? property.key.name : null;
 					if (!keyName) continue;
-					if (BOOLEAN_PROP_PREFIX_PATTERN.test(keyName)) booleanLikePropNames.push(keyName);
+					if (isBooleanPrefixedPropName(keyName)) booleanLikePropNames.push(keyName);
 				}
 				reportIfMany(booleanLikePropNames, componentName, reportNode);
 				return;
@@ -18565,7 +19215,7 @@ const noMoment = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-multi-comp.ts
-const MESSAGE$17 = "This file is harder to navigate with more than one component.";
+const MESSAGE$17 = "This file declares several components, so each component is harder to find, test, and change.";
 const resolveSettings$16 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { ignoreStateless: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noMultiComp ?? {} : {}).ignoreStateless ?? false };
@@ -18862,7 +19512,7 @@ const noMultiComp = defineRule({
 	id: "no-multi-comp",
 	title: "Multiple components in one file",
 	severity: "warn",
-	recommendation: "Move secondary components into their own files.",
+	recommendation: "Move secondary components into their own files so each component stays easier to find, test, and change.",
 	category: "Architecture",
 	create: (context) => {
 		const settings = resolveSettings$16(context.settings);
@@ -18942,11 +19592,11 @@ const noMutableInDeps = defineRule({
 					if (!issue) continue;
 					if (issue.kind === "ref-current") context.report({
 						node: element,
-						message: `Your effect silently never re-runs on "${issue.rootName}.current" because changing a ref doesn't redraw the screen.`
+						message: `Changing "${issue.rootName}.current" does not re-render the component, so this dependency will not make the effect run again.`
 					});
 					else context.report({
 						node: element,
-						message: `Your effect silently never re-runs on "${issue.rootName}.*" because values like \`location.pathname\` can change without redrawing the screen.`
+						message: `Values like "${issue.rootName}.*" can change without re-rendering the component, so this dependency will not make the effect run again.`
 					});
 				}
 			});
@@ -19020,224 +19670,7 @@ const isLodashMutatorCall = (callExpression) => {
 	return false;
 };
 //#endregion
-//#region src/plugin/utils/find-exported-function-body.ts
-const isFunctionLike = (node) => {
-	if (!node) return false;
-	return isNodeOfType(node, "FunctionDeclaration") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "ArrowFunctionExpression");
-};
-const findExportedFunctionBody = (programRoot, exportedName) => {
-	if (!isNodeOfType(programRoot, "Program")) return null;
-	const localBindings = /* @__PURE__ */ new Map();
-	const namedExports = /* @__PURE__ */ new Map();
-	let defaultExport = null;
-	let defaultExportIdentifierName = null;
-	const recordVariableDeclaration = (declaration) => {
-		for (const declarator of declaration.declarations ?? []) {
-			if (!isNodeOfType(declarator, "VariableDeclarator")) continue;
-			if (!isNodeOfType(declarator.id, "Identifier")) continue;
-			const initializer = declarator.init ? stripParenExpression(declarator.init) : null;
-			if (initializer && isFunctionLike(initializer)) localBindings.set(declarator.id.name, initializer);
-		}
-	};
-	for (const statement of programRoot.body ?? []) {
-		if (isNodeOfType(statement, "VariableDeclaration")) {
-			recordVariableDeclaration(statement);
-			continue;
-		}
-		if (isNodeOfType(statement, "FunctionDeclaration") && statement.id) {
-			localBindings.set(statement.id.name, statement);
-			continue;
-		}
-		if (isNodeOfType(statement, "ExportNamedDeclaration")) {
-			const declaration = statement.declaration;
-			if (declaration && isNodeOfType(declaration, "VariableDeclaration")) {
-				recordVariableDeclaration(declaration);
-				for (const declarator of declaration.declarations ?? []) {
-					if (!isNodeOfType(declarator, "VariableDeclarator")) continue;
-					if (!isNodeOfType(declarator.id, "Identifier")) continue;
-					namedExports.set(declarator.id.name, declarator.id.name);
-				}
-			} else if (declaration && isNodeOfType(declaration, "FunctionDeclaration") && declaration.id) {
-				localBindings.set(declaration.id.name, declaration);
-				namedExports.set(declaration.id.name, declaration.id.name);
-			}
-			for (const specifier of statement.specifiers ?? []) {
-				if (!isNodeOfType(specifier, "ExportSpecifier")) continue;
-				const local = specifier.local;
-				const exported = specifier.exported;
-				if (!isNodeOfType(local, "Identifier")) continue;
-				const exportedNameSpec = isNodeOfType(exported, "Identifier") ? exported.name : isNodeOfType(exported, "Literal") && typeof exported.value === "string" ? exported.value : null;
-				if (!exportedNameSpec) continue;
-				namedExports.set(exportedNameSpec, local.name);
-			}
-			continue;
-		}
-		if (isNodeOfType(statement, "ExportDefaultDeclaration")) {
-			const declaration = statement.declaration;
-			if (!declaration) continue;
-			if (isNodeOfType(declaration, "FunctionDeclaration") && declaration.id) {
-				localBindings.set(declaration.id.name, declaration);
-				defaultExport = declaration;
-				continue;
-			}
-			if (isFunctionLike(declaration)) {
-				defaultExport = declaration;
-				continue;
-			}
-			if (isNodeOfType(declaration, "Identifier")) {
-				defaultExportIdentifierName = declaration.name;
-				continue;
-			}
-		}
-	}
-	if (exportedName === "default") {
-		if (defaultExport) return defaultExport;
-		if (defaultExportIdentifierName) {
-			const binding = localBindings.get(defaultExportIdentifierName);
-			if (binding) return binding;
-		}
-	}
-	const localName = namedExports.get(exportedName);
-	if (!localName) return null;
-	return localBindings.get(localName) ?? null;
-};
-const resolveImportedExportName = (importSpecifier) => {
-	if (isNodeOfType(importSpecifier, "ImportSpecifier")) {
-		const imported = importSpecifier.imported;
-		if (isNodeOfType(imported, "Identifier")) return imported.name;
-		if (isNodeOfType(imported, "Literal") && typeof imported.value === "string") return imported.value;
-		return null;
-	}
-	if (isNodeOfType(importSpecifier, "ImportDefaultSpecifier")) return "default";
-	return null;
-};
-const findReExportSourcesForName = (programRoot, exportedName) => {
-	if (!isNodeOfType(programRoot, "Program")) return [];
-	const exportAllSources = [];
-	for (const statement of programRoot.body ?? []) {
-		if (isNodeOfType(statement, "ExportNamedDeclaration") && statement.source) {
-			const sourceValue = statement.source.value;
-			if (typeof sourceValue !== "string") continue;
-			for (const specifier of statement.specifiers ?? []) {
-				if (!isNodeOfType(specifier, "ExportSpecifier")) continue;
-				const exported = specifier.exported;
-				if ((isNodeOfType(exported, "Identifier") ? exported.name : isNodeOfType(exported, "Literal") && typeof exported.value === "string" ? exported.value : null) === exportedName) return [sourceValue];
-			}
-		}
-		if (isNodeOfType(statement, "ExportAllDeclaration") && statement.source) {
-			const sourceValue = statement.source.value;
-			if (typeof sourceValue === "string") exportAllSources.push(sourceValue);
-		}
-	}
-	return exportAllSources;
-};
-//#endregion
-//#region src/plugin/utils/attach-parent-references.ts
-const attachParentReferences = (root) => {
-	const visit = (node, parent) => {
-		const writableNode = node;
-		writableNode.parent = parent;
-		const nodeRecord = node;
-		for (const key of Object.keys(nodeRecord)) {
-			if (key === "parent") continue;
-			const child = nodeRecord[key];
-			if (Array.isArray(child)) {
-				for (const item of child) if (isAstNode(item)) visit(item, node);
-			} else if (isAstNode(child)) visit(child, node);
-		}
-	};
-	visit(root, null);
-};
-//#endregion
-//#region src/plugin/utils/parse-source-file.ts
-const FILENAME_TO_LANG = {
-	".ts": "ts",
-	".tsx": "tsx",
-	".js": "js",
-	".jsx": "jsx",
-	".mjs": "js",
-	".cjs": "js",
-	".mts": "ts",
-	".cts": "ts"
-};
-const resolveLang = (filename) => {
-	return FILENAME_TO_LANG[path.extname(filename).toLowerCase()] ?? "tsx";
-};
-const parseCache = /* @__PURE__ */ new Map();
-const parseSourceFile = (absoluteFilePath) => {
-	let fileStat;
-	try {
-		fileStat = fs.statSync(absoluteFilePath);
-	} catch {
-		return null;
-	}
-	if (!fileStat.isFile()) return null;
-	if (fileStat.size > 2e6) return null;
-	const cached = parseCache.get(absoluteFilePath);
-	if (cached && cached.mtimeMs === fileStat.mtimeMs && cached.size === fileStat.size) return cached.program;
-	if (absoluteFilePath.endsWith(".d.ts") || absoluteFilePath.endsWith(".d.mts") || absoluteFilePath.endsWith(".d.cts")) {
-		parseCache.set(absoluteFilePath, {
-			mtimeMs: fileStat.mtimeMs,
-			size: fileStat.size,
-			program: null
-		});
-		return null;
-	}
-	let sourceText;
-	try {
-		sourceText = fs.readFileSync(absoluteFilePath, "utf8");
-	} catch {
-		parseCache.set(absoluteFilePath, {
-			mtimeMs: fileStat.mtimeMs,
-			size: fileStat.size,
-			program: null
-		});
-		return null;
-	}
-	let parsedProgram = null;
-	try {
-		const result = parseSync(absoluteFilePath, sourceText, {
-			astType: "ts",
-			lang: resolveLang(absoluteFilePath)
-		});
-		if (!result.errors.some((parseError) => parseError.severity === "Error")) {
-			parsedProgram = result.program;
-			attachParentReferences(parsedProgram);
-		}
-	} catch {
-		parsedProgram = null;
-	}
-	parseCache.set(absoluteFilePath, {
-		mtimeMs: fileStat.mtimeMs,
-		size: fileStat.size,
-		program: parsedProgram
-	});
-	return parsedProgram;
-};
-//#endregion
 //#region src/plugin/rules/state-and-effects/utils/resolve-reducer-function.ts
-const resolveFunctionExportInFile = (filePath, exportedName, visitedFilePaths) => {
-	if (visitedFilePaths.size >= 4) return null;
-	if (visitedFilePaths.has(filePath)) return null;
-	visitedFilePaths.add(filePath);
-	const actualFilePath = resolveBarrelExportFilePath(filePath, exportedName) ?? filePath;
-	const programRoot = parseSourceFile(actualFilePath);
-	if (!programRoot) return null;
-	const exported = findExportedFunctionBody(programRoot, exportedName);
-	if (exported) return exported;
-	for (const reExportSource of findReExportSourcesForName(programRoot, exportedName)) {
-		const nextFilePath = resolveRelativeImportPath(actualFilePath, reExportSource);
-		if (!nextFilePath) continue;
-		const resolved = resolveFunctionExportInFile(nextFilePath, exportedName, visitedFilePaths);
-		if (resolved) return resolved;
-	}
-	return null;
-};
-const resolveCrossFileFunctionExport = (fromFilename, source, exportedName) => {
-	const resolvedFilePath = resolveRelativeImportPath(fromFilename, source);
-	if (!resolvedFilePath) return null;
-	return resolveFunctionExportInFile(resolvedFilePath, exportedName, /* @__PURE__ */ new Set());
-};
 const resolveReducerFunction = (node, currentFilename) => {
 	if (!node) return null;
 	const unwrappedNode = stripParenExpression(node);
@@ -19259,7 +19692,6 @@ const resolveReducerFunction = (node, currentFilename) => {
 		if (!importDeclaration || !isNodeOfType(importDeclaration, "ImportDeclaration")) return null;
 		const sourceValue = importDeclaration.source?.value;
 		if (typeof sourceValue !== "string") return null;
-		if (!sourceValue.startsWith(".") && !sourceValue.startsWith("/")) return null;
 		const exportedName = resolveImportedExportName(initializer);
 		if (!exportedName) return null;
 		const crossFileFunction = resolveCrossFileFunctionExport(currentFilename, sourceValue, exportedName);
@@ -19595,7 +20027,7 @@ const noNamespace = defineRule({
 	id: "no-namespace",
 	title: "Namespaced JSX element",
 	severity: "warn",
-	recommendation: "Drop the namespace and use a plain (Pascal-cased) component or DOM tag.",
+	recommendation: "Use a plain component or DOM tag because React cannot render JSX namespaced names like `ns:Foo`.",
 	create: (context) => ({
 		JSXOpeningElement(node) {
 			if (!isNodeOfType(node.name, "JSXNamespacedName")) return;
@@ -19627,7 +20059,7 @@ const noNestedComponentDefinition = defineRule({
 	tags: ["test-noise", "react-jsx-only"],
 	severity: "error",
 	category: "Correctness",
-	recommendation: "Move to a separate file or to module scope above the parent component",
+	recommendation: "Move it to module scope or a separate file so React does not recreate the component and erase its state on every parent render.",
 	create: (context) => {
 		const componentStack = [];
 		return {
@@ -19692,7 +20124,7 @@ const noNoninteractiveElementInteractions = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/no-noninteractive-element-to-interactive-role.ts
-const buildMessage$11 = (tag, role) => `Screen reader users get confused because role \`${role}\` makes \`<${tag}>\` act interactive when it isn't, so use a real interactive element instead.`;
+const buildMessage$11 = (tag, role) => `Role \`${role}\` gives \`<${tag}>\` interactive semantics even though the element is noninteractive, so screen reader users get the wrong controls.`;
 const DEFAULT_ALLOWED_ROLES = {
 	ul: [
 		"menu",
@@ -20531,13 +20963,13 @@ const noRandomKey = defineRule({
 		if (!freshDescription) return;
 		context.report({
 			node: node.value,
-			message: `Your users lose typed input, focus & scroll position because \`key={${freshDescription}}\` makes a new key every render, so React rebuilds every item. Use a stable id from the item.`
+			message: `A changing key makes React rebuild each item, which can reset typed input, focus, and scroll position. Use a stable id from the item instead of \`key={${freshDescription}}\`.`
 		});
 	} })
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-react-children.ts
-const MESSAGE$14 = "`React.Children` breaks easily when the children change shape.";
+const MESSAGE$14 = "`React.Children` traversal depends on the runtime child shape, so wrapping or unwrapping a child can silently change what gets visited.";
 const isChildrenIdentifier = (node, contextNode) => {
 	if (!isNodeOfType(node, "Identifier") || node.name !== "Children") return false;
 	return isImportedFromModule(contextNode, "Children", "react");
@@ -20551,10 +20983,10 @@ const isReactNamespaceMember = (node, contextNode) => {
 };
 const noReactChildren = defineRule({
 	id: "no-react-children",
-	title: "Use of React.Children",
+	title: "React.Children is fragile when child shape changes",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Pass children as props or render them directly instead of using React.Children.",
+	recommendation: "Pass children as explicit props or render them directly so child shape changes do not break traversal logic.",
 	category: "Architecture",
 	create: (context) => ({ CallExpression(node) {
 		const calleeOuter = stripParenExpression(node.callee);
@@ -20652,7 +21084,7 @@ const reportTestUtilsImports = (node, context) => {
 };
 const noReactDomDeprecatedApis = defineRule({
 	id: "no-react-dom-deprecated-apis",
-	title: "Deprecated react-dom APIs",
+	title: "Deprecated react-dom APIs break in React 19",
 	requires: ["react:18"],
 	tags: ["test-noise", "migration-hint"],
 	severity: "warn",
@@ -20669,7 +21101,7 @@ const noReactDomDeprecatedApis = defineRule({
 });
 const noReact19DeprecatedApis = defineRule({
 	id: "no-react19-deprecated-apis",
-	title: "Deprecated React 19 APIs",
+	title: "React 19 API migration can break callers",
 	requires: ["react:19"],
 	tags: ["test-noise", "migration-hint"],
 	severity: "warn",
@@ -20777,7 +21209,7 @@ const noRedundantRoles = defineRule({
 	title: "Redundant ARIA role",
 	tags: ["react-jsx-only"],
 	severity: "warn",
-	recommendation: "Remove `role` attributes that match what the element already does.",
+	recommendation: "Remove redundant `role` attributes so assistive tech reads the element's native semantics without extra noise.",
 	category: "Accessibility",
 	create: (context) => {
 		const settings = resolveSettings$13(context.settings);
@@ -20847,7 +21279,7 @@ const noRenderInRender = defineRule({
 	title: "Component rendered by inline function call",
 	severity: "warn",
 	tags: ["test-noise"],
-	recommendation: "Make it a named component, like `const ListItem = ({ item }) => <div>{item.name}</div>`.",
+	recommendation: "Make it a named component so React preserves its identity and does not remount its state.",
 	create: (context) => ({ JSXExpressionContainer(node) {
 		const expression = node.expression;
 		if (!isNodeOfType(expression, "CallExpression")) return;
@@ -20866,7 +21298,7 @@ const noRenderInRender = defineRule({
 const RENDER_PROP_PATTERN = /^render[A-Z]/;
 const noRenderPropChildren = defineRule({
 	id: "no-render-prop-children",
-	title: "Too many render props",
+	title: "Render-prop slots make this component hard to extend",
 	tags: ["test-noise"],
 	severity: "warn",
 	recommendation: "Swap `renderXxx` props for child components like `<Modal.Header>` or plain `children`, so the parent doesn't control every slot.",
@@ -21046,12 +21478,22 @@ const PUBLIC_CLIENT_KEY_PATTERNS = [
 	/^public-token-(?:live|test)-/,
 	/^pk\.eyJ/
 ];
+const SECRET_UNAMBIGUOUS_PLACEHOLDER_VALUE_PATTERNS = [
+	/^[\s._\-*\u2022xX]{8,}$/,
+	/(?:\.{3,}|\u2026|[*\u2022]{3,})/,
+	/(?:^|[_\-\s])(?:your|redacted|masked|placeholder|replace[_\-\s]?me|changeme)(?:$|[_\-\s])/i,
+	/<[^>]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^>]*>/i,
+	/\[[^\]]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^\]]*\]/i,
+	/\{[^}]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^}]*\}/i
+];
+const SECRET_CONTEXTUAL_PLACEHOLDER_VALUE_PATTERNS = [/(?:^|[_\-\s])(?:example|sample|dummy)(?:$|[_\-\s])/i];
+const SECRET_PLACEHOLDER_CONTEXT_PATTERN = /(?:placeholder|example|sample|dummy|masked|redacted|mask)/i;
 const SECRET_VARIABLE_PATTERN = /(?:api_?key|secret|token|password|credential|auth)/i;
 const SECRET_TOOLING_FILE_PATTERN = /(?:^|\/)[^/]+\.config\.[cm]?[jt]s$/;
 const SECRET_TOOLING_RC_FILE_PATTERN = /(?:^|\/)(?:\.[a-z-]+rc|[a-z-]+\.rc)\.[cm]?[jt]s$/;
 const SECRET_TEST_FILE_PATTERN = /(?:^|\/)[^/]+\.(?:test|spec|stories|story|fixture|fixtures)\.[cm]?[jt]sx?$/;
 const SECRET_SERVER_FILE_SUFFIX_PATTERN = /(?:^|\/)[^/]+\.server\.[cm]?[jt]sx?$/;
-const SECRET_SERVER_ENTRY_FILE_PATTERN = /(?:^|\/)(?:middleware|route)\.[cm]?[jt]sx?$/;
+const SECRET_SERVER_ENTRY_FILE_PATTERN = /(?:^|\/)(?:middleware|proxy|route)\.[cm]?[jt]sx?$/;
 const SECRET_NEXT_PAGES_API_FILE_PATTERN = /(?:^|\/)pages\/api\/.+\.[cm]?[jt]sx?$/;
 const SECRET_CLIENT_FILE_SUFFIX_PATTERN = /(?:^|\/)[^/]+\.(?:client|browser|web)\.[cm]?[jt]sx?$/;
 const SECRET_CLIENT_ENTRY_FILE_PATTERN = /(?:^|\/)(?:src\/)?(?:main|index|[Aa]pp|client)\.[cm]?[jt]sx?$/;
@@ -21331,6 +21773,15 @@ const isInsideServerOnlyScope = (node) => {
 	return false;
 };
 //#endregion
+//#region src/plugin/utils/is-placeholder-secret-value.ts
+const isPlaceholderSecretValue = (literalValue, options) => {
+	const trimmedValue = literalValue.trim();
+	if (trimmedValue.length === 0) return false;
+	if (SECRET_UNAMBIGUOUS_PLACEHOLDER_VALUE_PATTERNS.some((pattern) => pattern.test(trimmedValue))) return true;
+	if (!options.allowContextualExamples) return false;
+	return SECRET_CONTEXTUAL_PLACEHOLDER_VALUE_PATTERNS.some((pattern) => pattern.test(trimmedValue));
+};
+//#endregion
 //#region src/plugin/rules/security/no-secrets-in-client-code.ts
 const noSecretsInClientCode = defineRule({
 	id: "no-secrets-in-client-code",
@@ -21359,21 +21810,28 @@ const noSecretsInClientCode = defineRule({
 				if (!isNodeOfType(node.init, "Literal") || typeof node.init.value !== "string") return;
 				const variableName = node.id.name;
 				const literalValue = node.init.value;
+				const componentOrHookName = enclosingComponentOrHookName(node);
+				const hasPlaceholderContext = SECRET_PLACEHOLDER_CONTEXT_PATTERN.test(variableName) || componentOrHookName !== null && SECRET_PLACEHOLDER_CONTEXT_PATTERN.test(componentOrHookName);
+				const isUnambiguousPlaceholderValue = isPlaceholderSecretValue(literalValue, { allowContextualExamples: false });
+				const isPlaceholderValueForVariableHeuristic = isPlaceholderSecretValue(literalValue, { allowContextualExamples: hasPlaceholderContext });
 				if (PUBLIC_CLIENT_KEY_PATTERNS.some((pattern) => pattern.test(literalValue))) return;
+				if (SECRET_PATTERNS.some((pattern) => pattern.test(literalValue))) {
+					if (!isUnambiguousPlaceholderValue) context.report({
+						node,
+						message: "This hardcoded secret is a security vulnerability: it ships to the browser where anyone can read it."
+					});
+					return;
+				}
 				const isServerOnlyScope = isInsideServerOnlyScope(node);
 				const trailingSuffix = getIdentifierTrailingWord(variableName);
 				const isUiConstant = SECRET_FALSE_POSITIVE_SUFFIXES.has(trailingSuffix);
-				if (shouldUseVariableNameHeuristic && !isServerOnlyScope && SECRET_VARIABLE_PATTERN.test(variableName) && !isUiConstant && literalValue.length > 24) {
+				if (shouldUseVariableNameHeuristic && !isServerOnlyScope && SECRET_VARIABLE_PATTERN.test(variableName) && !isUiConstant && !isPlaceholderValueForVariableHeuristic && literalValue.length > 24) {
 					context.report({
 						node,
 						message: `Hardcoding "${variableName}" in client code is a security vulnerability: the secret ships to the browser where anyone can read it.`
 					});
 					return;
 				}
-				if (SECRET_PATTERNS.some((pattern) => pattern.test(literalValue))) context.report({
-					node,
-					message: "This hardcoded secret is a security vulnerability: it ships to the browser where anyone can read it."
-				});
 			}
 		};
 	}
@@ -21716,7 +22174,7 @@ const noSelfUpdatingEffect = defineRule({
 					reportedStateNames.add(stateName);
 					context.report({
 						node: setterCall,
-						message: `${setterCall.callee.name}() loops forever because it sets \`${stateName}\`, the same state this effect watches.`
+						message: `${setterCall.callee.name}() updates \`${stateName}\`, which is also in this effect's dependency list. Guard the update or move the derivation out of the effect.`
 					});
 				}
 			}
@@ -21748,13 +22206,13 @@ const getParentComponent = (node) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/no-set-state.ts
-const MESSAGE$12 = "Your project discourages `this.setState` here.";
+const MESSAGE$12 = "`this.setState` keeps local class state in a project that forbids it, so state ownership becomes harder to reason about.";
 const noSetState = defineRule({
 	id: "no-set-state",
-	title: "Use of this.setState",
+	title: "Local class state forbidden",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Lift state up or use an external store instead of `this.setState`.",
+	recommendation: "Lift state up or use an external store so class-local state does not hide ownership.",
 	category: "Architecture",
 	create: (context) => ({ CallExpression(node) {
 		if (!isNodeOfType(node.callee, "MemberExpression")) return;
@@ -21796,7 +22254,7 @@ const noSetStateInRender = defineRule({
 				const setterIdentifierName = setterCall.callee.name;
 				context.report({
 					node: setterCall,
-					message: `${setterIdentifierName}() loops forever because it runs during render & triggers another render.`
+					message: `${setterIdentifierName}() triggers another render while rendering. Move it to an effect or event handler, or compute the value during render.`
 				});
 			}
 		};
@@ -22030,9 +22488,9 @@ const resolveSettings$11 = (settings) => {
 };
 const noStringRefs = defineRule({
 	id: "no-string-refs",
-	title: "Use of string refs",
+	title: "String refs are legacy and fragile",
 	severity: "warn",
-	recommendation: "Use a callback ref (`ref={(node) => { this.foo = node }}`) or `useRef` instead of string refs.",
+	recommendation: "Use a callback ref or `useRef` so ref ownership is explicit and not tied to legacy string lookup.",
 	create: (context) => {
 		const { noTemplateLiterals = false } = resolveSettings$11(context.settings);
 		const isTestlikeFile = isTestlikeFilename(context.filename);
@@ -22111,7 +22569,7 @@ const noThisInSfc = defineRule({
 	id: "no-this-in-sfc",
 	title: "this used in function component",
 	severity: "warn",
-	recommendation: "Read from the `props` argument instead of `this.props`.",
+	recommendation: "Read from the `props` argument because function components do not have a React instance `this`.",
 	create: (context) => {
 		const configured = (context.settings?.react)?.createClass;
 		const customClassFactoryNames = /* @__PURE__ */ new Set();
@@ -22255,10 +22713,10 @@ const noUncontrolledInput = defineRule({
 				const hasAllowedPartner = VALUE_PARTNER_ATTRIBUTES.some((partnerAttributeName) => findJsxAttribute(attributes, partnerAttributeName));
 				if (isNodeOfType(valueAttribute.value, "JSXExpressionContainer") && isNodeOfType(valueAttribute.value.expression, "Identifier") && undefinedInitialStateNames.has(valueAttribute.value.expression.name)) {
 					const stateName = valueAttribute.value.expression.name;
-					const partnerHint = hasAllowedPartner ? "Give useState a starting value" : "Give useState a starting value & add onChange (or readOnly)";
+					const partnerHint = hasAllowedPartner ? "Give useState a starting value" : "Give useState a starting value and add onChange (or readOnly)";
 					context.report({
 						node: child,
-						message: `Your users hit a console warning & a field that can reset because "${stateName}" starts undefined, so <${tagName} value={${stateName}}> flips from uncontrolled to controlled. ${partnerHint} (e.g. \`useState("")\`).`
+						message: `This can trigger a console warning and reset the field because "${stateName}" starts undefined, so <${tagName} value={${stateName}}> flips from uncontrolled to controlled. ${partnerHint} (e.g. \`useState("")\`).`
 					});
 					return;
 				}
@@ -22320,7 +22778,7 @@ const noUnescapedEntities = defineRule({
 	title: "Unescaped entities in JSX",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Replace bare `'` / `\"` / `>` / `}` characters in JSX text with HTML entities.",
+	recommendation: "Replace bare `'` / `\"` / `>` / `}` characters with HTML entities so literal UI text is encoded consistently.",
 	create: (context) => ({ JSXText(node) {
 		const value = node.value;
 		for (const character of value) if (character in ESCAPED_VERSIONS) {
@@ -23255,10 +23713,11 @@ const noUnknownProperty = defineRule({
 	id: "no-unknown-property",
 	title: "Unknown DOM property",
 	severity: "warn",
-	recommendation: "Use the prop name React expects, like `className`, `htmlFor`, or `tabIndex`.",
+	recommendation: "Use the prop name React expects, like `className`, `htmlFor`, or `tabIndex`, so the attribute is applied correctly.",
 	create: (context) => {
 		const { ignore = [], requireDataLowercase = false } = resolveSettings$10(context.settings);
 		const ignoreSet = new Set(ignore);
+		if (isGeneratedImageRenderContext(context)) ignoreSet.add("tw");
 		let fileIsNonReactJsx = false;
 		return {
 			Program(node) {
@@ -23293,6 +23752,7 @@ const noUnknownProperty = defineRule({
 					if (!isNodeOfType(attribute, "JSXAttribute")) continue;
 					const actualName = getJsxAttributeName(attribute.name);
 					if (!actualName) continue;
+					if (actualName === "tw" && isGeneratedImageRenderContext(context, node)) continue;
 					if (ignoreSet.has(actualName)) continue;
 					if (isValidDataAttribute(actualName)) {
 						if (requireDataLowercase && hasUppercaseChar(actualName)) context.report({
@@ -23339,7 +23799,7 @@ const UNSAFE_ALIASES = new Set([
 	"componentWillReceiveProps",
 	"componentWillUpdate"
 ]);
-const buildMessage$6 = (methodName) => `\`${methodName}\` causes subtle bugs & React is removing it.`;
+const buildMessage$6 = (methodName) => `\`${methodName}\` runs during unsafe legacy render timing and is deprecated, so React may double-invoke or remove it.`;
 const resolveSettings$9 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { checkAliases: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noUnsafe ?? {} : {}).checkAliases ?? false };
@@ -23372,7 +23832,7 @@ const noUnsafe = defineRule({
 	id: "no-unsafe",
 	title: "Unsafe legacy lifecycle method",
 	severity: "warn",
-	recommendation: "Replace `UNSAFE_componentWillMount` / `…WillReceiveProps` / `…WillUpdate` with the modern equivalents.",
+	recommendation: "Move setup to `constructor` or `componentDidMount`, prop-derived state to `getDerivedStateFromProps`, and update side effects to `componentDidUpdate` so React does not rely on deprecated unsafe lifecycles.",
 	create: (context) => {
 		const { checkAliases } = resolveSettings$9(context.settings);
 		const flagsUnsafePrefix = isReactVersionAtLeast(getConfiguredReactMajorMinor(context.settings), 16, 3);
@@ -23628,7 +24088,7 @@ const noUnstableNestedComponents = defineRule({
 	id: "no-unstable-nested-components",
 	title: "Component defined inside a component",
 	severity: "warn",
-	recommendation: "Move nested components to the top of the file. Never define one inside another.",
+	recommendation: "Move nested components to module scope so React does not remount them and lose state on every render.",
 	category: "Performance",
 	create: (context) => {
 		const settings = resolveSettings$8(context.settings);
@@ -23802,7 +24262,7 @@ const noWideLetterSpacing = defineRule({
 //#endregion
 //#region src/plugin/rules/react-builtins/no-will-update-set-state.ts
 const LIFECYCLE_NAMES = new Set(["componentWillUpdate", "UNSAFE_componentWillUpdate"]);
-const MESSAGE$9 = "This can loop forever & freeze the component.";
+const MESSAGE$9 = "Calling setState in componentWillUpdate can trigger another update immediately, loop forever, and freeze the component.";
 const resolveSettings$7 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { mode: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noWillUpdateSetState ?? {} : {}).mode ?? "allowed" };
@@ -23825,7 +24285,7 @@ const noWillUpdateSetState = defineRule({
 	id: "no-will-update-set-state",
 	title: "setState in componentWillUpdate",
 	severity: "warn",
-	recommendation: "Don't set state in `componentWillUpdate`. Use `getDerivedStateFromProps` or `componentDidUpdate` instead.",
+	recommendation: "Avoid setState in componentWillUpdate because it can loop forever; derive state before render or move guarded updates to componentDidUpdate.",
 	create: (context) => {
 		const { mode } = resolveSettings$7(context.settings);
 		const activeLifecycleNames = isReactBelow16_3(context.settings) ? new Set(["componentWillUpdate"]) : LIFECYCLE_NAMES;
@@ -23859,7 +24319,7 @@ const noZIndex9999 = defineRule({
 				const zValue = getStylePropertyNumberValue(property);
 				if (zValue !== null && Math.abs(zValue) >= 1e3) context.report({
 					node: property,
-					message: `z-index ${zValue} is way too high & usually hides a layering bug instead of fixing it, so use a small set scale, like 1 to 50.`
+					message: `z-index ${zValue} is unusually high and can hide a layering bug instead of fixing it. Use a small set scale, like 1 to 50.`
 				});
 			}
 		},
@@ -23953,6 +24413,8 @@ const ENTRY_POINT_BASENAMES = new Set([
 	"global-error.jsx",
 	"route.tsx",
 	"route.jsx",
+	"_layout.tsx",
+	"_layout.jsx",
 	"_app.tsx",
 	"_app.jsx",
 	"_document.tsx",
@@ -24038,14 +24500,62 @@ const UTILITY_FILE_BASENAMES = new Set([
 	"defaults.tsx",
 	"defaults.jsx"
 ]);
+const ROUTE_FACTORY_CALLEE_NAMES = new Set([
+	...TANSTACK_ROUTE_CREATION_FUNCTIONS,
+	"createLazyFileRoute",
+	"createLazyRoute",
+	"createAPIFileRoute",
+	"createServerFileRoute",
+	"createServerRootRoute",
+	"createServerRoute",
+	"createBrowserRouter",
+	"createHashRouter",
+	"createMemoryRouter",
+	"createStaticRouter",
+	"createRouter"
+]);
+const ROUTE_MODULE_ALLOWED_EXPORT_NAMES = new Set([
+	"loader",
+	"clientLoader",
+	"action",
+	"clientAction",
+	"headers",
+	"meta",
+	"links",
+	"handle",
+	"shouldRevalidate",
+	"middleware",
+	"unstable_middleware",
+	"getServerSideProps",
+	"getStaticProps",
+	"getStaticPaths",
+	"getInitialProps",
+	"reportWebVitals",
+	"metadata",
+	"generateMetadata",
+	"generateStaticParams",
+	"generateImageMetadata",
+	"generateSitemaps",
+	"viewport",
+	"generateViewport",
+	"revalidate",
+	"dynamic",
+	"dynamicParams",
+	"fetchCache",
+	"runtime",
+	"preferredRegion",
+	"maxDuration",
+	"experimental_ppr",
+	"unstable_settings"
+]);
 //#endregion
 //#region src/plugin/rules/react-builtins/only-export-components.ts
-const NAMED_EXPORT_MESSAGE = "Fast Refresh stops working when a file exports non-components.";
-const ANONYMOUS_MESSAGE = "Fast Refresh can't track an unnamed component & full-reloads instead.";
-const EXPORT_ALL_MESSAGE = "`export *` hides what's exported, so Fast Refresh stops working.";
-const REACT_CONTEXT_MESSAGE = "Fast Refresh stops working when a file exports a context too.";
-const LOCAL_COMPONENT_MESSAGE = "Fast Refresh skips this component because it isn't exported.";
-const NO_EXPORT_MESSAGE = "Fast Refresh can't track this component because the file exports nothing.";
+const NAMED_EXPORT_MESSAGE = "This file exports non-components, so Fast Refresh can't safely preserve component state.";
+const ANONYMOUS_MESSAGE = "This component is unnamed, so Fast Refresh can't track it and falls back to a full reload.";
+const EXPORT_ALL_MESSAGE = "`export *` hides what's exported, so Fast Refresh can't safely preserve component state.";
+const REACT_CONTEXT_MESSAGE = "This file exports a context with components, so Fast Refresh can't safely preserve component state.";
+const LOCAL_COMPONENT_MESSAGE = "This component is not exported, so Fast Refresh skips it and local edits can full-reload.";
+const NO_EXPORT_MESSAGE = "This file exports nothing, so Fast Refresh can't track the component and local edits can full-reload.";
 const DEFAULT_REACT_HOCS = [
 	"memo",
 	"forwardRef",
@@ -24081,6 +24591,18 @@ const isReactCreateContext = (initializer) => {
 	if (isNodeOfType(callee, "MemberExpression") && isNodeOfType(callee.property, "Identifier") && callee.property.name === "createContext") return true;
 	return false;
 };
+const isRouteFactoryName = (name) => ROUTE_FACTORY_CALLEE_NAMES.has(name);
+const isRouteFactoryCall = (expression) => {
+	let currentCall = expression;
+	while (isNodeOfType(currentCall, "CallExpression")) {
+		const callee = currentCall.callee;
+		if (isNodeOfType(callee, "Identifier") && isRouteFactoryName(callee.name)) return true;
+		if (isNodeOfType(callee, "MemberExpression") && isNodeOfType(callee.property, "Identifier") && isRouteFactoryName(callee.property.name)) return true;
+		if (!isNodeOfType(callee, "CallExpression")) return false;
+		currentCall = callee;
+	}
+	return false;
+};
 const isReactHocName = (name, state) => state.customHocs.has(name);
 const isHocCallee = (callee, state) => {
 	if (isNodeOfType(callee, "Identifier")) return isReactHocName(callee.name, state);
@@ -24114,10 +24636,12 @@ const isReactComponentInitializer = (expression, state) => {
 const classifyExport = (name, reportNode, isFunction, initializer, state) => {
 	if (initializer) {
 		const expression = skipTsExpression(initializer);
+		if (isRouteFactoryCall(expression)) return { kind: "react-component" };
 		if (isNodeOfType(expression, "CallExpression") && isHocCallee(expression.callee, state) && expression.arguments.length > 0 && isReactComponentName(name)) return { kind: "react-component" };
 		if (isNodeOfType(expression, "ConditionalExpression") && isReactComponentName(name) && isReactComponentInitializer(expression.consequent, state) && isReactComponentInitializer(expression.alternate, state)) return { kind: "react-component" };
 	}
 	if (state.allowExportNames.has(name)) return { kind: "allowed" };
+	if (ROUTE_MODULE_ALLOWED_EXPORT_NAMES.has(name)) return { kind: "allowed" };
 	if (/^use[A-Z]/.test(name)) return { kind: "allowed" };
 	if (state.allowConstantExport && initializer) {
 		const expression = skipTsExpression(initializer);
@@ -24198,7 +24722,7 @@ const onlyExportComponents = defineRule({
 	id: "only-export-components",
 	title: "Non-component export in component file",
 	severity: "warn",
-	recommendation: "Move non-component exports out of files that export components.",
+	recommendation: "Move non-component exports out of component files so Fast Refresh can preserve component state instead of full-reloading.",
 	category: "Architecture",
 	create: (context) => {
 		const settings = resolveSettings$6(context.settings);
@@ -24263,6 +24787,10 @@ const onlyExportComponents = defineRule({
 						continue;
 					}
 					if (isNodeOfType(stripped, "CallExpression")) {
+						if (isRouteFactoryCall(stripped)) {
+							hasReactExport = true;
+							continue;
+						}
 						const isHoc = isHocCallee(stripped.callee, state);
 						const firstArg = stripped.arguments[0];
 						const firstArgIsValid = Boolean(firstArg) && (() => {
@@ -24419,10 +24947,10 @@ const isChildrenMemberExpression = (node) => {
 };
 const preactNoChildrenLength = defineRule({
 	id: "preact-no-children-length",
-	title: "Array methods on props.children",
+	title: "Array methods on Preact children can crash",
 	requires: ["preact"],
 	severity: "warn",
-	recommendation: "Wrap with `toChildArray(children)` from `preact` before accessing array methods or `.length`.",
+	recommendation: "Wrap with `toChildArray(children)` because Preact's `props.children` is not always an array and array methods can crash.",
 	create: (context) => ({ MemberExpression(node) {
 		if (node.computed) return;
 		if (!isNodeOfType(node.property, "Identifier")) return;
@@ -24456,10 +24984,10 @@ const REACT_HOOK_NAMES = new Set([
 const buildMessage$4 = (importedNames) => `Your users hit \`__H\` undefined errors because importing ${importedNames.map((innerName) => `\`${innerName}\``).join(", ")} from \`react\` in a pure-Preact project loads a second copy of the hook state, so import from \`preact/hooks\` (or \`preact/compat\`) instead.`;
 const preactNoReactHooksImport = defineRule({
 	id: "preact-no-react-hooks-import",
-	title: "Hooks imported from react",
+	title: "React hook imports break pure Preact hook state",
 	requires: ["pure-preact"],
 	severity: "warn",
-	recommendation: "Replace `from \"react\"` with `from \"preact/hooks\"` (or `from \"preact/compat\"` if other React API surface is needed).",
+	recommendation: "Import hooks from `preact/hooks` so they share Preact's renderer state instead of loading a second hook implementation.",
 	create: (context) => ({ ImportDeclaration(node) {
 		const source = node.source;
 		if (!isNodeOfType(source, "Literal") || source.value !== "react") return;
@@ -24519,7 +25047,7 @@ const preactNoRenderArguments = defineRule({
 	title: "render() reads props from arguments",
 	requires: ["preact"],
 	severity: "warn",
-	recommendation: "Read state/props from `this.props` / `this.state` inside `render()` instead of declaring positional parameters.",
+	recommendation: "Read from `this.props` and `this.state` because `preact/compat` uses React's parameterless `render()` and positional props/state become undefined.",
 	create: (context) => ({ MethodDefinition(node) {
 		if (!isInstanceMethodNamedRender(node)) return;
 		if (!isInsideEs6Component$1(node)) return;
@@ -24541,7 +25069,7 @@ const preactPreferOndblclick = defineRule({
 	title: "onDoubleClick instead of onDblClick",
 	requires: ["pure-preact"],
 	severity: "warn",
-	recommendation: "Rename the handler from `onDoubleClick` to `onDblClick` to match the DOM event name.",
+	recommendation: "Rename `onDoubleClick` to `onDblClick` because Preact core listens for the DOM `dblclick` event name and `onDoubleClick` never fires.",
 	create: (context) => ({ JSXOpeningElement(node) {
 		if (!isNodeOfType(node.name, "JSXIdentifier")) return;
 		const tagName = node.name.name;
@@ -24613,8 +25141,8 @@ const preferDynamicImport = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/prefer-es6-class.ts
-const ALWAYS_MESSAGE$1 = "`createReactClass` is legacy & adds a dependency.";
-const NEVER_MESSAGE$1 = "This component is defined inconsistently.";
+const ALWAYS_MESSAGE$1 = "`createReactClass` is legacy and adds a dependency, so this component diverges from modern React class syntax.";
+const NEVER_MESSAGE$1 = "This component uses an ES6 class where `createReactClass` is configured, so component style is inconsistent across the codebase.";
 const resolveSettings$5 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	if (typeof reactDoctor !== "object" || reactDoctor === null) return {};
@@ -24625,7 +25153,7 @@ const preferEs6Class = defineRule({
 	title: "createClass instead of ES6 class",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Pick one component style for the whole codebase: `class extends React.Component` (default) or `createReactClass` (legacy).",
+	recommendation: "Pick one component style so readers do not have to switch between legacy `createReactClass` patterns and modern class components.",
 	category: "Architecture",
 	create: (context) => {
 		const { mode = "always" } = resolveSettings$5(context.settings);
@@ -24661,8 +25189,130 @@ const preferEs6Class = defineRule({
 	}
 });
 //#endregion
+//#region src/plugin/utils/is-jsx-element-or-fragment.ts
+/**
+* Type-guard for the two single-node JSX output forms: `JSXElement`
+* (`<Foo />`) and `JSXFragment` (`<>…</>`). Canonical home for the
+* `isNodeOfType(x, "JSXElement") || isNodeOfType(x, "JSXFragment")` check
+* that many rules otherwise inline. Does NOT unwrap parens / TS wrappers —
+* callers that need the semantic expression should `stripParenExpression`
+* first.
+*/
+const isJsxElementOrFragment = (node) => Boolean(node && (isNodeOfType(node, "JSXElement") || isNodeOfType(node, "JSXFragment")));
+//#endregion
+//#region src/plugin/rules/architecture/prefer-explicit-variants.ts
+const resolveBooleanPropTestName = (testNode, booleanPropBindings) => {
+	let identifierNode = stripParenExpression(testNode);
+	if (isNodeOfType(identifierNode, "UnaryExpression") && identifierNode.operator === "!") identifierNode = stripParenExpression(identifierNode.argument);
+	if (!isNodeOfType(identifierNode, "Identifier")) return null;
+	return booleanPropBindings.has(identifierNode.name) ? identifierNode.name : null;
+};
+const CROSS_CUTTING_STATE_BOOLEAN_NAMES = new Set([
+	"isLoading",
+	"isPending",
+	"isFetching",
+	"isRefetching",
+	"isSubmitting",
+	"isError",
+	"isSuccess",
+	"isEmpty",
+	"isReady",
+	"isDirty",
+	"isValid",
+	"isInvalid",
+	"isOpen",
+	"isClosed",
+	"isVisible",
+	"isHidden",
+	"isActive",
+	"isInactive",
+	"isExpanded",
+	"isCollapsed",
+	"isSelected",
+	"isChecked",
+	"isDisabled",
+	"isEnabled",
+	"isFocused",
+	"isHovered",
+	"isDragging",
+	"isFullscreen",
+	"isMobile",
+	"isDesktop",
+	"isTablet",
+	"isOnline",
+	"isOffline",
+	"isLoggedIn",
+	"isAuthenticated",
+	"isAuthorized",
+	"isDark",
+	"isLight"
+]);
+const collectBooleanPropBindings = (param) => {
+	const bindings = /* @__PURE__ */ new Set();
+	if (!param || !isNodeOfType(param, "ObjectPattern")) return bindings;
+	for (const property of param.properties ?? []) {
+		if (!isNodeOfType(property, "Property")) continue;
+		if (property.computed) continue;
+		if (!isNodeOfType(property.key, "Identifier")) continue;
+		if (!isBooleanPrefixedPropName(property.key.name)) continue;
+		if (CROSS_CUTTING_STATE_BOOLEAN_NAMES.has(property.key.name)) continue;
+		const propertyValue = property.value;
+		if (isNodeOfType(propertyValue, "Identifier")) bindings.add(propertyValue.name);
+		else if (isNodeOfType(propertyValue, "AssignmentPattern") && isNodeOfType(propertyValue.left, "Identifier")) bindings.add(propertyValue.left.name);
+	}
+	return bindings;
+};
+const collectVariantBranchProps = (body, booleanPropBindings) => {
+	const variantBranchProps = /* @__PURE__ */ new Set();
+	if (!body) return variantBranchProps;
+	walkAst(body, (current) => {
+		if (isNodeOfType(current, "FunctionDeclaration") || isInlineFunctionExpression(current)) return false;
+		if (!isNodeOfType(current, "ConditionalExpression")) return;
+		const propName = resolveBooleanPropTestName(current.test, booleanPropBindings);
+		if (!propName) return;
+		const consequent = stripParenExpression(current.consequent);
+		const alternate = stripParenExpression(current.alternate);
+		if (!isJsxElementOrFragment(consequent) || !isJsxElementOrFragment(alternate)) return;
+		variantBranchProps.add(propName);
+	});
+	return variantBranchProps;
+};
+const preferExplicitVariants = defineRule({
+	id: "prefer-explicit-variants",
+	title: "Prefer explicit variant components",
+	severity: "warn",
+	tags: ["test-noise", "react-jsx-only"],
+	recommendation: "Replace boolean props that switch whole subtrees with explicit variant components, like `<ThreadComposer />` and `<EditMessageComposer />`, so each variant renders one clear path.",
+	create: (context) => {
+		const checkComponent = (param, body, componentName, reportNode) => {
+			const booleanPropBindings = collectBooleanPropBindings(param);
+			if (booleanPropBindings.size < 2) return;
+			const variantBranchProps = collectVariantBranchProps(body, booleanPropBindings);
+			if (variantBranchProps.size < 2) return;
+			const propList = [...variantBranchProps].slice(0, 3).join(", ");
+			const overflow = variantBranchProps.size > 3 ? "…" : "";
+			context.report({
+				node: reportNode,
+				message: `Component "${componentName}" picks which component to render from ${variantBranchProps.size} boolean props (${propList}${overflow}), which multiplies untestable variants. Split it into explicit variant components so each renders one clear path.`
+			});
+		};
+		return {
+			FunctionDeclaration(node) {
+				if (!isComponentDeclaration(node) || !node.id) return;
+				checkComponent(node.params?.[0], node.body, node.id.name, node.id);
+			},
+			VariableDeclarator(node) {
+				if (!isComponentAssignment(node)) return;
+				if (!isNodeOfType(node.id, "Identifier")) return;
+				if (!isInlineFunctionExpression(node.init)) return;
+				checkComponent(node.init.params?.[0], node.init.body, node.id.name, node.id);
+			}
+		};
+	}
+});
+//#endregion
 //#region src/plugin/rules/react-builtins/prefer-function-component.ts
-const MESSAGE$7 = "This class component is harder to maintain than a function component.";
+const MESSAGE$7 = "This class component keeps behavior in lifecycle methods, so state and effects are harder to follow than in a hook-based function component.";
 const resolveSettings$4 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.preferFunctionComponent ?? {} : {};
@@ -24688,7 +25338,7 @@ const preferFunctionComponent = defineRule({
 	title: "Class component instead of function",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Re-write the class component as a function component using hooks.",
+	recommendation: "Rewrite the class component as a function component so state and effects use modern hook patterns instead of class lifecycles.",
 	category: "Architecture",
 	create: (context) => {
 		const settings = resolveSettings$4(context.settings);
@@ -24790,12 +25440,12 @@ const doesFunctionReturnsObjectLiteral = (functionNode) => {
 			const child = nodeRecord[key];
 			if (Array.isArray(child)) for (const item of child) {
 				if (!isAstNode(item)) continue;
-				if (FUNCTION_LIKE_TYPES$1.has(item.type)) continue;
+				if (FUNCTION_LIKE_TYPES.has(item.type)) continue;
 				visit(item);
 				if (returnsObject) return;
 			}
 			else if (isAstNode(child)) {
-				if (FUNCTION_LIKE_TYPES$1.has(child.type)) continue;
+				if (FUNCTION_LIKE_TYPES.has(child.type)) continue;
 				visit(child);
 			}
 		}
@@ -25040,7 +25690,7 @@ const preferTagOverRole = defineRule({
 	title: "Role used instead of HTML tag",
 	tags: ["react-jsx-only"],
 	severity: "warn",
-	recommendation: "Replace `role` with the matching HTML element when one exists.",
+	recommendation: "Use the matching HTML element when one exists so browsers and assistive tech get native semantics.",
 	category: "Accessibility",
 	create: (context) => ({ JSXOpeningElement(node) {
 		const tag = getElementType(node, context.settings);
@@ -25346,7 +25996,7 @@ const preferUseReducer = defineRule({
 	title: "Many related useState calls",
 	tags: ["test-noise"],
 	severity: "warn",
-	recommendation: "Group related state: `const [state, dispatch] = useReducer(reducer, { field1, field2, ... })`",
+	recommendation: "Group related state in `useReducer` so one logical update does not fan out into separate renders.",
 	create: (context) => {
 		const reportExcessiveUseState = (body, componentName) => {
 			if (!isNodeOfType(body, "BlockStatement")) return;
@@ -25373,6 +26023,26 @@ const preferUseReducer = defineRule({
 			}
 		};
 	}
+});
+//#endregion
+//#region src/plugin/rules/tanstack-query/query-destructure-result.ts
+const queryDestructureResult = defineRule({
+	id: "query-destructure-result",
+	title: "Whole query result subscribes to every field",
+	tags: ["test-noise"],
+	requires: ["tanstack-query"],
+	severity: "error",
+	recommendation: "Destructure only the fields you need, like `const { data, isLoading } = useQuery(...)`. Assigning the whole object bypasses TanStack Query's tracked-property optimization and subscribes to every field.",
+	create: (context) => ({ VariableDeclarator(node) {
+		if (!isNodeOfType(node.id, "Identifier")) return;
+		if (!node.init || !isNodeOfType(node.init, "CallExpression")) return;
+		const calleeName = isNodeOfType(node.init.callee, "Identifier") ? node.init.callee.name : null;
+		if (!calleeName || !TANSTACK_QUERY_HOOKS.has(calleeName)) return;
+		context.report({
+			node: node.id,
+			message: `Destructure ${calleeName}() results instead of assigning the whole query object, so TanStack Query only subscribes to the fields you use.`
+		});
+	} })
 });
 //#endregion
 //#region src/plugin/rules/tanstack-query/query-mutation-missing-invalidation.ts
@@ -25411,7 +26081,7 @@ const queryNoQueryInEffect = defineRule({
 	tags: ["test-noise"],
 	requires: ["tanstack-query"],
 	severity: "warn",
-	recommendation: "React Query refetches automatically via queryKey changes and the `enabled` option. A manual refetch() in useEffect is usually unnecessary.",
+	recommendation: "Use `queryKey` changes or `enabled` so React Query schedules the fetch once instead of refetching again from `useEffect`.",
 	create: (context) => ({ CallExpression(node) {
 		if (!isHookCall$1(node, EFFECT_HOOK_NAMES$1)) return;
 		const callback = getEffectCallback(node);
@@ -25734,7 +26404,7 @@ const reduxUseselectorInlineDerivation = defineRule({
 	severity: "warn",
 	category: "Performance",
 	disabledBy: ["react-compiler"],
-	recommendation: "Select the raw slice and derive with `useMemo`, or use `createSelector` from `reselect`.",
+	recommendation: "Select the raw slice and memoize derivation so Redux actions do not rebuild a collection and redraw this component.",
 	create: (context) => {
 		let aliases = /* @__PURE__ */ new Set();
 		return {
@@ -25794,7 +26464,7 @@ const reduxUseselectorReturnsNewCollection = defineRule({
 	severity: "warn",
 	category: "Performance",
 	disabledBy: ["react-compiler"],
-	recommendation: "Return a primitive, split into multiple useSelector calls, or pass `shallowEqual` from `react-redux` as the second argument.",
+	recommendation: "Return a stable selected value, split selectors, or pass `shallowEqual` so every Redux action does not redraw this component.",
 	create: (context) => {
 		let aliases = /* @__PURE__ */ new Set();
 		return {
@@ -25820,7 +26490,7 @@ const renderingAnimateSvgWrapper = defineRule({
 	title: "Animating an SVG directly",
 	tags: ["test-noise"],
 	severity: "warn",
-	recommendation: "Wrap the SVG: `<motion.div animate={...}><svg>...</svg></motion.div>`",
+	recommendation: "Wrap the SVG in a motion element so animation props apply to a stable wrapper instead of the SVG node itself.",
 	create: (context) => ({ JSXOpeningElement(node) {
 		if (!isNodeOfType(node.name, "JSXIdentifier") || node.name.name !== "svg") return;
 		if (node.attributes?.some((attribute) => isNodeOfType(attribute, "JSXAttribute") && isNodeOfType(attribute.name, "JSXIdentifier") && MOTION_ANIMATE_PROPS.has(attribute.name.name))) context.report({
@@ -25970,7 +26640,7 @@ const renderingHydrationMismatchTime = defineRule({
 			if (hasSuppressHydrationWarningAttribute(findOpeningElementOfChild(node))) return;
 			context.report({
 				node,
-				message: `This breaks hydration because ${matched.display} in JSX gives a different value on the server than in the browser, so move it into useEffect+useState to run only in the browser, or add suppressHydrationWarning to the parent if it's on purpose`
+				message: `This can cause a hydration mismatch because ${matched.display} in JSX gives a different value on the server than in the browser. Move it into useEffect+useState to run only in the browser, or add suppressHydrationWarning to the parent if it's on purpose.`
 			});
 			return;
 		}
@@ -25979,7 +26649,7 @@ const renderingHydrationMismatchTime = defineRule({
 				if (hasSuppressHydrationWarningAttribute(findOpeningElementOfChild(node))) return;
 				context.report({
 					node: child,
-					message: `This breaks hydration because ${pattern.display} reached from JSX gives a different value on the server than in the browser, so move it into useEffect+useState to run only in the browser, or add suppressHydrationWarning to the parent if it's on purpose`
+					message: `This can cause a hydration mismatch because ${pattern.display} reached from JSX gives a different value on the server than in the browser. Move it into useEffect+useState to run only in the browser, or add suppressHydrationWarning to the parent if it's on purpose.`
 				});
 				return;
 			}
@@ -26197,12 +26867,12 @@ const functionBodyHasReturnWithValue = (functionNode) => {
 			const child = nodeRecord[key];
 			if (Array.isArray(child)) for (const item of child) {
 				if (!isAstNode(item)) continue;
-				if (FUNCTION_LIKE_TYPES$1.has(item.type)) continue;
+				if (FUNCTION_LIKE_TYPES.has(item.type)) continue;
 				visit(item);
 				if (didFindReturn) return;
 			}
 			else if (isAstNode(child)) {
-				if (FUNCTION_LIKE_TYPES$1.has(child.type)) continue;
+				if (FUNCTION_LIKE_TYPES.has(child.type)) continue;
 				visit(child);
 			}
 		}
@@ -26258,7 +26928,7 @@ const requireRenderReturn = defineRule({
 	id: "require-render-return",
 	title: "Render method does not return",
 	severity: "error",
-	recommendation: "Return JSX from your component's `render` method.",
+	recommendation: "Return JSX or `null` from `render` so the component intentionally shows something or nothing.",
 	create: (context) => {
 		const checkFunction = (functionNode) => {
 			const host = resolveRenderHost(functionNode);
@@ -26580,7 +27250,7 @@ const rerenderLazyRefInit = defineRule({
 	tags: ["test-noise"],
 	severity: "warn",
 	category: "Performance",
-	recommendation: "Set it up only once: `const ref = useRef<T | null>(null); if (ref.current === null) ref.current = expensiveCall();`",
+	recommendation: "Initialize the ref lazily so expensive values are not rebuilt and discarded on every render.",
 	create: (context) => ({ CallExpression(node) {
 		if (!isHookCall$1(node, "useRef") || !node.arguments?.length) return;
 		const initializer = node.arguments[0];
@@ -26607,7 +27277,7 @@ const rerenderLazyStateInit = defineRule({
 	tags: ["test-noise"],
 	severity: "warn",
 	category: "Performance",
-	recommendation: "Wrap in an arrow function so it only runs once: `useState(() => expensiveComputation())`",
+	recommendation: "Wrap expensive initial state in an arrow function so the initializer does not rerun and get thrown away on every render.",
 	create: (context) => ({ CallExpression(node) {
 		if (!isHookCall$1(node, "useState") || !node.arguments?.length) return;
 		const initializer = node.arguments[0];
@@ -26890,7 +27560,7 @@ const rerenderTransitionsScroll = defineRule({
 		}
 		context.report({
 			node: setStateCall,
-			message: `This causes jank because setState in a "${eventName}" handler redraws the screen many times a second, so wrap it in startTransition, use useDeferredValue, or keep the value in a ref & throttle with requestAnimationFrame`
+			message: `This can make scrolling stutter because setState in a "${eventName}" handler redraws on every event. Wrap it in startTransition, use useDeferredValue, or keep the value in a ref and throttle with requestAnimationFrame.`
 		});
 	} })
 });
@@ -26910,7 +27580,7 @@ const rnAnimateLayoutProperty = defineRetiredRule({
 	tags: ["test-noise"],
 	requires: ["react-native"],
 	severity: "warn",
-	recommendation: "Reanimated useAnimatedStyle runs on the UI thread; layout-affecting properties driven by animation helpers, interpolate, or shared values are valid."
+	recommendation: "Retired: Reanimated `useAnimatedStyle` can safely drive layout-affecting properties on the UI thread, so this pattern should not be flagged."
 });
 //#endregion
 //#region src/plugin/rules/react-native/rn-animation-reaction-as-derived.ts
@@ -26941,7 +27611,7 @@ const rnAnimationReactionAsDerived = defineRule({
 		if (!isValueAssignment && !isSetCall) return;
 		context.report({
 			node,
-			message: "Your users can see a stale value when this useAnimatedReaction only copies one value to another."
+			message: "This useAnimatedReaction only copies one shared value into another, so it can miss Reanimated's derived-value dependency tracking."
 		});
 	} })
 });
@@ -26958,17 +27628,17 @@ const JS_BOTTOM_SHEET_PACKAGES = new Set([
 ]);
 const rnBottomSheetPreferNative = defineRule({
 	id: "rn-bottom-sheet-prefer-native",
-	title: "JS bottom sheet over native Modal",
+	title: "JS bottom sheet misses native sheet behavior",
 	tags: ["test-noise"],
 	requires: ["react-native"],
 	severity: "warn",
-	recommendation: "On RN v7+, use `<Modal presentationStyle=\"formSheet\">` for native gestures and snap points.",
+	recommendation: "On RN v7+, use `<Modal presentationStyle=\"formSheet\">` so the sheet uses platform-native gestures, detents, accessibility, and presentation behavior.",
 	create: (context) => ({ ImportDeclaration(node) {
 		const source = node.source?.value;
 		if (typeof source !== "string" || !JS_BOTTOM_SHEET_PACKAGES.has(source)) return;
 		context.report({
 			node,
-			message: `Your users feel a less native bottom sheet with ${source}.`
+			message: `Users get JS-driven sheet gestures and presentation with ${source}, instead of the platform-native formSheet behavior.`
 		});
 	} })
 });
@@ -27054,13 +27724,13 @@ const rnDetoxMissingAwait = defineRule({
 			if (root.calleeName === "waitFor") {
 				context.report({
 					node,
-					message: "This Detox `waitFor(...)` chain isn't awaited. Prepend `await`."
+					message: "This Detox `waitFor` chain isn't awaited, so the test can continue before the condition settles. Prepend `await`."
 				});
 				return;
 			}
 			if (root.calleeName === "expect" && isDetoxExpectSubject(root.rootCall)) context.report({
 				node,
-				message: "This Detox `expect(element(...))` assertion isn't awaited. Prepend `await`."
+				message: "This Detox `expect(element)` assertion isn't awaited, so the test can pass or fail before the assertion settles. Prepend `await`."
 			});
 		} };
 	}
@@ -27180,6 +27850,7 @@ const rnListCallbackPerRow = defineRule({
 	tags: ["test-noise"],
 	requires: ["react-native"],
 	severity: "warn",
+	disabledBy: ["react-compiler"],
 	recommendation: "Move the handler out with useCallback at list scope and pass the row id as a prop. Then memo() rows skip redrawing when their data has not changed.",
 	create: (context) => {
 		const inspect = (node) => {
@@ -27616,6 +28287,7 @@ const rnNoInlineFlatlistRenderitem = defineRule({
 	tags: ["test-noise"],
 	requires: ["react-native"],
 	severity: "warn",
+	disabledBy: ["react-compiler"],
 	recommendation: "Move renderItem to a named function or wrap it in useCallback so it is not rebuilt every time the screen redraws.",
 	create: (context) => ({ JSXAttribute(node) {
 		if (!isNodeOfType(node.name, "JSXIdentifier") || node.name.name !== "renderItem") return;
@@ -27640,6 +28312,7 @@ const rnNoInlineObjectInListItem = defineRule({
 	tags: ["test-noise"],
 	requires: ["react-native"],
 	severity: "warn",
+	disabledBy: ["react-compiler"],
 	recommendation: "Move style and object props out of renderItem (StyleSheet.create, useMemo at list scope, or pass primitives) so memo() rows stop redrawing when their data has not changed.",
 	create: (context) => {
 		const renderPropStack = [];
@@ -27688,7 +28361,7 @@ const rnNoLegacyExpoPackages = defineRule({
 	tags: ["test-noise"],
 	requires: ["react-native"],
 	severity: "warn",
-	recommendation: "These Expo packages are no longer maintained. Switch to the recommended replacement package.",
+	recommendation: "Switch to the maintained replacement package so users are not stuck with unfixed bugs in deprecated Expo packages.",
 	create: (context) => ({ ImportDeclaration(node) {
 		const source = node.source?.value;
 		if (typeof source !== "string") return;
@@ -27770,7 +28443,7 @@ const rnNoNonNativeNavigator = defineRule({
 		if (!NON_NATIVE_NAVIGATOR_PACKAGES.get(source)) return;
 		context.report({
 			node,
-			message: `Your users feel less native transitions when ${source} uses a JS navigator.`
+			message: `Users get JS-driven transitions and gestures from ${source}, instead of platform-native navigation behavior.`
 		});
 	} })
 });
@@ -27949,7 +28622,7 @@ const isExpoUiNamespaceImport = (contextNode, localName) => {
 };
 const isExpoUiComponentElement = (openingElement, contextNode, componentName) => {
 	if (!openingElement.name) return false;
-	const dottedName = flattenJsxName(openingElement.name);
+	const dottedName = flattenJsxName$1(openingElement.name);
 	if (!dottedName) return false;
 	const [rootLocalName, secondName] = dottedName.split(".");
 	if (isNamedImportOf(contextNode, rootLocalName, componentName)) return true;
@@ -28039,7 +28712,7 @@ const collectTopLevelReturnExpressions = (functionNode) => {
 	if (!block || !isNodeOfType(block, "BlockStatement")) return [];
 	const returnExpressions = [];
 	const visit = (node) => {
-		if (FUNCTION_LIKE_TYPES$1.has(node.type)) return;
+		if (FUNCTION_LIKE_TYPES.has(node.type)) return;
 		if (isNodeOfType(node, "ReturnStatement") && node.argument) returnExpressions.push(node.argument);
 		const nodeRecord = node;
 		for (const fieldName of Object.keys(nodeRecord)) {
@@ -28076,7 +28749,7 @@ const collectReturnedJsxElements = (expression) => {
 };
 const rnNoRenderitemKey = defineRule({
 	id: "rn-no-renderitem-key",
-	title: "Useless key on renderItem JSX",
+	title: "renderItem key is ignored by React Native lists",
 	tags: ["test-noise"],
 	requires: ["react-native"],
 	severity: "warn",
@@ -28217,7 +28890,7 @@ const rnNoSetNativeProps = defineRule({
 //#region src/plugin/rules/react-native/rn-no-single-element-style-array.ts
 const rnNoSingleElementStyleArray = defineRule({
 	id: "rn-no-single-element-style-array",
-	title: "Single-element style array",
+	title: "Single-element style array adds wasted allocation",
 	tags: ["test-noise"],
 	requires: ["react-native"],
 	severity: "warn",
@@ -28240,11 +28913,11 @@ const rnNoSingleElementStyleArray = defineRule({
 //#region src/plugin/rules/react-native/rn-prefer-content-inset-adjustment.ts
 const rnPreferContentInsetAdjustment = defineRetiredRule({
 	id: "rn-prefer-content-inset-adjustment",
-	title: "Manual safe-area inset adjustment",
+	title: "Manual safe-area insets can duplicate offsets",
 	tags: ["test-noise"],
 	requires: ["react-native"],
 	severity: "warn",
-	recommendation: "Prefer native content inset adjustment only when it replaces manual inset plumbing; SafeAreaView wrappers are valid and intentionally ignored."
+	recommendation: "Retired: SafeAreaView wrappers are valid; prefer native content inset adjustment only when manual inset plumbing causes scroll jumps or duplicated safe-area offsets."
 });
 //#endregion
 //#region src/react-native-dependency-names.ts
@@ -28429,7 +29102,7 @@ const rnPreferPressable = defineRule({
 	tags: ["test-noise"],
 	requires: ["react-native"],
 	severity: "warn",
-	recommendation: "Use `<Pressable>` from react-native (or react-native-gesture-handler) instead of the old Touchable* components.",
+	recommendation: "Use `<Pressable>` because Touchable* components are frozen and lack Pressable's state-based feedback and accessibility behavior.",
 	create: (context) => ({ ImportDeclaration(node) {
 		const source = node.source?.value;
 		if (typeof source !== "string" || !TOUCHABLE_SOURCES.has(source)) return;
@@ -28865,7 +29538,7 @@ const roleHasRequiredAriaProps = defineRule({
 	title: "Role missing required ARIA props",
 	tags: ["react-jsx-only"],
 	severity: "error",
-	recommendation: "Add every required `aria-*` attribute when you set an interactive role.",
+	recommendation: "Add every required `aria-*` attribute so assistive tech can expose the role's state correctly.",
 	category: "Accessibility",
 	create: (context) => ({ JSXOpeningElement(node) {
 		const roleAttribute = hasJsxPropIgnoreCase(node.attributes, "role");
@@ -32111,16 +32784,16 @@ const roleSupportsAriaProps = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/rules-of-hooks.ts
-const buildTopLevelMessage = (hookName) => `\`${hookName}\` crashes at the top level of a file.`;
-const buildNonComponentMessage = (hookName, functionName) => `\`${hookName}\` crashes inside \`${functionName}\` because it isn't a component or a hook.`;
-const buildConditionalMessage = (hookName) => `\`${hookName}\` crashes when you call it conditionally.`;
-const buildLoopMessage = (hookName) => `\`${hookName}\` crashes when you call it inside a loop.`;
-const buildAsyncMessage = (hookName) => `\`${hookName}\` crashes inside an async function.`;
-const buildClassComponentMessage = (hookName) => `\`${hookName}\` crashes in a class component.`;
-const buildTryMessage = (hookName) => `\`${hookName}\` crashes inside a try/catch/finally block.`;
+const buildTopLevelMessage = (hookName) => `\`${hookName}\` can only run inside a React component or custom Hook because React needs that render scope to track Hook state.`;
+const buildNonComponentMessage = (hookName, functionName) => `\`${hookName}\` runs inside \`${functionName}\`, which is not a component or Hook, so React cannot attach Hook state to a render.`;
+const buildConditionalMessage = (hookName) => `\`${hookName}\` changes Hook order between renders when called conditionally, so React can attach state to the wrong Hook.`;
+const buildLoopMessage = (hookName) => `\`${hookName}\` can run a different number of times inside a loop, so React can attach state to the wrong Hook.`;
+const buildAsyncMessage = (hookName) => `\`${hookName}\` runs inside an async function, so React cannot guarantee the same Hook order during render.`;
+const buildClassComponentMessage = (hookName) => `\`${hookName}\` cannot run in a class component because Hooks require a function component or custom Hook render scope.`;
+const buildTryMessage = (hookName) => `\`${hookName}\` can be skipped by try/catch/finally control flow, so React can attach state to the wrong Hook.`;
 const buildEffectEventCallMessage = (bindingName) => `\`${bindingName}\` comes from useEffectEvent, so it only works when called from Effects in the same component.`;
 const buildEffectEventAssignmentMessage = (bindingName) => `${buildEffectEventCallMessage(bindingName)} It also breaks if saved in a variable or passed around.`;
-const buildEffectEventPassedDownMessage = () => `A function from useEffectEvent breaks when passed around.`;
+const buildEffectEventPassedDownMessage = () => `A function from useEffectEvent only works inside Effects in the same component, so passing it around breaks the event/dependency split.`;
 const ASCII_UPPERCASE_A = 65;
 const ASCII_UPPERCASE_Z = 90;
 const EFFECT_HOOK_NAMES = new Set([
@@ -32373,7 +33046,7 @@ const rulesOfHooks = defineRule({
 	title: "Hook called conditionally",
 	severity: "error",
 	tags: ["test-noise"],
-	recommendation: "Call hooks at the top level of a React function component or a custom Hook.",
+	recommendation: "Call hooks at the top level of a React function component or custom Hook so React sees the same hook order on every render.",
 	category: "Correctness",
 	create: (context) => {
 		const settings = resolveSettings$3(context.settings);
@@ -32501,13 +33174,13 @@ const rulesOfHooks = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/scope.ts
-const MESSAGE$3 = "Screen reader users get no help from `scope` here because it only works on `<th>` cells, so remove it.";
+const MESSAGE$3 = "The `scope` attribute only works on `<th>` cells, so screen readers get no table-header help from it here.";
 const scope = defineRule({
 	id: "scope",
 	title: "scope attribute on non-th element",
 	tags: ["react-jsx-only"],
 	severity: "warn",
-	recommendation: "Only use `scope` on `<th>` cells.",
+	recommendation: "Remove `scope` from this element or move it to the related `<th>` cell.",
 	category: "Accessibility",
 	create: (context) => ({ JSXOpeningElement(node) {
 		const scopeAttribute = hasJsxProp(node.attributes, "scope");
@@ -32522,7 +33195,7 @@ const scope = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/self-closing-comp.ts
-const MESSAGE$2 = "This tag has no children.";
+const MESSAGE$2 = "This tag has no children, so the closing tag adds noise without changing output.";
 const resolveSettings$2 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.selfClosingComp ?? {} : {};
@@ -32541,7 +33214,7 @@ const selfClosingComp = defineRule({
 	title: "Element not self-closing",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Use the self-closing form `<X />` for elements with no children.",
+	recommendation: "Use `<X />` for childless elements so empty closing tags do not add noise.",
 	category: "Architecture",
 	create: (context) => {
 		const settings = resolveSettings$2(context.settings);
@@ -32738,9 +33411,9 @@ const getCandidateFromDefaultDeclaration = (node) => {
 };
 const serverAuthActions = defineRule({
 	id: "server-auth-actions",
-	title: "Server action without auth check",
+	title: "Unauthenticated server action can be called directly",
 	severity: "error",
-	recommendation: "Add `const session = await auth()` at the top, and throw or redirect if the user isn't allowed before touching any data.",
+	recommendation: "Check auth before touching data because exported server actions can be called directly by unauthenticated clients.",
 	create: (context) => {
 		let fileHasUseServerDirective = false;
 		const customAuthFunctionNames = getReactDoctorStringArraySetting(context.settings, "serverAuthFunctionNames");
@@ -32878,12 +33551,13 @@ const objectExpressionHasNextRevalidate = (objectExpression) => {
 	}
 	return false;
 };
-const APP_ROUTER_FILE_PATTERN = /\/app\/(?:[^/]+\/)*(?:route|page|layout|template|loading|error|default)\.(?:tsx?|jsx?)$/;
+const APP_ROUTER_FILE_PATTERN = new RegExp(`/app/(?:[^/]+/)*(?:route|page|layout|template|loading|error|default)\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
 const NON_PROJECT_PATH_PATTERN = /\/(?:node_modules|dist|build|\.next)\//;
 const serverFetchWithoutRevalidate = defineRule({
 	id: "server-fetch-without-revalidate",
 	title: "Fetch without revalidate",
 	severity: "warn",
+	disabledBy: ["nextjs:15"],
 	recommendation: "Pass `{ next: { revalidate: <seconds> } }` (or `cache: \"no-store\"`) so old data doesn't stick around.",
 	create: (context) => {
 		let isServerSideFile = false;
@@ -32917,15 +33591,6 @@ const serverFetchWithoutRevalidate = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/server/server-hoist-static-io.ts
-const ROUTE_HANDLER_HTTP_METHODS = new Set([
-	"GET",
-	"POST",
-	"PUT",
-	"PATCH",
-	"DELETE",
-	"OPTIONS",
-	"HEAD"
-]);
 const STATIC_IO_FUNCTIONS = new Set([
 	"readFileSync",
 	"readFile",
@@ -33129,8 +33794,8 @@ const serverSequentialIndependentAwait = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/state-in-constructor.ts
-const ALWAYS_MESSAGE = "This component's state is set up inconsistently.";
-const NEVER_MESSAGE = "This component's state is set up inconsistently.";
+const ALWAYS_MESSAGE = "This class uses a state field instead of the configured constructor pattern, so state setup is inconsistent across the codebase.";
+const NEVER_MESSAGE = "This class sets state in the constructor instead of the configured class-field pattern, so state setup is inconsistent across the codebase.";
 const resolveSettings$1 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { mode: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.stateInConstructor ?? {} : {}).mode ?? "always" };
@@ -33162,7 +33827,7 @@ const stateInConstructor = defineRule({
 	title: "State initialized in constructor",
 	severity: "warn",
 	defaultEnabled: false,
-	recommendation: "Pick one way to set up state in class components and stick with it.",
+	recommendation: "Use one class-state setup pattern so readers know where initial state lives.",
 	category: "Architecture",
 	create: (context) => {
 		const { mode } = resolveSettings$1(context.settings);
@@ -33265,7 +33930,7 @@ const stylePropObject = defineRule({
 	id: "style-prop-object",
 	title: "Style prop is not an object",
 	severity: "warn",
-	recommendation: "Pass the `style` prop as `{{ color: 'red' }}` (object literal), not a string.",
+	recommendation: "Pass `style` as an object so React can apply CSS properties instead of ignoring a string style value.",
 	category: "Correctness",
 	create: (context) => {
 		const { allow } = resolveSettings(context.settings);
@@ -33611,11 +34276,11 @@ const tanstackStartMissingHeadContent = defineRule({
 //#region src/plugin/rules/tanstack-start/tanstack-start-no-anchor-element.ts
 const tanstackStartNoAnchorElement = defineRule({
 	id: "tanstack-start-no-anchor-element",
-	title: "Plain anchor for internal navigation",
+	title: "Plain anchor reloads TanStack Router navigation",
 	tags: ["test-noise"],
 	requires: ["tanstack-start"],
 	severity: "warn",
-	recommendation: "`import { Link } from '@tanstack/react-router'` for type-safe routes, preloading via `preload=\"intent\"`, and client-side navigation",
+	recommendation: "Use `Link` from `@tanstack/react-router` so internal navigation keeps client state, preloading, and typed routes.",
 	create: (context) => ({ JSXOpeningElement(node) {
 		const filename = normalizeFilename$1(context.filename ?? "");
 		if (!TANSTACK_ROUTE_FILE_PATTERN.test(filename)) return;
@@ -33628,7 +34293,7 @@ const tanstackStartNoAnchorElement = defineRule({
 		else if (isNodeOfType(hrefAttribute.value, "JSXExpressionContainer") && isNodeOfType(hrefAttribute.value.expression, "Literal")) hrefValue = hrefAttribute.value.expression.value;
 		if (typeof hrefValue === "string" && hrefValue.startsWith("/")) context.report({
 			node,
-			message: "Plain <a> reloads the whole page on internal navigation."
+			message: "Plain <a> reloads the whole page for internal navigation, so TanStack Router loses client state and preloading."
 		});
 	} })
 });
@@ -33692,6 +34357,9 @@ const tanstackStartNoNavigateInRender = defineRule({
 		let eventHandlerDepth = 0;
 		const isDeferredHookCall = (node) => isHookCall$1(node, EFFECT_HOOK_NAMES$1) || isHookCall$1(node, "useCallback") || isHookCall$1(node, "useMemo");
 		const isEventHandlerAttribute = (node) => isNodeOfType(node, "JSXAttribute") && isNodeOfType(node.name, "JSXIdentifier") && typeof node.name.name === "string" && node.name.name.startsWith("on") && UPPERCASE_PATTERN.test(node.name.name.charAt(2));
+		const isEventHandlerProperty = (node) => isNodeOfType(node, "Property") && isFunctionLike$2(node.value) && (isNodeOfType(node.key, "Identifier") && typeof node.key.name === "string" && REACT_HANDLER_PROP_PATTERN.test(node.key.name) || isNodeOfType(node.key, "Literal") && typeof node.key.value === "string" && REACT_HANDLER_PROP_PATTERN.test(node.key.value));
+		const isHandlerNamedVariableDeclarator = (node) => isNodeOfType(node, "VariableDeclarator") && isNodeOfType(node.id, "Identifier") && typeof node.id.name === "string" && HANDLER_FUNCTION_NAME_PATTERN.test(node.id.name) && isFunctionLike$2(node.init);
+		const isHandlerNamedFunctionDeclaration = (node) => isNodeOfType(node, "FunctionDeclaration") && isNodeOfType(node.id, "Identifier") && typeof node.id.name === "string" && HANDLER_FUNCTION_NAME_PATTERN.test(node.id.name);
 		return {
 			CallExpression(node) {
 				const filename = normalizeFilename$1(context.filename ?? "");
@@ -33700,7 +34368,7 @@ const tanstackStartNoNavigateInRender = defineRule({
 				if (deferredCallbackDepth > 0 || eventHandlerDepth > 0) return;
 				if (isNodeOfType(node.callee, "Identifier") && node.callee.name === "navigate" && (node.arguments?.length ?? 0) > 0) context.report({
 					node,
-					message: "navigate() during render causes hydration errors."
+					message: "navigate() runs during render here, so server and browser output can diverge during hydration."
 				});
 			},
 			"CallExpression:exit"(node) {
@@ -33717,6 +34385,36 @@ const tanstackStartNoNavigateInRender = defineRule({
 				const filename = normalizeFilename$1(context.filename ?? "");
 				if (!TANSTACK_ROUTE_FILE_PATTERN.test(filename)) return;
 				if (isEventHandlerAttribute(node)) eventHandlerDepth = Math.max(0, eventHandlerDepth - 1);
+			},
+			Property(node) {
+				const filename = normalizeFilename$1(context.filename ?? "");
+				if (!TANSTACK_ROUTE_FILE_PATTERN.test(filename)) return;
+				if (isEventHandlerProperty(node)) eventHandlerDepth++;
+			},
+			"Property:exit"(node) {
+				const filename = normalizeFilename$1(context.filename ?? "");
+				if (!TANSTACK_ROUTE_FILE_PATTERN.test(filename)) return;
+				if (isEventHandlerProperty(node)) eventHandlerDepth = Math.max(0, eventHandlerDepth - 1);
+			},
+			VariableDeclarator(node) {
+				const filename = normalizeFilename$1(context.filename ?? "");
+				if (!TANSTACK_ROUTE_FILE_PATTERN.test(filename)) return;
+				if (isHandlerNamedVariableDeclarator(node)) eventHandlerDepth++;
+			},
+			"VariableDeclarator:exit"(node) {
+				const filename = normalizeFilename$1(context.filename ?? "");
+				if (!TANSTACK_ROUTE_FILE_PATTERN.test(filename)) return;
+				if (isHandlerNamedVariableDeclarator(node)) eventHandlerDepth = Math.max(0, eventHandlerDepth - 1);
+			},
+			FunctionDeclaration(node) {
+				const filename = normalizeFilename$1(context.filename ?? "");
+				if (!TANSTACK_ROUTE_FILE_PATTERN.test(filename)) return;
+				if (isHandlerNamedFunctionDeclaration(node)) eventHandlerDepth++;
+			},
+			"FunctionDeclaration:exit"(node) {
+				const filename = normalizeFilename$1(context.filename ?? "");
+				if (!TANSTACK_ROUTE_FILE_PATTERN.test(filename)) return;
+				if (isHandlerNamedFunctionDeclaration(node)) eventHandlerDepth = Math.max(0, eventHandlerDepth - 1);
 			}
 		};
 	}
@@ -33784,7 +34482,7 @@ const tanstackStartNoUseServerInHandler = defineRule({
 		if (!isNodeOfType(body, "BlockStatement")) return;
 		if (body.body?.some((statement) => isNodeOfType(statement, "ExpressionStatement") && (statement.directive === "use server" || isNodeOfType(statement.expression, "Literal") && statement.expression.value === "use server"))) context.report({
 			node: handlerFunction,
-			message: "\"use server\" inside a createServerFn handler causes compile errors."
+			message: "\"use server\" inside a createServerFn handler duplicates TanStack Start's server boundary, so the route can fail to compile."
 		});
 	} })
 });
@@ -33858,11 +34556,11 @@ const tanstackStartRedirectInTryCatch = defineRule({
 //#region src/plugin/rules/tanstack-start/tanstack-start-route-property-order.ts
 const tanstackStartRoutePropertyOrder = defineRule({
 	id: "tanstack-start-route-property-order",
-	title: "Wrong route property order",
+	title: "Route property order breaks type inference",
 	tags: ["test-noise"],
 	requires: ["tanstack-start"],
 	severity: "error",
-	recommendation: "Follow the order: params/validateSearch → loaderDeps → context → beforeLoad → loader → head. See https://tanstack.com/router/latest/docs/eslint/create-route-property-order",
+	recommendation: "Follow the route property order because TanStack Router's type inference depends on earlier properties feeding later ones.",
 	create: (context) => ({ CallExpression(node) {
 		const optionsObject = getRouteOptionsObject(node);
 		if (!optionsObject) return;
@@ -33892,7 +34590,7 @@ const tanstackStartRoutePropertyOrder = defineRule({
 //#region src/plugin/rules/tanstack-start/tanstack-start-server-fn-method-order.ts
 const tanstackStartServerFnMethodOrder = defineRule({
 	id: "tanstack-start-server-fn-method-order",
-	title: "Wrong server function method order",
+	title: "Server function method order breaks type inference",
 	tags: ["test-noise"],
 	requires: ["tanstack-start"],
 	severity: "error",
@@ -33973,7 +34671,7 @@ const useLazyMotion = defineRule({
 			return getImportedName$1(specifier) === "motion";
 		})) context.report({
 			node,
-			message: "Importing \"motion\" ships about 30 kb of extra code to your users & slows page load. Use \"m\" with LazyMotion instead."
+			message: "Importing \"motion\" ships about 30 kb of extra code and slows page load. Use \"m\" with LazyMotion instead."
 		});
 	} })
 });
@@ -34010,7 +34708,7 @@ const voidDomElementsNoChildren = defineRule({
 	id: "void-dom-elements-no-children",
 	title: "Children on a void element",
 	severity: "warn",
-	recommendation: "Remove the children, or use a tag that can hold children.",
+	recommendation: "Remove the children or use a non-void tag so React does not drop content the element cannot render.",
 	create: (context) => ({
 		JSXElement(node) {
 			const openingElement = node.openingElement;
@@ -34158,7 +34856,7 @@ const DEPRECATED_ZOD_ERROR_MEMBERS = new Set([
 	"formErrors",
 	"format"
 ]);
-const ZOD_ERROR_API_MESSAGE = "Zod 4 dropped this ZodError method, so it breaks when you upgrade.";
+const ZOD_ERROR_API_MESSAGE = "This ZodError API was removed in Zod 4, so error handling can break during the upgrade.";
 const isZodErrorReference = (node) => {
 	const inner = stripParenExpression(node);
 	if (isNodeOfType(inner, "Identifier")) return getZodNamedImport(inner) === "ZodError";
@@ -34190,7 +34888,7 @@ const isReceiverOfDeprecatedZodErrorMember = (callExpression) => {
 };
 const zodV4NoDeprecatedErrorApis = defineRule({
 	id: "zod-v4-no-deprecated-error-apis",
-	title: "Deprecated Zod error API",
+	title: "Zod 3 error API breaks in Zod 4",
 	requires: ["zod:4"],
 	tags: ["migration-hint"],
 	severity: "warn",
@@ -34279,7 +34977,7 @@ const parseCallUsesErrorMap = (callExpression) => {
 };
 const zodV4NoDeprecatedErrorCustomization = defineRule({
 	id: "zod-v4-no-deprecated-error-customization",
-	title: "Deprecated Zod error customization",
+	title: "Zod 3 error customization breaks in Zod 4",
 	requires: ["zod:4"],
 	tags: ["migration-hint"],
 	severity: "warn",
@@ -34288,7 +34986,7 @@ const zodV4NoDeprecatedErrorCustomization = defineRule({
 		if (!factoryUsesDeprecatedErrorParameter(node) && !parseCallUsesErrorMap(node)) return;
 		context.report({
 			node,
-			message: "Zod 4 changed how you customize error messages, so this breaks when you upgrade."
+			message: "This Zod 3 error-customization form is not compatible with Zod 4, so custom messages can stop applying during the upgrade."
 		});
 	} })
 });
@@ -34348,7 +35046,7 @@ const LITERAL_FACTORY = new Set(["literal"]);
 const reportSchemaMigration = (context, node) => {
 	context.report({
 		node,
-		message: "Zod 4 deprecated or changed this API, so it breaks when you upgrade."
+		message: "This Zod 3 schema API changed in Zod 4, so this schema can fail after the upgrade."
 	});
 };
 const isCallToDeprecatedTopLevelFactory = (callExpression) => isZodFactoryCall(callExpression, DEPRECATED_TOP_LEVEL_FACTORIES);
@@ -34400,7 +35098,7 @@ const isZodNamespaceImportMemberCreate = (memberExpression) => {
 };
 const zodV4NoDeprecatedSchemaApis = defineRule({
 	id: "zod-v4-no-deprecated-schema-apis",
-	title: "Deprecated Zod schema API",
+	title: "Zod 3 schema API breaks in Zod 4",
 	requires: ["zod:4"],
 	tags: ["migration-hint"],
 	severity: "warn",
@@ -34453,7 +35151,7 @@ const zodV4PreferTopLevelStringFormats = defineRule({
 		if (!isDirectMethodCallOnZodFactory(node, ZOD_STRING_FACTORY, STRING_FORMAT_METHODS)) return;
 		context.report({
 			node,
-			message: "Zod 4 deprecated format methods on `z.string()`, so they break when you upgrade."
+			message: "This `z.string().<format>()` check is deprecated in Zod 4, so it can break during the upgrade."
 		});
 	} })
 });
@@ -34468,7 +35166,8 @@ const reactDoctorRules = [
 		rule: {
 			...activityWrapsEffectHeavySubtree,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...activityWrapsEffectHeavySubtree.requires ?? []])]
 		}
 	},
 	{
@@ -34479,7 +35178,8 @@ const reactDoctorRules = [
 		rule: {
 			...advancedEventHandlerRefs,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...advancedEventHandlerRefs.requires ?? []])]
 		}
 	},
 	{
@@ -34490,7 +35190,8 @@ const reactDoctorRules = [
 		rule: {
 			...altText,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...altText.requires ?? []])]
 		}
 	},
 	{
@@ -34501,7 +35202,8 @@ const reactDoctorRules = [
 		rule: {
 			...anchorAmbiguousText,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...anchorAmbiguousText.requires ?? []])]
 		}
 	},
 	{
@@ -34512,7 +35214,8 @@ const reactDoctorRules = [
 		rule: {
 			...anchorHasContent,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...anchorHasContent.requires ?? []])]
 		}
 	},
 	{
@@ -34523,7 +35226,8 @@ const reactDoctorRules = [
 		rule: {
 			...anchorIsValid,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...anchorIsValid.requires ?? []])]
 		}
 	},
 	{
@@ -34534,7 +35238,8 @@ const reactDoctorRules = [
 		rule: {
 			...ariaActivedescendantHasTabindex,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...ariaActivedescendantHasTabindex.requires ?? []])]
 		}
 	},
 	{
@@ -34545,7 +35250,8 @@ const reactDoctorRules = [
 		rule: {
 			...ariaProps,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...ariaProps.requires ?? []])]
 		}
 	},
 	{
@@ -34556,7 +35262,8 @@ const reactDoctorRules = [
 		rule: {
 			...ariaProptypes,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...ariaProptypes.requires ?? []])]
 		}
 	},
 	{
@@ -34567,7 +35274,8 @@ const reactDoctorRules = [
 		rule: {
 			...ariaRole,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...ariaRole.requires ?? []])]
 		}
 	},
 	{
@@ -34578,7 +35286,8 @@ const reactDoctorRules = [
 		rule: {
 			...ariaUnsupportedElements,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...ariaUnsupportedElements.requires ?? []])]
 		}
 	},
 	{
@@ -34600,7 +35309,8 @@ const reactDoctorRules = [
 		rule: {
 			...asyncDeferAwait,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...asyncDeferAwait.requires ?? []])]
 		}
 	},
 	{
@@ -34622,7 +35332,8 @@ const reactDoctorRules = [
 		rule: {
 			...autocompleteValid,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...autocompleteValid.requires ?? []])]
 		}
 	},
 	{
@@ -34633,7 +35344,8 @@ const reactDoctorRules = [
 		rule: {
 			...buttonHasType,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...buttonHasType.requires ?? []])]
 		}
 	},
 	{
@@ -34644,7 +35356,8 @@ const reactDoctorRules = [
 		rule: {
 			...checkedRequiresOnchangeOrReadonly,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...checkedRequiresOnchangeOrReadonly.requires ?? []])]
 		}
 	},
 	{
@@ -34655,7 +35368,8 @@ const reactDoctorRules = [
 		rule: {
 			...clickEventsHaveKeyEvents,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...clickEventsHaveKeyEvents.requires ?? []])]
 		}
 	},
 	{
@@ -34666,7 +35380,8 @@ const reactDoctorRules = [
 		rule: {
 			...clientLocalstorageNoVersion,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...clientLocalstorageNoVersion.requires ?? []])]
 		}
 	},
 	{
@@ -34677,7 +35392,8 @@ const reactDoctorRules = [
 		rule: {
 			...clientPassiveEventListeners,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...clientPassiveEventListeners.requires ?? []])]
 		}
 	},
 	{
@@ -34688,7 +35404,8 @@ const reactDoctorRules = [
 		rule: {
 			...controlHasAssociatedLabel,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...controlHasAssociatedLabel.requires ?? []])]
 		}
 	},
 	{
@@ -34699,7 +35416,8 @@ const reactDoctorRules = [
 		rule: {
 			...noEmDashInJsxText,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...noEmDashInJsxText.requires ?? []])]
 		}
 	},
 	{
@@ -34710,7 +35428,8 @@ const reactDoctorRules = [
 		rule: {
 			...noRedundantPaddingAxes,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...noRedundantPaddingAxes.requires ?? []])]
 		}
 	},
 	{
@@ -34721,7 +35440,8 @@ const reactDoctorRules = [
 		rule: {
 			...noRedundantSizeAxes,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...noRedundantSizeAxes.requires ?? []])]
 		}
 	},
 	{
@@ -34732,7 +35452,8 @@ const reactDoctorRules = [
 		rule: {
 			...noSpaceOnFlexChildren,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...noSpaceOnFlexChildren.requires ?? []])]
 		}
 	},
 	{
@@ -34743,7 +35464,8 @@ const reactDoctorRules = [
 		rule: {
 			...noThreePeriodEllipsis,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...noThreePeriodEllipsis.requires ?? []])]
 		}
 	},
 	{
@@ -34754,7 +35476,8 @@ const reactDoctorRules = [
 		rule: {
 			...noVagueButtonLabel,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...noVagueButtonLabel.requires ?? []])]
 		}
 	},
 	{
@@ -34765,7 +35488,8 @@ const reactDoctorRules = [
 		rule: {
 			...displayName,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...displayName.requires ?? []])]
 		}
 	},
 	{
@@ -34776,7 +35500,8 @@ const reactDoctorRules = [
 		rule: {
 			...effectNeedsCleanup,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...effectNeedsCleanup.requires ?? []])]
 		}
 	},
 	{
@@ -34787,7 +35512,8 @@ const reactDoctorRules = [
 		rule: {
 			...exhaustiveDeps,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...exhaustiveDeps.requires ?? []])]
 		}
 	},
 	{
@@ -34810,7 +35536,8 @@ const reactDoctorRules = [
 		rule: {
 			...forbidComponentProps,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...forbidComponentProps.requires ?? []])]
 		}
 	},
 	{
@@ -34821,7 +35548,8 @@ const reactDoctorRules = [
 		rule: {
 			...forbidDomProps,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...forbidDomProps.requires ?? []])]
 		}
 	},
 	{
@@ -34832,7 +35560,8 @@ const reactDoctorRules = [
 		rule: {
 			...forbidElements,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...forbidElements.requires ?? []])]
 		}
 	},
 	{
@@ -34843,7 +35572,8 @@ const reactDoctorRules = [
 		rule: {
 			...forwardRefUsesRef,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...forwardRefUsesRef.requires ?? []])]
 		}
 	},
 	{
@@ -34854,7 +35584,8 @@ const reactDoctorRules = [
 		rule: {
 			...headingHasContent,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...headingHasContent.requires ?? []])]
 		}
 	},
 	{
@@ -34865,7 +35596,8 @@ const reactDoctorRules = [
 		rule: {
 			...hookUseState,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...hookUseState.requires ?? []])]
 		}
 	},
 	{
@@ -34876,7 +35608,8 @@ const reactDoctorRules = [
 		rule: {
 			...hooksNoNanInDeps,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...hooksNoNanInDeps.requires ?? []])]
 		}
 	},
 	{
@@ -34887,7 +35620,8 @@ const reactDoctorRules = [
 		rule: {
 			...htmlHasLang,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...htmlHasLang.requires ?? []])]
 		}
 	},
 	{
@@ -34931,7 +35665,8 @@ const reactDoctorRules = [
 		rule: {
 			...iframeHasTitle,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...iframeHasTitle.requires ?? []])]
 		}
 	},
 	{
@@ -34942,7 +35677,8 @@ const reactDoctorRules = [
 		rule: {
 			...iframeMissingSandbox,
 			framework: "global",
-			category: "Security"
+			category: "Security",
+			requires: [...new Set(["react", ...iframeMissingSandbox.requires ?? []])]
 		}
 	},
 	{
@@ -34953,7 +35689,8 @@ const reactDoctorRules = [
 		rule: {
 			...imgRedundantAlt,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...imgRedundantAlt.requires ?? []])]
 		}
 	},
 	{
@@ -34964,7 +35701,8 @@ const reactDoctorRules = [
 		rule: {
 			...interactiveSupportsFocus,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...interactiveSupportsFocus.requires ?? []])]
 		}
 	},
 	{
@@ -34975,7 +35713,8 @@ const reactDoctorRules = [
 		rule: {
 			...jotaiDerivedAtomReturnsFreshObject,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...jotaiDerivedAtomReturnsFreshObject.requires ?? []])]
 		}
 	},
 	{
@@ -34986,7 +35725,8 @@ const reactDoctorRules = [
 		rule: {
 			...jotaiSelectAtomInRenderBody,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...jotaiSelectAtomInRenderBody.requires ?? []])]
 		}
 	},
 	{
@@ -34997,7 +35737,8 @@ const reactDoctorRules = [
 		rule: {
 			...jotaiTqUseRawQueryAtom,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...jotaiTqUseRawQueryAtom.requires ?? []])]
 		}
 	},
 	{
@@ -35162,7 +35903,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxBooleanValue,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...jsxBooleanValue.requires ?? []])]
 		}
 	},
 	{
@@ -35173,7 +35915,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxCurlyBracePresence,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...jsxCurlyBracePresence.requires ?? []])]
 		}
 	},
 	{
@@ -35184,7 +35927,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxFilenameExtension,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...jsxFilenameExtension.requires ?? []])]
 		}
 	},
 	{
@@ -35195,7 +35939,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxFragments,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...jsxFragments.requires ?? []])]
 		}
 	},
 	{
@@ -35206,7 +35951,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxHandlerNames,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...jsxHandlerNames.requires ?? []])]
 		}
 	},
 	{
@@ -35217,7 +35963,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxKey,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...jsxKey.requires ?? []])]
 		}
 	},
 	{
@@ -35228,7 +35975,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxMaxDepth,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...jsxMaxDepth.requires ?? []])]
 		}
 	},
 	{
@@ -35239,7 +35987,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxNoCommentTextnodes,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...jsxNoCommentTextnodes.requires ?? []])]
 		}
 	},
 	{
@@ -35250,7 +35999,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxNoConstructedContextValues,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...jsxNoConstructedContextValues.requires ?? []])]
 		}
 	},
 	{
@@ -35261,7 +36011,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxNoDuplicateProps,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...jsxNoDuplicateProps.requires ?? []])]
 		}
 	},
 	{
@@ -35272,7 +36023,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxNoJsxAsProp,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...jsxNoJsxAsProp.requires ?? []])]
 		}
 	},
 	{
@@ -35283,7 +36035,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxNoNewArrayAsProp,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...jsxNoNewArrayAsProp.requires ?? []])]
 		}
 	},
 	{
@@ -35294,7 +36047,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxNoNewFunctionAsProp,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...jsxNoNewFunctionAsProp.requires ?? []])]
 		}
 	},
 	{
@@ -35305,7 +36059,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxNoNewObjectAsProp,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...jsxNoNewObjectAsProp.requires ?? []])]
 		}
 	},
 	{
@@ -35316,18 +36071,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxNoScriptUrl,
 			framework: "global",
-			category: "Security"
-		}
-	},
-	{
-		key: "react-doctor/jsx-no-target-blank",
-		id: "jsx-no-target-blank",
-		source: "react-doctor",
-		originallyExternal: true,
-		rule: {
-			...jsxNoTargetBlank,
-			framework: "global",
-			category: "Security"
+			category: "Security",
+			requires: [...new Set(["react", ...jsxNoScriptUrl.requires ?? []])]
 		}
 	},
 	{
@@ -35338,7 +36083,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxNoUndef,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...jsxNoUndef.requires ?? []])]
 		}
 	},
 	{
@@ -35349,7 +36095,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxNoUselessFragment,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...jsxNoUselessFragment.requires ?? []])]
 		}
 	},
 	{
@@ -35360,7 +36107,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxPascalCase,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...jsxPascalCase.requires ?? []])]
 		}
 	},
 	{
@@ -35371,7 +36119,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxPropsNoSpreadMulti,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...jsxPropsNoSpreadMulti.requires ?? []])]
 		}
 	},
 	{
@@ -35382,7 +36131,8 @@ const reactDoctorRules = [
 		rule: {
 			...jsxPropsNoSpreading,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...jsxPropsNoSpreading.requires ?? []])]
 		}
 	},
 	{
@@ -35393,7 +36143,8 @@ const reactDoctorRules = [
 		rule: {
 			...labelHasAssociatedControl,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...labelHasAssociatedControl.requires ?? []])]
 		}
 	},
 	{
@@ -35404,7 +36155,8 @@ const reactDoctorRules = [
 		rule: {
 			...lang,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...lang.requires ?? []])]
 		}
 	},
 	{
@@ -35415,7 +36167,8 @@ const reactDoctorRules = [
 		rule: {
 			...mediaHasCaption,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...mediaHasCaption.requires ?? []])]
 		}
 	},
 	{
@@ -35426,7 +36179,8 @@ const reactDoctorRules = [
 		rule: {
 			...mouseEventsHaveKeyEvents,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...mouseEventsHaveKeyEvents.requires ?? []])]
 		}
 	},
 	{
@@ -35436,6 +36190,28 @@ const reactDoctorRules = [
 		originallyExternal: false,
 		rule: {
 			...nextjsAsyncClientComponent,
+			framework: "nextjs",
+			category: "Bugs"
+		}
+	},
+	{
+		key: "react-doctor/nextjs-error-boundary-missing-use-client",
+		id: "nextjs-error-boundary-missing-use-client",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...nextjsErrorBoundaryMissingUseClient,
+			framework: "nextjs",
+			category: "Bugs"
+		}
+	},
+	{
+		key: "react-doctor/nextjs-global-error-missing-html-body",
+		id: "nextjs-global-error-missing-html-body",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...nextjsGlobalErrorMissingHtmlBody,
 			framework: "nextjs",
 			category: "Bugs"
 		}
@@ -35518,12 +36294,45 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/nextjs-no-default-export-in-route-handler",
+		id: "nextjs-no-default-export-in-route-handler",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...nextjsNoDefaultExportInRouteHandler,
+			framework: "nextjs",
+			category: "Bugs"
+		}
+	},
+	{
+		key: "react-doctor/nextjs-no-edge-og-runtime",
+		id: "nextjs-no-edge-og-runtime",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...nextjsNoEdgeOgRuntime,
+			framework: "nextjs",
+			category: "Bugs"
+		}
+	},
+	{
 		key: "react-doctor/nextjs-no-font-link",
 		id: "nextjs-no-font-link",
 		source: "react-doctor",
 		originallyExternal: false,
 		rule: {
 			...nextjsNoFontLink,
+			framework: "nextjs",
+			category: "Bugs"
+		}
+	},
+	{
+		key: "react-doctor/nextjs-no-google-analytics-script",
+		id: "nextjs-no-google-analytics-script",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...nextjsNoGoogleAnalyticsScript,
 			framework: "nextjs",
 			category: "Bugs"
 		}
@@ -35584,6 +36393,17 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/nextjs-no-script-in-head",
+		id: "nextjs-no-script-in-head",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...nextjsNoScriptInHead,
+			framework: "nextjs",
+			category: "Bugs"
+		}
+	},
+	{
 		key: "react-doctor/nextjs-no-side-effect-in-get-handler",
 		id: "nextjs-no-side-effect-in-get-handler",
 		source: "react-doctor",
@@ -35606,6 +36426,17 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/nextjs-no-vercel-og-import",
+		id: "nextjs-no-vercel-og-import",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...nextjsNoVercelOgImport,
+			framework: "nextjs",
+			category: "Bugs"
+		}
+	},
+	{
 		key: "react-doctor/no-access-key",
 		id: "no-access-key",
 		source: "react-doctor",
@@ -35613,7 +36444,8 @@ const reactDoctorRules = [
 		rule: {
 			...noAccessKey,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...noAccessKey.requires ?? []])]
 		}
 	},
 	{
@@ -35624,7 +36456,8 @@ const reactDoctorRules = [
 		rule: {
 			...noAdjustStateOnPropChange,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noAdjustStateOnPropChange.requires ?? []])]
 		}
 	},
 	{
@@ -35635,7 +36468,8 @@ const reactDoctorRules = [
 		rule: {
 			...noAriaHiddenOnFocusable,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...noAriaHiddenOnFocusable.requires ?? []])]
 		}
 	},
 	{
@@ -35657,7 +36491,8 @@ const reactDoctorRules = [
 		rule: {
 			...noArrayIndexKey,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...noArrayIndexKey.requires ?? []])]
 		}
 	},
 	{
@@ -35668,7 +36503,8 @@ const reactDoctorRules = [
 		rule: {
 			...noAutofocus,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...noAutofocus.requires ?? []])]
 		}
 	},
 	{
@@ -35690,7 +36526,8 @@ const reactDoctorRules = [
 		rule: {
 			...noCascadingSetState,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noCascadingSetState.requires ?? []])]
 		}
 	},
 	{
@@ -35701,7 +36538,8 @@ const reactDoctorRules = [
 		rule: {
 			...noChainStateUpdates,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noChainStateUpdates.requires ?? []])]
 		}
 	},
 	{
@@ -35712,7 +36550,8 @@ const reactDoctorRules = [
 		rule: {
 			...noChildrenProp,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noChildrenProp.requires ?? []])]
 		}
 	},
 	{
@@ -35723,7 +36562,8 @@ const reactDoctorRules = [
 		rule: {
 			...noCloneElement,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...noCloneElement.requires ?? []])]
 		}
 	},
 	{
@@ -35734,7 +36574,8 @@ const reactDoctorRules = [
 		rule: {
 			...noCreateContextInRender,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noCreateContextInRender.requires ?? []])]
 		}
 	},
 	{
@@ -35745,7 +36586,8 @@ const reactDoctorRules = [
 		rule: {
 			...noCreateStoreInRender,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noCreateStoreInRender.requires ?? []])]
 		}
 	},
 	{
@@ -35756,7 +36598,8 @@ const reactDoctorRules = [
 		rule: {
 			...noDanger,
 			framework: "global",
-			category: "Security"
+			category: "Security",
+			requires: [...new Set(["react", ...noDanger.requires ?? []])]
 		}
 	},
 	{
@@ -35767,7 +36610,8 @@ const reactDoctorRules = [
 		rule: {
 			...noDangerWithChildren,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noDangerWithChildren.requires ?? []])]
 		}
 	},
 	{
@@ -35800,7 +36644,8 @@ const reactDoctorRules = [
 		rule: {
 			...noDerivedState,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noDerivedState.requires ?? []])]
 		}
 	},
 	{
@@ -35811,7 +36656,8 @@ const reactDoctorRules = [
 		rule: {
 			...noDerivedStateEffect,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noDerivedStateEffect.requires ?? []])]
 		}
 	},
 	{
@@ -35822,7 +36668,8 @@ const reactDoctorRules = [
 		rule: {
 			...noDerivedUseState,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noDerivedUseState.requires ?? []])]
 		}
 	},
 	{
@@ -35833,7 +36680,8 @@ const reactDoctorRules = [
 		rule: {
 			...noDidMountSetState,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noDidMountSetState.requires ?? []])]
 		}
 	},
 	{
@@ -35844,7 +36692,8 @@ const reactDoctorRules = [
 		rule: {
 			...noDidUpdateSetState,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noDidUpdateSetState.requires ?? []])]
 		}
 	},
 	{
@@ -35855,7 +36704,8 @@ const reactDoctorRules = [
 		rule: {
 			...noDirectMutationState,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noDirectMutationState.requires ?? []])]
 		}
 	},
 	{
@@ -35866,7 +36716,8 @@ const reactDoctorRules = [
 		rule: {
 			...noDirectStateMutation,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noDirectStateMutation.requires ?? []])]
 		}
 	},
 	{
@@ -35888,7 +36739,8 @@ const reactDoctorRules = [
 		rule: {
 			...noDistractingElements,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...noDistractingElements.requires ?? []])]
 		}
 	},
 	{
@@ -35899,7 +36751,8 @@ const reactDoctorRules = [
 		rule: {
 			...noDocumentStartViewTransition,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noDocumentStartViewTransition.requires ?? []])]
 		}
 	},
 	{
@@ -35921,7 +36774,8 @@ const reactDoctorRules = [
 		rule: {
 			...noEffectChain,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noEffectChain.requires ?? []])]
 		}
 	},
 	{
@@ -35932,7 +36786,8 @@ const reactDoctorRules = [
 		rule: {
 			...noEffectEventHandler,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noEffectEventHandler.requires ?? []])]
 		}
 	},
 	{
@@ -35943,7 +36798,8 @@ const reactDoctorRules = [
 		rule: {
 			...noEffectEventInDeps,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noEffectEventInDeps.requires ?? []])]
 		}
 	},
 	{
@@ -35954,7 +36810,8 @@ const reactDoctorRules = [
 		rule: {
 			...noEffectWithFreshDeps,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noEffectWithFreshDeps.requires ?? []])]
 		}
 	},
 	{
@@ -35976,7 +36833,8 @@ const reactDoctorRules = [
 		rule: {
 			...noEventHandler,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noEventHandler.requires ?? []])]
 		}
 	},
 	{
@@ -35987,7 +36845,8 @@ const reactDoctorRules = [
 		rule: {
 			...noEventTriggerState,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noEventTriggerState.requires ?? []])]
 		}
 	},
 	{
@@ -35998,7 +36857,8 @@ const reactDoctorRules = [
 		rule: {
 			...noFetchInEffect,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noFetchInEffect.requires ?? []])]
 		}
 	},
 	{
@@ -36009,7 +36869,8 @@ const reactDoctorRules = [
 		rule: {
 			...noFindDomNode,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noFindDomNode.requires ?? []])]
 		}
 	},
 	{
@@ -36020,7 +36881,8 @@ const reactDoctorRules = [
 		rule: {
 			...noFlushSync,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...noFlushSync.requires ?? []])]
 		}
 	},
 	{
@@ -36064,7 +36926,8 @@ const reactDoctorRules = [
 		rule: {
 			...noGlobalCssVariableAnimation,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...noGlobalCssVariableAnimation.requires ?? []])]
 		}
 	},
 	{
@@ -36097,7 +36960,8 @@ const reactDoctorRules = [
 		rule: {
 			...noInitializeState,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noInitializeState.requires ?? []])]
 		}
 	},
 	{
@@ -36130,7 +36994,8 @@ const reactDoctorRules = [
 		rule: {
 			...noInlinePropOnMemoComponent,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...noInlinePropOnMemoComponent.requires ?? []])]
 		}
 	},
 	{
@@ -36141,7 +37006,8 @@ const reactDoctorRules = [
 		rule: {
 			...noInteractiveElementToNoninteractiveRole,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...noInteractiveElementToNoninteractiveRole.requires ?? []])]
 		}
 	},
 	{
@@ -36151,6 +37017,18 @@ const reactDoctorRules = [
 		originallyExternal: true,
 		rule: {
 			...noIsMounted,
+			framework: "global",
+			category: "Bugs",
+			requires: [...new Set(["react", ...noIsMounted.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/no-jsx-element-type",
+		id: "no-jsx-element-type",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noJsxElementType,
 			framework: "global",
 			category: "Bugs"
 		}
@@ -36174,7 +37052,8 @@ const reactDoctorRules = [
 		rule: {
 			...noLargeAnimatedBlur,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...noLargeAnimatedBlur.requires ?? []])]
 		}
 	},
 	{
@@ -36185,7 +37064,8 @@ const reactDoctorRules = [
 		rule: {
 			...noLayoutPropertyAnimation,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...noLayoutPropertyAnimation.requires ?? []])]
 		}
 	},
 	{
@@ -36251,7 +37131,8 @@ const reactDoctorRules = [
 		rule: {
 			...noMirrorPropEffect,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noMirrorPropEffect.requires ?? []])]
 		}
 	},
 	{
@@ -36273,7 +37154,8 @@ const reactDoctorRules = [
 		rule: {
 			...noMultiComp,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...noMultiComp.requires ?? []])]
 		}
 	},
 	{
@@ -36284,7 +37166,8 @@ const reactDoctorRules = [
 		rule: {
 			...noMutableInDeps,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noMutableInDeps.requires ?? []])]
 		}
 	},
 	{
@@ -36295,7 +37178,8 @@ const reactDoctorRules = [
 		rule: {
 			...noMutatingReducerState,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noMutatingReducerState.requires ?? []])]
 		}
 	},
 	{
@@ -36306,7 +37190,8 @@ const reactDoctorRules = [
 		rule: {
 			...noNamespace,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noNamespace.requires ?? []])]
 		}
 	},
 	{
@@ -36328,7 +37213,8 @@ const reactDoctorRules = [
 		rule: {
 			...noNoninteractiveElementInteractions,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...noNoninteractiveElementInteractions.requires ?? []])]
 		}
 	},
 	{
@@ -36339,7 +37225,8 @@ const reactDoctorRules = [
 		rule: {
 			...noNoninteractiveElementToInteractiveRole,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...noNoninteractiveElementToInteractiveRole.requires ?? []])]
 		}
 	},
 	{
@@ -36350,7 +37237,8 @@ const reactDoctorRules = [
 		rule: {
 			...noNoninteractiveTabindex,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...noNoninteractiveTabindex.requires ?? []])]
 		}
 	},
 	{
@@ -36372,7 +37260,8 @@ const reactDoctorRules = [
 		rule: {
 			...noPassDataToParent,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noPassDataToParent.requires ?? []])]
 		}
 	},
 	{
@@ -36383,7 +37272,8 @@ const reactDoctorRules = [
 		rule: {
 			...noPassLiveStateToParent,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noPassLiveStateToParent.requires ?? []])]
 		}
 	},
 	{
@@ -36394,7 +37284,8 @@ const reactDoctorRules = [
 		rule: {
 			...noPermanentWillChange,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...noPermanentWillChange.requires ?? []])]
 		}
 	},
 	{
@@ -36427,7 +37318,8 @@ const reactDoctorRules = [
 		rule: {
 			...noPropCallbackInEffect,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noPropCallbackInEffect.requires ?? []])]
 		}
 	},
 	{
@@ -36471,7 +37363,8 @@ const reactDoctorRules = [
 		rule: {
 			...noReactChildren,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...noReactChildren.requires ?? []])]
 		}
 	},
 	{
@@ -36504,7 +37397,8 @@ const reactDoctorRules = [
 		rule: {
 			...noRedundantRoles,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...noRedundantRoles.requires ?? []])]
 		}
 	},
 	{
@@ -36515,7 +37409,8 @@ const reactDoctorRules = [
 		rule: {
 			...noRedundantShouldComponentUpdate,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...noRedundantShouldComponentUpdate.requires ?? []])]
 		}
 	},
 	{
@@ -36548,7 +37443,8 @@ const reactDoctorRules = [
 		rule: {
 			...noRenderReturnValue,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noRenderReturnValue.requires ?? []])]
 		}
 	},
 	{
@@ -36559,7 +37455,8 @@ const reactDoctorRules = [
 		rule: {
 			...noResetAllStateOnPropChange,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noResetAllStateOnPropChange.requires ?? []])]
 		}
 	},
 	{
@@ -36570,7 +37467,8 @@ const reactDoctorRules = [
 		rule: {
 			...noScaleFromZero,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...noScaleFromZero.requires ?? []])]
 		}
 	},
 	{
@@ -36592,7 +37490,8 @@ const reactDoctorRules = [
 		rule: {
 			...noSelfUpdatingEffect,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noSelfUpdatingEffect.requires ?? []])]
 		}
 	},
 	{
@@ -36603,7 +37502,8 @@ const reactDoctorRules = [
 		rule: {
 			...noSetState,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...noSetState.requires ?? []])]
 		}
 	},
 	{
@@ -36614,7 +37514,8 @@ const reactDoctorRules = [
 		rule: {
 			...noSetStateInRender,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noSetStateInRender.requires ?? []])]
 		}
 	},
 	{
@@ -36636,7 +37537,8 @@ const reactDoctorRules = [
 		rule: {
 			...noStaticElementInteractions,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...noStaticElementInteractions.requires ?? []])]
 		}
 	},
 	{
@@ -36647,7 +37549,8 @@ const reactDoctorRules = [
 		rule: {
 			...noStringRefs,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noStringRefs.requires ?? []])]
 		}
 	},
 	{
@@ -36658,7 +37561,8 @@ const reactDoctorRules = [
 		rule: {
 			...noThisInSfc,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noThisInSfc.requires ?? []])]
 		}
 	},
 	{
@@ -36680,7 +37584,8 @@ const reactDoctorRules = [
 		rule: {
 			...noTransitionAll,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...noTransitionAll.requires ?? []])]
 		}
 	},
 	{
@@ -36713,7 +37618,8 @@ const reactDoctorRules = [
 		rule: {
 			...noUnescapedEntities,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noUnescapedEntities.requires ?? []])]
 		}
 	},
 	{
@@ -36724,7 +37630,8 @@ const reactDoctorRules = [
 		rule: {
 			...noUnknownProperty,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noUnknownProperty.requires ?? []])]
 		}
 	},
 	{
@@ -36735,7 +37642,8 @@ const reactDoctorRules = [
 		rule: {
 			...noUnsafe,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noUnsafe.requires ?? []])]
 		}
 	},
 	{
@@ -36746,7 +37654,8 @@ const reactDoctorRules = [
 		rule: {
 			...noUnstableNestedComponents,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...noUnstableNestedComponents.requires ?? []])]
 		}
 	},
 	{
@@ -36757,7 +37666,8 @@ const reactDoctorRules = [
 		rule: {
 			...noUsememoSimpleExpression,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...noUsememoSimpleExpression.requires ?? []])]
 		}
 	},
 	{
@@ -36779,7 +37689,8 @@ const reactDoctorRules = [
 		rule: {
 			...noWillUpdateSetState,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...noWillUpdateSetState.requires ?? []])]
 		}
 	},
 	{
@@ -36801,7 +37712,8 @@ const reactDoctorRules = [
 		rule: {
 			...onlyExportComponents,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...onlyExportComponents.requires ?? []])]
 		}
 	},
 	{
@@ -36878,6 +37790,18 @@ const reactDoctorRules = [
 		rule: {
 			...preferEs6Class,
 			framework: "global",
+			category: "Maintainability",
+			requires: [...new Set(["react", ...preferEs6Class.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/prefer-explicit-variants",
+		id: "prefer-explicit-variants",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...preferExplicitVariants,
+			framework: "global",
 			category: "Maintainability"
 		}
 	},
@@ -36889,7 +37813,8 @@ const reactDoctorRules = [
 		rule: {
 			...preferFunctionComponent,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...preferFunctionComponent.requires ?? []])]
 		}
 	},
 	{
@@ -36900,7 +37825,8 @@ const reactDoctorRules = [
 		rule: {
 			...preferHtmlDialog,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...preferHtmlDialog.requires ?? []])]
 		}
 	},
 	{
@@ -36933,7 +37859,8 @@ const reactDoctorRules = [
 		rule: {
 			...preferStableEmptyFallback,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...preferStableEmptyFallback.requires ?? []])]
 		}
 	},
 	{
@@ -36944,7 +37871,8 @@ const reactDoctorRules = [
 		rule: {
 			...preferTagOverRole,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...preferTagOverRole.requires ?? []])]
 		}
 	},
 	{
@@ -36955,7 +37883,8 @@ const reactDoctorRules = [
 		rule: {
 			...preferUseEffectEvent,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...preferUseEffectEvent.requires ?? []])]
 		}
 	},
 	{
@@ -36966,7 +37895,8 @@ const reactDoctorRules = [
 		rule: {
 			...preferUseSyncExternalStore,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...preferUseSyncExternalStore.requires ?? []])]
 		}
 	},
 	{
@@ -36977,6 +37907,18 @@ const reactDoctorRules = [
 		rule: {
 			...preferUseReducer,
 			framework: "global",
+			category: "Bugs",
+			requires: [...new Set(["react", ...preferUseReducer.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/query-destructure-result",
+		id: "query-destructure-result",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...queryDestructureResult,
+			framework: "tanstack-query",
 			category: "Bugs"
 		}
 	},
@@ -37065,7 +38007,8 @@ const reactDoctorRules = [
 		rule: {
 			...reactInJsxScope,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...reactInJsxScope.requires ?? []])]
 		}
 	},
 	{
@@ -37076,7 +38019,8 @@ const reactDoctorRules = [
 		rule: {
 			...reduxUseselectorInlineDerivation,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...reduxUseselectorInlineDerivation.requires ?? []])]
 		}
 	},
 	{
@@ -37087,7 +38031,8 @@ const reactDoctorRules = [
 		rule: {
 			...reduxUseselectorReturnsNewCollection,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...reduxUseselectorReturnsNewCollection.requires ?? []])]
 		}
 	},
 	{
@@ -37098,7 +38043,8 @@ const reactDoctorRules = [
 		rule: {
 			...renderingAnimateSvgWrapper,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...renderingAnimateSvgWrapper.requires ?? []])]
 		}
 	},
 	{
@@ -37120,7 +38066,8 @@ const reactDoctorRules = [
 		rule: {
 			...renderingHoistJsx,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...renderingHoistJsx.requires ?? []])]
 		}
 	},
 	{
@@ -37131,7 +38078,8 @@ const reactDoctorRules = [
 		rule: {
 			...renderingHydrationMismatchTime,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...renderingHydrationMismatchTime.requires ?? []])]
 		}
 	},
 	{
@@ -37142,7 +38090,8 @@ const reactDoctorRules = [
 		rule: {
 			...renderingHydrationNoFlicker,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...renderingHydrationNoFlicker.requires ?? []])]
 		}
 	},
 	{
@@ -37153,7 +38102,8 @@ const reactDoctorRules = [
 		rule: {
 			...renderingScriptDeferAsync,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...renderingScriptDeferAsync.requires ?? []])]
 		}
 	},
 	{
@@ -37175,7 +38125,8 @@ const reactDoctorRules = [
 		rule: {
 			...renderingUsetransitionLoading,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...renderingUsetransitionLoading.requires ?? []])]
 		}
 	},
 	{
@@ -37186,7 +38137,8 @@ const reactDoctorRules = [
 		rule: {
 			...requireRenderReturn,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...requireRenderReturn.requires ?? []])]
 		}
 	},
 	{
@@ -37197,7 +38149,8 @@ const reactDoctorRules = [
 		rule: {
 			...rerenderDeferReadsHook,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...rerenderDeferReadsHook.requires ?? []])]
 		}
 	},
 	{
@@ -37208,7 +38161,8 @@ const reactDoctorRules = [
 		rule: {
 			...rerenderDependencies,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...rerenderDependencies.requires ?? []])]
 		}
 	},
 	{
@@ -37219,7 +38173,8 @@ const reactDoctorRules = [
 		rule: {
 			...rerenderDerivedStateFromHook,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...rerenderDerivedStateFromHook.requires ?? []])]
 		}
 	},
 	{
@@ -37230,7 +38185,8 @@ const reactDoctorRules = [
 		rule: {
 			...rerenderFunctionalSetstate,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...rerenderFunctionalSetstate.requires ?? []])]
 		}
 	},
 	{
@@ -37241,7 +38197,8 @@ const reactDoctorRules = [
 		rule: {
 			...rerenderLazyRefInit,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...rerenderLazyRefInit.requires ?? []])]
 		}
 	},
 	{
@@ -37252,7 +38209,8 @@ const reactDoctorRules = [
 		rule: {
 			...rerenderLazyStateInit,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...rerenderLazyStateInit.requires ?? []])]
 		}
 	},
 	{
@@ -37263,7 +38221,8 @@ const reactDoctorRules = [
 		rule: {
 			...rerenderMemoBeforeEarlyReturn,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...rerenderMemoBeforeEarlyReturn.requires ?? []])]
 		}
 	},
 	{
@@ -37274,7 +38233,8 @@ const reactDoctorRules = [
 		rule: {
 			...rerenderMemoWithDefaultValue,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...rerenderMemoWithDefaultValue.requires ?? []])]
 		}
 	},
 	{
@@ -37285,7 +38245,8 @@ const reactDoctorRules = [
 		rule: {
 			...rerenderStateOnlyInHandlers,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...rerenderStateOnlyInHandlers.requires ?? []])]
 		}
 	},
 	{
@@ -37296,7 +38257,8 @@ const reactDoctorRules = [
 		rule: {
 			...rerenderTransitionsScroll,
 			framework: "global",
-			category: "Performance"
+			category: "Performance",
+			requires: [...new Set(["react", ...rerenderTransitionsScroll.requires ?? []])]
 		}
 	},
 	{
@@ -37715,7 +38677,8 @@ const reactDoctorRules = [
 		rule: {
 			...roleHasRequiredAriaProps,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...roleHasRequiredAriaProps.requires ?? []])]
 		}
 	},
 	{
@@ -37726,7 +38689,8 @@ const reactDoctorRules = [
 		rule: {
 			...roleSupportsAriaProps,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...roleSupportsAriaProps.requires ?? []])]
 		}
 	},
 	{
@@ -37737,7 +38701,8 @@ const reactDoctorRules = [
 		rule: {
 			...rulesOfHooks,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...rulesOfHooks.requires ?? []])]
 		}
 	},
 	{
@@ -37748,7 +38713,8 @@ const reactDoctorRules = [
 		rule: {
 			...scope,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...scope.requires ?? []])]
 		}
 	},
 	{
@@ -37759,7 +38725,8 @@ const reactDoctorRules = [
 		rule: {
 			...selfClosingComp,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...selfClosingComp.requires ?? []])]
 		}
 	},
 	{
@@ -37866,7 +38833,8 @@ const reactDoctorRules = [
 		rule: {
 			...stateInConstructor,
 			framework: "global",
-			category: "Maintainability"
+			category: "Maintainability",
+			requires: [...new Set(["react", ...stateInConstructor.requires ?? []])]
 		}
 	},
 	{
@@ -37877,7 +38845,8 @@ const reactDoctorRules = [
 		rule: {
 			...stylePropObject,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...stylePropObject.requires ?? []])]
 		}
 	},
 	{
@@ -37888,7 +38857,8 @@ const reactDoctorRules = [
 		rule: {
 			...tabindexNoPositive,
 			framework: "global",
-			category: "Accessibility"
+			category: "Accessibility",
+			requires: [...new Set(["react", ...tabindexNoPositive.requires ?? []])]
 		}
 	},
 	{
@@ -38064,7 +39034,8 @@ const reactDoctorRules = [
 		rule: {
 			...voidDomElementsNoChildren,
 			framework: "global",
-			category: "Bugs"
+			category: "Bugs",
+			requires: [...new Set(["react", ...voidDomElementsNoChildren.requires ?? []])]
 		}
 	},
 	{

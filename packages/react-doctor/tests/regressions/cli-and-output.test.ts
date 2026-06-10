@@ -1,13 +1,12 @@
 /**
  * Regression tests for closed issues that touch CLI flag exposure, output
- * formatting (annotations / scoring banner), and the explicit "skipped
- * checks" surface that came from the silent-failure issues.
+ * formatting (scoring banner), and the explicit "skipped checks" surface
+ * that came from the silent-failure issues.
  *
  * Covered closed issues:
  *   #43 — silent global `npm install -g` removed and must not return
  *   #50 — `--lint` exists as a positive flag so it can override a config
  *         that disables it
- *   #66 + #81 — GitHub Actions annotation-property encoding
  *   #92 — `share: false` config option exists in the schema and is read
  *         by the scan banner
  *   #135 — lint failures surface in `skippedChecks`, never silently
@@ -21,10 +20,11 @@ import { afterAll, describe, expect, it } from "vite-plus/test";
 import { inspect } from "../../src/inspect.js";
 import type { InspectResult, ReactDoctorConfig } from "@react-doctor/core";
 import {
-  encodeAnnotationProperty,
-  encodeAnnotationMessage,
-} from "../../src/cli/utils/annotation-encoding.js";
+  CODING_AGENT_ENVIRONMENT_VALUE_VARIABLES,
+  CODING_AGENT_ENVIRONMENT_VARIABLES,
+} from "../../src/cli/utils/is-ci-environment.js";
 import { NON_INTERACTIVE_ENVIRONMENT_VARIABLES } from "../../src/cli/utils/is-non-interactive-environment.js";
+import { resolveCliInspectOptions } from "../../src/cli/utils/resolve-cli-inspect-options.js";
 import { setupReactProject, writeFile, writeJson } from "./_helpers.js";
 
 const PACKAGE_ROOT = path.resolve(import.meta.dirname, "..", "..");
@@ -46,12 +46,40 @@ const setupMinimalReactProject = (caseId: string): string =>
 
 const stripAnsi = (text: string): string => text.replace(ANSI_ESCAPE_PATTERN, "");
 
+const setupCategoryFilterProject = (caseId: string): string =>
+  setupReactProject(tempRoot, caseId, {
+    files: {
+      "src/App.tsx": `import { memo } from "react";
+
+const MemoChild = memo((props: { payload: { label: string } }) => {
+  return <span>{props.payload.label}</span>;
+});
+
+export const App = () => (
+  <>
+    <div dangerouslySetInnerHTML={{ __html: "<strong>Unsafe</strong>" }} />
+    <MemoChild payload={{ label: "slow" }} />
+  </>
+);
+`,
+    },
+  });
+
+const listDiagnosticCategories = (result: InspectResult): string[] => [
+  ...new Set(result.diagnostics.map((diagnostic) => diagnostic.category)),
+];
+
 const withAutomatedEnvironmentVariables = async <Value>(
   overrides: EnvironmentVariableValues,
   callback: () => Promise<Value>,
 ): Promise<Value> => {
   const savedEnvironment: EnvironmentVariableValues = {};
-  for (const environmentVariableName of NON_INTERACTIVE_ENVIRONMENT_VARIABLES) {
+  const environmentVariableNames = [
+    ...NON_INTERACTIVE_ENVIRONMENT_VARIABLES,
+    ...CODING_AGENT_ENVIRONMENT_VARIABLES,
+    ...CODING_AGENT_ENVIRONMENT_VALUE_VARIABLES,
+  ];
+  for (const environmentVariableName of environmentVariableNames) {
     savedEnvironment[environmentVariableName] = process.env[environmentVariableName];
     delete process.env[environmentVariableName];
   }
@@ -66,7 +94,7 @@ const withAutomatedEnvironmentVariables = async <Value>(
   try {
     return await callback();
   } finally {
-    for (const environmentVariableName of NON_INTERACTIVE_ENVIRONMENT_VARIABLES) {
+    for (const environmentVariableName of environmentVariableNames) {
       const previousValue = savedEnvironment[environmentVariableName];
       if (previousValue === undefined) {
         delete process.env[environmentVariableName];
@@ -134,31 +162,6 @@ describe("issue #50: CLI flags can re-enable lint that config disabled", () => {
       silent: true,
     });
     expect(result.diagnostics.filter((d) => d.plugin === "react-doctor")).toHaveLength(0);
-  });
-});
-
-describe("issue #66 + #81: GitHub Actions annotation encoding", () => {
-  it("encodes newlines and percent in message bodies (otherwise the annotation is truncated)", () => {
-    const message = "first line\nsecond, line: with 50% etc.";
-    const encoded = encodeAnnotationMessage(message);
-    expect(encoded).not.toContain("\n");
-    expect(encoded).toContain("%0A");
-    expect(encoded).toContain("%25");
-  });
-
-  it("encodes commas and colons in property values (file=, line=, title=)", () => {
-    const filename = "src/foo,bar:baz%qux\nx.tsx";
-    const encoded = encodeAnnotationProperty(filename);
-    expect(encoded).not.toContain("\n");
-    expect(encoded).not.toContain(",");
-    expect(encoded).not.toContain(":");
-    expect(encoded).toContain("%25");
-  });
-
-  it("round-trips: decoded message equals original", () => {
-    const original = "line one\nline, two: %50";
-    const decoded = decodeURIComponent(encodeAnnotationMessage(original));
-    expect(decoded).toBe(original);
   });
 });
 
@@ -320,6 +323,89 @@ export const Cart = () => {
     );
 
     expect(stripAnsi(automatedRun.stdout)).not.toContain("Agent guidance");
+  });
+});
+
+describe("CLI category filtering", () => {
+  it("lists only one category in default output without mutating the scan result", async () => {
+    const projectDir = setupCategoryFilterProject("category-filter-security");
+    const scanOptions = resolveCliInspectOptions({ category: "security" }, null);
+
+    const securityRun = await withAutomatedEnvironmentVariables({}, () =>
+      captureScanOutput(projectDir, {
+        ...scanOptions,
+        noScore: true,
+        warnings: true,
+      }),
+    );
+    const normalizedStdout = stripAnsi(securityRun.stdout);
+
+    const resultCategories = listDiagnosticCategories(securityRun.result);
+    expect(resultCategories).toContain("Performance");
+    expect(resultCategories).toContain("Security");
+    expect(normalizedStdout).toContain("Security");
+    expect(normalizedStdout).not.toContain("Performance");
+  });
+
+  it("supports repeated category values in verbose output", async () => {
+    const projectDir = setupCategoryFilterProject("category-filter-multiple");
+    const scanOptions = resolveCliInspectOptions(
+      { category: ["security", "performance"], verbose: true },
+      null,
+    );
+
+    const categoryRun = await withAutomatedEnvironmentVariables({}, () =>
+      captureScanOutput(projectDir, {
+        ...scanOptions,
+        noScore: true,
+        warnings: true,
+      }),
+    );
+    const categories = listDiagnosticCategories(categoryRun.result).toSorted();
+    const normalizedStdout = stripAnsi(categoryRun.stdout);
+
+    expect(categories).toContain("Performance");
+    expect(categories).toContain("Security");
+    expect(normalizedStdout).toContain("Security");
+    expect(normalizedStdout).toContain("Performance");
+    expect(normalizedStdout).not.toContain("Accessibility");
+  });
+
+  it("keeps existing config excludes in effect", async () => {
+    const projectDir = setupCategoryFilterProject("category-filter-config-exclude");
+    writeJson(path.join(projectDir, "doctor.config.json"), {
+      surfaces: { cli: { excludeCategories: ["Security"] } },
+    });
+    const scanOptions = resolveCliInspectOptions({ category: "Security" }, null);
+
+    const excludedRun = await withAutomatedEnvironmentVariables({}, () =>
+      captureScanOutput(projectDir, {
+        ...scanOptions,
+        noScore: true,
+        warnings: true,
+      }),
+    );
+
+    const resultCategories = listDiagnosticCategories(excludedRun.result);
+    expect(resultCategories).toContain("Performance");
+    expect(resultCategories).toContain("Security");
+    expect(stripAnsi(excludedRun.stdout)).toContain("No issues found in category Security");
+  });
+
+  it("keeps silent inspect results complete so CLI JSON can filter at report time", async () => {
+    const projectDir = setupCategoryFilterProject("category-filter-json");
+    const scanOptions = resolveCliInspectOptions({ category: "performance", json: true }, null);
+
+    const jsonRun = await captureScanOutput(projectDir, {
+      ...scanOptions,
+      noScore: true,
+      warnings: true,
+    });
+
+    const resultCategories = listDiagnosticCategories(jsonRun.result);
+    expect(resultCategories).toContain("Performance");
+    expect(resultCategories).toContain("Security");
+    expect(jsonRun.stdout).toBe("");
   });
 });
 

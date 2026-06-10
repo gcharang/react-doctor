@@ -438,14 +438,15 @@ describe("issue #141: oxlint config must not reference unloaded plugins", () => 
     );
   });
 
-  it("emits every react-hooks-js rule at error severity (so they fail CI under --fail-on error)", () => {
+  it("emits every react-hooks-js rule at error severity (so they block CI by default)", () => {
     // Regression for the silent severity downgrade introduced in PR
     // #140: every `react-hooks-js/*` entry got mass-converted from
     // `"error"` to `"warn"`, which made "React Compiler can't optimize
     // this code" diagnostics stop counting toward `errorCount` and
-    // stop tripping the GitHub Action's default `--fail-on error`.
-    // Each compiler diagnostic represents an unoptimizable component
-    // shape — surfacing as warnings hid real perf regressions.
+    // stop blocking CI (react-doctor blocks on error-severity diagnostics
+    // by default unless `--blocking none` is set). Each compiler diagnostic
+    // represents an unoptimizable component shape — surfacing as warnings
+    // hid real perf regressions.
     const config = createOxlintConfig({
       pluginPath: "/tmp/react-doctor-plugin.js",
       project: buildTestProject({ rootDirectory: "/tmp/test", hasReactCompiler: true }),
@@ -568,6 +569,43 @@ describe("issue #141: oxlint config must not reference unloaded plugins", () => 
       project: buildTestProject({ rootDirectory: "/tmp/test", hasReactCompiler: true }),
     });
     for (const ruleKey of reactCompilerGatedRules) {
+      expect(withCompiler.rules[ruleKey]).toBeUndefined();
+    }
+  });
+
+  // The renderItem-family RN perf rules guard against inline functions/objects
+  // in list rows, which React Compiler auto-memoizes. RC users were seeing them
+  // as noise (#723), so all three ship with `disabledBy: ["react-compiler"]`
+  // and must drop once the compiler is detected. They `requires: ["react-native"]`,
+  // so the assertion needs an RN-capable test project.
+  it("disables the renderItem-family RN perf rules when React Compiler is detected", () => {
+    const renderItemRules = [
+      "react-doctor/rn-no-inline-flatlist-renderitem",
+      "react-doctor/rn-list-callback-per-row",
+      "react-doctor/rn-no-inline-object-in-list-item",
+    ];
+
+    const withoutCompiler = createOxlintConfig({
+      pluginPath: "/tmp/react-doctor-plugin.js",
+      project: buildTestProject({
+        rootDirectory: "/tmp/test",
+        framework: "react-native",
+        hasReactCompiler: false,
+      }),
+    });
+    for (const ruleKey of renderItemRules) {
+      expect(withoutCompiler.rules[ruleKey]).toBe("warn");
+    }
+
+    const withCompiler = createOxlintConfig({
+      pluginPath: "/tmp/react-doctor-plugin.js",
+      project: buildTestProject({
+        rootDirectory: "/tmp/test",
+        framework: "react-native",
+        hasReactCompiler: true,
+      }),
+    });
+    for (const ruleKey of renderItemRules) {
       expect(withCompiler.rules[ruleKey]).toBeUndefined();
     }
   });

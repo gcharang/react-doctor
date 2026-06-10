@@ -16,11 +16,14 @@ const baseProject: ProjectInfo = {
   hasTanStackQuery: false,
   preactVersion: null,
   preactMajorVersion: null,
+  nextjsVersion: null,
+  nextjsMajorVersion: null,
   hasReactNativeWorkspace: false,
   expoVersion: null,
   shopifyFlashListVersion: null,
   shopifyFlashListMajorVersion: null,
   hasReanimated: false,
+  isPreES2023Target: false,
   sourceFileCount: 0,
 };
 
@@ -33,7 +36,11 @@ describe("isAnalyzableProject", () => {
     expect(isAnalyzableProject({ ...baseProject, preactVersion: "^10.22.0" })).toBe(true);
   });
 
-  it("is not analyzable with neither react nor preact", () => {
+  it("is analyzable for a plain TypeScript project with source files but no React", () => {
+    expect(isAnalyzableProject({ ...baseProject, sourceFileCount: 12 })).toBe(true);
+  });
+
+  it("is not analyzable with no react, no preact, and no source files", () => {
     expect(isAnalyzableProject(baseProject)).toBe(false);
   });
 });

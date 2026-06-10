@@ -3,6 +3,7 @@ import reactDoctorPlugin from "oxlint-plugin-react-doctor";
 import type {
   CleanedDiagnostic,
   Diagnostic,
+  DiagnosticRelatedLocation,
   OxlintOutput,
   ProjectInfo,
 } from "../../types/index.js";
@@ -149,6 +150,34 @@ const parseRuleCode = (code: string): { plugin: string; rule: string } => {
 const resolveDiagnosticCategory = (plugin: string, rule: string): string =>
   getRuleCategory(rule) ?? lookupOwnString(PLUGIN_CATEGORY_MAP, plugin) ?? "Bugs";
 
+/**
+ * Maps oxlint's non-primary labels (`labels[1..]`) into related source
+ * locations. Editors surface these as a diagnostic's
+ * `relatedInformation`; non-editor consumers ignore the field. Labels
+ * with empty text still carry a useful jump target, so they're kept
+ * with a neutral message.
+ */
+const buildRelatedLocations = (
+  labels: OxlintOutput["diagnostics"][number]["labels"],
+  filePath: string,
+): DiagnosticRelatedLocation[] => {
+  if (labels.length <= 1) return [];
+  const related: DiagnosticRelatedLocation[] = [];
+  for (let labelIndex = 1; labelIndex < labels.length; labelIndex++) {
+    const label = labels[labelIndex];
+    if (!label?.span) continue;
+    related.push({
+      filePath,
+      line: label.span.line ?? 0,
+      column: label.span.column ?? 0,
+      offset: label.span.offset,
+      length: label.span.length,
+      message: label.label ?? "",
+    });
+  }
+  return related;
+};
+
 const isOxlintOutput = (value: unknown): value is OxlintOutput => {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as { diagnostics?: unknown };
@@ -196,7 +225,7 @@ export const parseOxlintOutput = (
   }
 
   // HACK: oxlint reports diagnostics for every JS/TS extension it
-  // scanned (`.ts`, `.tsx`, `.js`, `.jsx`). The previous filter only
+  // scanned (`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.mjs`). The previous filter only
   // kept `.tsx` / `.jsx` — fine when react-doctor's curated rules were
   // the only sources (they're React-specific anyway), but adopted
   // user rules like `eslint/no-debugger` or `unicorn/*` typically
@@ -204,7 +233,7 @@ export const parseOxlintOutput = (
   // erased their score impact. `isLintableSourceFile` matches the same
   // extensions we count as source files everywhere else, and also drops
   // generated bundler output (`*.iife.js`, `*.umd.js`, `*.global.js`,
-  // `*.min.js`) so a stray bundle that slipped past file discovery can't
+  // `*.min.js`, plus the `.mjs` variants) so a stray bundle that slipped past file discovery can't
   // pollute the report.
   // The content sniff additionally drops minified files that carry an
   // ordinary extension (e.g. a one-line `public/inject.js`) — these reach
@@ -241,8 +270,15 @@ export const parseOxlintOutput = (
         rule,
         project,
       );
+      const normalizedFilePath = diagnostic.filename.replaceAll("\\", "/");
+      // Carry oxlint's UTF-8 byte span through to the Diagnostic so
+      // editor integrations (LSP) can resolve a precise range from the
+      // in-memory document. `line` / `column` stay the source of truth
+      // for everything else; offset / length are additive.
+      const primarySpan = primaryLabel?.span;
+      const relatedLocations = buildRelatedLocations(diagnostic.labels, normalizedFilePath);
       return {
-        filePath: diagnostic.filename.replaceAll("\\", "/"),
+        filePath: normalizedFilePath,
         plugin,
         rule,
         severity: diagnostic.severity,
@@ -250,9 +286,11 @@ export const parseOxlintOutput = (
         message: cleaned.message,
         help: cleaned.help,
         url: diagnostic.url,
-        line: primaryLabel?.span.line ?? 0,
-        column: primaryLabel?.span.column ?? 0,
+        line: primarySpan?.line ?? 0,
+        column: primarySpan?.column ?? 0,
+        ...(primarySpan ? { offset: primarySpan.offset, length: primarySpan.length } : {}),
         category: resolveDiagnosticCategory(plugin, rule),
+        ...(relatedLocations.length > 0 ? { relatedLocations } : {}),
       };
     });
 };

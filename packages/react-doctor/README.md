@@ -39,11 +39,11 @@ npx github:gcharang/react-doctor#pinned install
 
 Works with Claude Code, Cursor, Codex, OpenCode, and many more.
 
-### 3. Run in CI (GitHub Actions) for your team
+### 3. Run in CI
 
-[![GitHub Action](https://img.shields.io/badge/GitHub%20Action-React%20Doctor-000000?style=flat&labelColor=000000&logo=githubactions&logoColor=white)](https://github.com/marketplace/actions/react-doctor)
+React Doctor CI (GitHub Actions) reviews every pull request automatically and reports only the issues your change introduced, not your existing backlog.
 
-Add the reusable GitHub Action from Marketplace to scan every pull request, show inline annotations, and leave findings where reviewers already look.
+Add `.github/workflows/react-doctor.yml`:
 
 ```yaml
 name: React Doctor
@@ -75,7 +75,7 @@ jobs:
 - uses: gcharang/react-doctor@<commit-sha-on-pinned>
 ```
 
-### 4. Configure rules in `doctor.config.ts`
+### 4. Configure rules
 
 Configure with a `doctor.config.ts` (or `.js`, `.mjs`, `.cjs`, `.json`, `.jsonc`) in your project root.
 

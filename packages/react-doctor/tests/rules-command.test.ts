@@ -83,6 +83,28 @@ describe("rules disable / set / enable", () => {
     expect(process.exitCode).toBe(0);
   });
 
+  it("migrates a legacy react-doctor.config.json to doctor.config.json on write", async () => {
+    fixture = setupFixture();
+    const legacyPath = path.join(fixture.projectRoot, "react-doctor.config.json");
+    fs.writeFileSync(
+      legacyPath,
+      JSON.stringify({ lint: true, rules: { "react-doctor/no-eval": "warn" } }, null, 2),
+    );
+    await rulesDisableAction("react-doctor/no-danger", { cwd: fixture.projectRoot });
+
+    expect(fs.existsSync(legacyPath)).toBe(false);
+    expect(fs.existsSync(fixture.configPath)).toBe(true);
+    const config = readJsonFile(fixture.configPath);
+    expect(config.$schema).toBe(
+      "https://raw.githubusercontent.com/gcharang/react-doctor/pinned/packages/website/public/schema/config.json",
+    );
+    expect(config.lint).toBe(true);
+    expect(config.rules).toMatchObject({
+      "react-doctor/no-eval": "warn",
+      "react-doctor/no-danger": "off",
+    });
+  });
+
   it("accepts the bare rule id and a legacy key", async () => {
     fixture = setupFixture();
     await rulesSetAction("no-danger", "error", { cwd: fixture.projectRoot });
@@ -279,6 +301,21 @@ describe("rules list / explain JSON output", () => {
     const payload = JSON.parse(output) as Array<{ key: string; severity: string; source: string }>;
     const entry = payload.find((row) => row.key === "react-doctor/no-danger");
     expect(entry).toMatchObject({ severity: "off", source: "rule" });
+  });
+
+  it("ignores an inherited repeatable root category option", async () => {
+    fixture = setupFixture();
+    const output = await captureLog(() =>
+      rulesListAction({
+        json: true,
+        cwd: fixture.projectRoot,
+        category: ["Security"] as unknown as string,
+      }),
+    );
+
+    const payload = JSON.parse(output) as Array<{ key: string }>;
+    expect(payload.length).toBeGreaterThan(0);
+    expect(process.exitCode).toBe(0);
   });
 
   it("ignores invalid config severities the scanner would drop", async () => {

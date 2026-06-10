@@ -9,6 +9,7 @@ import { DOM_PROPERTY_TO_ALLOWED_TAGS } from "../../constants/dom-property-tags.
 import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 import { getJsxAttributeName } from "../../utils/get-jsx-attribute-name.js";
+import { isGeneratedImageRenderContext } from "../../utils/is-generated-image-render-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import { fileImportsNonReactJsxDialect } from "../../utils/non-react-jsx-dialect.js";
 import type { Rule } from "../../utils/rule.js";
@@ -82,10 +83,14 @@ export const noUnknownProperty = defineRule<Rule>({
   id: "no-unknown-property",
   title: "Unknown DOM property",
   severity: "warn",
-  recommendation: "Use the prop name React expects, like `className`, `htmlFor`, or `tabIndex`.",
+  recommendation:
+    "Use the prop name React expects, like `className`, `htmlFor`, or `tabIndex`, so the attribute is applied correctly.",
   create: (context) => {
     const { ignore = [], requireDataLowercase = false } = resolveSettings(context.settings);
     const ignoreSet = new Set(ignore);
+    if (isGeneratedImageRenderContext(context)) {
+      ignoreSet.add("tw");
+    }
     let fileIsNonReactJsx = false;
 
     return {
@@ -134,6 +139,7 @@ export const noUnknownProperty = defineRule<Rule>({
           if (!isNodeOfType(attribute, "JSXAttribute")) continue;
           const actualName = getJsxAttributeName(attribute.name);
           if (!actualName) continue;
+          if (actualName === "tw" && isGeneratedImageRenderContext(context, node)) continue;
           if (ignoreSet.has(actualName)) continue;
 
           if (isValidDataAttribute(actualName)) {

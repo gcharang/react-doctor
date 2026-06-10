@@ -40,6 +40,19 @@ export interface InspectResult {
    * summary to report combined scan time.
    */
   scanElapsedMilliseconds?: number;
+  /**
+   * Present only for a baseline run (`InspectOptions.baseline` set). The
+   * `diagnostics` above are then the *introduced* findings only; this
+   * carries the comparison totals for Codecov-style delta reporting.
+   */
+  baselineDelta?: {
+    /** The commit the base content was read from (resolved merge-base). */
+    baseRef: string;
+    /** Findings present at base but gone at head — resolved by the change. */
+    fixedCount: number;
+    /** Total findings at base (over the same files), for context. */
+    baseTotalCount: number;
+  };
 }
 
 /**
@@ -69,6 +82,35 @@ export interface InspectOptions {
   configOverride?: ReactDoctorConfig | null;
   respectInlineDisables?: boolean;
   /**
+   * Whether the scanned project's `package.json` changed in this diff /
+   * staged scan. Forwarded to the orchestrator so the Socket supply-chain
+   * check still runs in diff mode when the manifest changed (a PR that
+   * adds or bumps a dependency), instead of being skipped like the other
+   * whole-project checks. Ignored on full scans. Defaults to `false`.
+   */
+  supplyChainManifestChanged?: boolean;
+  /**
+   * Baseline comparison. When set (only meaningful alongside
+   * `includePaths`, i.e. a diff scan), `inspect()` runs a second lint pass
+   * over the same files as they existed at `ref` and reports only the
+   * diagnostics the change *introduced* — pre-existing findings that merely
+   * shifted lines are matched out. The returned `score` is still the head
+   * scan's; `InspectResult.baselineDelta` carries the fixed / base counts.
+   * `ref` should be a resolved commit (e.g. the merge-base) whose content
+   * `git show <ref>:<file>` can read.
+   */
+  baseline?: { ref: string };
+  /**
+   * Restrict reported diagnostics to those landing on the lines the change
+   * touched (`--scope lines`). Each entry is one changed file with the
+   * inclusive 1-based `[start, end]` line ranges the diff added/modified,
+   * keyed by a path relative to the scanned directory (forward slashes).
+   * Applied at the same post-lint seam as `baseline` — the score is still
+   * computed on the full head set, so only the displayed / gated diagnostics
+   * narrow. Mutually exclusive with `baseline` in practice (one scope value).
+   */
+  changedLineRanges?: ReadonlyArray<ChangedFileLineRanges>;
+  /**
    * Number of oxlint subprocesses to run in parallel during the lint
    * pass. Overrides the `OxlintConcurrency` Reference (env-seeded) for
    * this run. `undefined` leaves the ambient default in place (parallel:
@@ -83,7 +125,7 @@ export interface InspectOptions {
    * Per-call override for `ReactDoctorConfig.warnings`. When omitted,
    * `config.warnings` wins (defaulting to `true`), so `"warning"`-
    * severity diagnostics surface on every surface — CLI, PR comment,
-   * score, and the `--fail-on` gate — until explicitly hidden via
+   * score, and the `--blocking` gate — until explicitly hidden via
    * `--no-warnings` or `warnings: false`.
    */
   warnings?: boolean;
@@ -119,6 +161,17 @@ export interface InspectOptions {
   suppressRendering?: boolean;
 }
 
+/**
+ * One changed file plus the inclusive 1-based `[start, end]` line ranges the
+ * diff added or modified. Produced by `parseChangedLineRanges` / the Git
+ * service's `changedLineRanges`, consumed by the `lines` scope filter.
+ */
+export interface ChangedFileLineRanges {
+  /** Path relative to the scanned directory, forward-slash separated. */
+  readonly file: string;
+  readonly ranges: ReadonlyArray<readonly [number, number]>;
+}
+
 export interface DiffInfo {
   /**
    * `null` when `HEAD` is detached (e.g. GitHub Actions `pull_request`
@@ -128,11 +181,36 @@ export interface DiffInfo {
    */
   currentBranch: string | null;
   baseBranch: string;
+  /**
+   * Resolved base commit SHA, when known (the GitHub Action forwards
+   * `pull_request.base.sha`). Preferred over `baseBranch` for baseline
+   * merge-base resolution because a branch name often doesn't resolve in a
+   * shallow PR checkout, whereas the fetched SHA always does.
+   */
+  baseSha?: string;
+  /**
+   * The commit the changed-file diff was computed against (see
+   * `GitDiffSelection.diffBaseRef`). Baseline mode reads base content from
+   * here so a two-dot `A..B` range reads from `A` directly instead of being
+   * incorrectly merge-based with HEAD.
+   */
+  diffBaseRef?: string;
   changedFiles: string[];
   isCurrentChanges?: boolean;
 }
 
-export type JsonReportMode = "full" | "diff" | "staged";
+export type JsonReportMode = "full" | "diff" | "staged" | "baseline";
+
+export interface JsonReportBaselineInfo {
+  /** Resolved base commit (merge-base) the head was compared against. */
+  baseRef: string;
+  /** Count of introduced findings (equals `summary.totalDiagnosticCount`). */
+  newCount: number;
+  /** Count of findings the change resolved (present at base, gone at head). */
+  fixedCount: number;
+  /** Total findings at base over the same files, for context. */
+  baseTotalCount: number;
+}
 
 export interface JsonReportDiffInfo {
   baseBranch: string;
@@ -166,9 +244,16 @@ export interface JsonReportError {
   message: string;
   name: string;
   chain: string[];
+  /**
+   * Sentry event id for the crash, when the run reported one (CLI crash
+   * path in CI). Lets the GitHub Action surface a quotable reference so a
+   * failed scan can be traced back to its Sentry event. `null` for expected
+   * user errors and synthetic fallbacks that never hit Sentry.
+   */
+  sentryEventId?: string | null;
 }
 
-export interface JsonReport {
+export interface JsonReportV1 {
   schemaVersion: 1;
   version: string;
   ok: boolean;
@@ -185,3 +270,18 @@ export interface JsonReport {
   elapsedMilliseconds: number;
   error: JsonReportError | null;
 }
+
+/**
+ * Baseline (PR-introduced-issues-only) report. Structurally a superset of v1
+ * — every v1 field is present with identical meaning, so consumers that only
+ * read `summary` / `diagnostics` / `ok` work unchanged — plus a `baseline`
+ * block and `mode: "baseline"`. Here `diagnostics` (and `summary`'s counts)
+ * are the *introduced* findings only; `summary.score` is still the head
+ * scan's project-health score. New consumers branch on `schemaVersion === 2`.
+ */
+export interface JsonReportV2 extends Omit<JsonReportV1, "schemaVersion"> {
+  schemaVersion: 2;
+  baseline: JsonReportBaselineInfo;
+}
+
+export type JsonReport = JsonReportV1 | JsonReportV2;

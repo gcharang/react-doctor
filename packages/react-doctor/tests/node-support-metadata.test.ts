@@ -13,10 +13,11 @@ interface PackageJson {
 interface PackageManifestExpectation {
   readonly packagePath: string;
   readonly shouldDependOnPlatformNodeShared: boolean;
+  readonly shouldDependOnEffect: boolean;
 }
 
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "..", "..", "..");
-const SUPPORTED_NODE_RANGE = "^20.19.0 || >=22.12.0";
+const SUPPORTED_NODE_RANGE = "^20.19.0 || >=22.13.0";
 
 const readText = (relativePath: string): string =>
   fs.readFileSync(path.join(REPOSITORY_ROOT, relativePath), "utf8");
@@ -25,20 +26,39 @@ const readPackageJson = (relativePath: string): PackageJson => JSON.parse(readTe
 
 const packageManifests: PackageManifestExpectation[] = [
   // The `pinned` fork's root is the npx-installable package: it mirrors the
-  // CLI's runtime externals (which include `@effect/platform-node-shared`, the
-  // Node-20-safe shared variant — never the Undici-backed `@effect/platform-node`).
-  { packagePath: "package.json", shouldDependOnPlatformNodeShared: true },
-  { packagePath: "packages/api/package.json", shouldDependOnPlatformNodeShared: false },
-  { packagePath: "packages/core/package.json", shouldDependOnPlatformNodeShared: true },
+  // CLI's runtime externals (which include `effect` and
+  // `@effect/platform-node-shared`, the Node-20-safe shared variant — never
+  // the Undici-backed `@effect/platform-node`).
+  {
+    packagePath: "package.json",
+    shouldDependOnPlatformNodeShared: true,
+    shouldDependOnEffect: true,
+  },
+  {
+    packagePath: "packages/api/package.json",
+    shouldDependOnPlatformNodeShared: false,
+    shouldDependOnEffect: true,
+  },
+  {
+    packagePath: "packages/core/package.json",
+    shouldDependOnPlatformNodeShared: true,
+    shouldDependOnEffect: true,
+  },
   {
     packagePath: "packages/eslint-plugin-react-doctor/package.json",
     shouldDependOnPlatformNodeShared: false,
+    shouldDependOnEffect: false,
   },
   {
     packagePath: "packages/oxlint-plugin-react-doctor/package.json",
     shouldDependOnPlatformNodeShared: false,
+    shouldDependOnEffect: false,
   },
-  { packagePath: "packages/react-doctor/package.json", shouldDependOnPlatformNodeShared: true },
+  {
+    packagePath: "packages/react-doctor/package.json",
+    shouldDependOnPlatformNodeShared: false,
+    shouldDependOnEffect: false,
+  },
 ];
 
 const packageBuildConfigs = [
@@ -58,7 +78,11 @@ describe("Node support metadata", () => {
   });
 
   it("does not depend on the Undici-backed Effect platform package", () => {
-    for (const { packagePath, shouldDependOnPlatformNodeShared } of packageManifests) {
+    for (const {
+      packagePath,
+      shouldDependOnPlatformNodeShared,
+      shouldDependOnEffect,
+    } of packageManifests) {
       const packageJson = readPackageJson(packagePath);
       const dependencies = packageJson.dependencies ?? {};
       const devDependencies = packageJson.devDependencies ?? {};
@@ -71,6 +95,9 @@ describe("Node support metadata", () => {
       expect(dependencies["@effect/platform-node-shared"], packagePath).toBe(
         expectedSharedDependency,
       );
+
+      const expectedEffectDependency = shouldDependOnEffect ? "4.0.0-beta.70" : undefined;
+      expect(dependencies.effect, packagePath).toBe(expectedEffectDependency);
     }
   });
 

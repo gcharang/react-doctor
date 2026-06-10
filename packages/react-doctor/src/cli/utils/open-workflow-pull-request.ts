@@ -1,18 +1,18 @@
-import { execFile } from "node:child_process";
 import * as path from "node:path";
-import { promisify } from "node:util";
+import { detectDefaultBranch } from "./detect-default-branch.js";
 import { isCommandAvailable } from "./is-command-available.js";
+import { runCommand as run } from "./run-command.js";
 
 const NEW_BRANCH_PREFIX = "react-doctor/add-github-actions";
 
-const COMMIT_MESSAGE = "ci: add React Doctor GitHub Actions workflow";
+const DEFAULT_COMMIT_MESSAGE = "ci: add React Doctor GitHub Actions workflow";
 
-const PR_TITLE = "Add React Doctor to GitHub Actions";
+const DEFAULT_PR_TITLE = "Add React Doctor to GitHub Actions";
 
 // Short body that lets the docs site carry the deeper explanation. The
 // installed workflow file already has inline comments for every option, so
 // the PR description doesn't need to re-explain them.
-const PR_BODY = `Adds a [React Doctor](https://github.com/gcharang/react-doctor) scan to every pull request and every push to the default branch. The workflow file is documented inline.
+const DEFAULT_PR_BODY = `Adds a [React Doctor](https://github.com/gcharang/react-doctor) scan to every pull request and every push to the default branch. The workflow file is documented inline.
 
 Docs: https://github.com/gcharang/react-doctor`;
 
@@ -35,54 +35,6 @@ export type NotAttemptedReason =
   | "git-add-failed"
   | "git-commit-failed"
   | "git-push-failed";
-
-interface RunResult {
-  readonly success: boolean;
-  readonly stdout: string;
-  readonly stderr: string;
-}
-
-const execFileAsync = promisify(execFile);
-
-// Async (was `spawnSync`) so the chain never blocks Node's event loop. While
-// it blocked, the `ora` spinner in `setUpGitHubActions` couldn't advance its
-// frames and looked frozen through the slow network steps (`gh auth status`,
-// `git fetch`, `git push`, `gh pr create`). Output is captured into pipes,
-// not inherited, so nothing interleaves with the spinner. `execFile` rejects
-// on a non-zero exit (and on ENOENT); both carry the captured stdout/stderr
-// on the error object.
-const run = async (
-  command: string,
-  args: ReadonlyArray<string>,
-  cwd: string,
-): Promise<RunResult> => {
-  try {
-    const { stdout, stderr } = await execFileAsync(command, [...args], { cwd, encoding: "utf8" });
-    return { success: true, stdout: stdout.trim(), stderr: stderr.trim() };
-  } catch (error) {
-    const failure = error as { stdout?: string; stderr?: string };
-    return {
-      success: false,
-      stdout: (failure.stdout ?? "").trim(),
-      stderr: (failure.stderr ?? "").trim(),
-    };
-  }
-};
-
-// Resolves the configured default branch of `origin` (the branch GitHub PRs
-// land against). Reads `refs/remotes/origin/HEAD` first — git sets it when
-// the remote was cloned or `git remote set-head` ran — then falls back to
-// the conventional `main` / `master` so older repos still work.
-const detectDefaultBranch = async (cwd: string): Promise<string | null> => {
-  const symRef = await run("git", ["symbolic-ref", "refs/remotes/origin/HEAD"], cwd);
-  if (symRef.success) {
-    const branchMatch = symRef.stdout.match(/refs\/remotes\/origin\/(.+)$/);
-    if (branchMatch) return branchMatch[1];
-  }
-  if ((await run("git", ["rev-parse", "--verify", "origin/main"], cwd)).success) return "main";
-  if ((await run("git", ["rev-parse", "--verify", "origin/master"], cwd)).success) return "master";
-  return null;
-};
 
 // Tries `react-doctor/add-github-actions` first and appends a compact
 // timestamp suffix if a local branch already exists with that name (avoids
@@ -110,8 +62,23 @@ const findUniqueBranchName = async (cwd: string): Promise<string> => {
 // runs sequentially via `await` because it depends on the previous one.
 export const openWorkflowPullRequest = async (params: {
   workflowPath: string;
+  // Override the commit message / PR title + body. Defaults describe a fresh
+  // install; the v1→v2 upgrade flow passes its own copy. The git/`gh` steps,
+  // failure modes, and branch cleanup are identical either way — both just
+  // commit the workflow file (newly written or modified in place) onto a
+  // dedicated branch and open a PR.
+  commitMessage?: string;
+  prTitle?: string;
+  prBody?: string;
+  // Base branch for the PR. Callers that already resolved the repo's default
+  // branch (to keep the installed workflow consistent with the PR base) pass
+  // it here; when omitted it's detected from the repo.
+  baseBranch?: string;
 }): Promise<OpenWorkflowPullRequestResult> => {
   const workflowPath = path.resolve(params.workflowPath);
+  const commitMessage = params.commitMessage ?? DEFAULT_COMMIT_MESSAGE;
+  const prTitle = params.prTitle ?? DEFAULT_PR_TITLE;
+  const prBody = params.prBody ?? DEFAULT_PR_BODY;
 
   // Probe from the workflow file's directory so we resolve the repo root
   // even when the CLI was invoked from a sub-package in a monorepo.
@@ -128,7 +95,7 @@ export const openWorkflowPullRequest = async (params: {
     return { status: "not-attempted", reason: "gh-not-authenticated" };
   }
 
-  const defaultBranch = await detectDefaultBranch(cwd);
+  const defaultBranch = params.baseBranch ?? (await detectDefaultBranch(cwd));
   if (!defaultBranch) return { status: "not-attempted", reason: "no-default-branch" };
 
   const previousBranchProbe = await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], cwd);
@@ -168,7 +135,7 @@ export const openWorkflowPullRequest = async (params: {
     return { status: "not-attempted", reason: "git-add-failed" };
   }
 
-  if (!(await run("git", ["commit", "-m", COMMIT_MESSAGE], cwd)).success) {
+  if (!(await run("git", ["commit", "-m", commitMessage], cwd)).success) {
     await restoreToPreviousBranch(true);
     return { status: "not-attempted", reason: "git-commit-failed" };
   }
@@ -184,9 +151,9 @@ export const openWorkflowPullRequest = async (params: {
       "pr",
       "create",
       "--title",
-      PR_TITLE,
+      prTitle,
       "--body",
-      PR_BODY,
+      prBody,
       "--base",
       defaultBranch,
       "--head",

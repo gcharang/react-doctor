@@ -62,7 +62,8 @@ exports[`in-process render across terminal widths and render modes > matches the
   ────────────────────────────────────────────────────────────
 
   Docs: https://github.com/gcharang/react-doctor
-  Learn more about fixing issues, setting up CI/CD, and configuring rules with a config file
+  Learn more about fixing issues, setting up CI/CD, and
+  configuring rules with a config file
 
   GitHub: https://github.com/gcharang/react-doctor
   Report issues and star the repository!"
@@ -76,6 +77,6 @@ default-errors-ok              wrap   wrap     ok     ok     ok
 default-errors-needs-work      wrap   wrap     ok     ok     ok
 default-errors-no-score        wrap   wrap     ok     ok     ok
 default-warnings-only          wrap   wrap     ok     ok     ok
-default-clean-perfect          wrap   wrap     ok     ok     ok
+default-clean-perfect          wrap     ok     ok     ok     ok
 verbose-errors-great           wrap   wrap   wrap   wrap     ok"
 `;

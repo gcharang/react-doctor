@@ -36,9 +36,10 @@ describe("GitHub Action contract", () => {
     for (const inputName of [
       "directory",
       "project",
-      "fail-on",
+      "blocking",
       "comment",
-      "annotations",
+      "review-comments",
+      "commit-status",
       "node-version",
       "version",
     ]) {
@@ -49,7 +50,15 @@ describe("GitHub Action contract", () => {
     expect(inputsBlock).not.toContain("  verbose:");
     expect(inputsBlock).not.toContain("  no-score:");
     expect(inputsBlock).not.toContain("  diff:");
+    // `fail-on` was renamed to `blocking`; `non-blocking` folds into its
+    // `none` level; annotations were replaced by inline review comments.
+    expect(inputsBlock).not.toContain("  fail-on:");
+    expect(inputsBlock).not.toContain("  non-blocking:");
+    expect(inputsBlock).not.toContain("  annotations:");
     expect(inputsBlock).toContain('    default: "true"');
+    expect(inputsBlock).toContain('default: "*"');
+    expect(inputsBlock).toContain('default: "24"');
+    expect(inputsBlock).toContain('default: "none"');
     expect(outputsBlock).toContain("${{ steps.render.outputs.score }}");
     expect(outputsBlock).toContain("${{ steps.render.outputs.total-issues }}");
     expect(outputsBlock).toContain("${{ steps.render.outputs.affected-files }}");
@@ -59,8 +68,14 @@ describe("GitHub Action contract", () => {
     const actionYaml = readActionYaml();
     const prFilesStep = normalizeWhitespace(extractStep(actionYaml, "- id: pr-files"));
 
-    expect(actionYaml).toContain("actions/setup-node@v5");
-    expect(actionYaml).toContain("actions/github-script@v8");
+    // setup-node/github-script may be referenced by a floating major tag
+    // (v5/v8) or pinned to a full-length commit SHA with a trailing version
+    // comment — the form required by orgs that enforce GitHub's "actions pinned
+    // to a full-length commit SHA" ruleset. Accept either so the composite
+    // action stays consumable under those policies (and Dependabot can still
+    // bump the pinned SHA), while keeping the major-version floor.
+    expect(actionYaml).toMatch(/actions\/setup-node@(?:v5\b|[0-9a-f]{40} # v5\b)/);
+    expect(actionYaml).toMatch(/actions\/github-script@(?:v8\b|[0-9a-f]{40} # v8\b)/);
     expect(actionYaml).not.toContain("actions/setup-node@v4");
     expect(actionYaml).not.toContain("actions/github-script@v7");
     expect(prFilesStep).toContain("github.rest.pulls.listFiles");
@@ -90,14 +105,22 @@ describe("GitHub Action contract", () => {
   });
 
   it("runs one JSON scan, captures its status, and passes PR files to the CLI", () => {
+    const actionYaml = readActionYaml();
     const scanStep = normalizeWhitespace(
-      extractStep(readActionYaml(), "INPUT_FAIL_ON: ${{ inputs.fail-on }}"),
+      extractStep(actionYaml, "INPUT_PROJECT: ${{ inputs.project }}"),
     );
 
-    expect(scanStep).toContain('"--json" "--json-compact" "--fail-on" "$INPUT_FAIL_ON"');
+    expect(scanStep).toContain('FLAGS=("--json" "--json-compact")');
     expect(scanStep).not.toContain("--pr-comment");
+    // The gate threshold is forwarded as `--blocking` (renamed from the
+    // deprecated `--fail-on`); annotations were replaced by review comments.
+    expect(actionYaml).not.toContain("--fail-on");
+    expect(actionYaml).not.toContain("--annotations");
     expect(scanStep).toContain(
-      'if [ "$INPUT_ANNOTATIONS" = "true" ]; then FLAGS+=("--annotations"); fi',
+      'if [ -n "$INPUT_BLOCKING" ]; then FLAGS+=("--blocking" "$INPUT_BLOCKING"); fi',
+    );
+    expect(scanStep).toContain(
+      'if [ -n "$INPUT_PROJECT" ]; then FLAGS+=("--project" "$INPUT_PROJECT"); fi',
     );
     expect(scanStep).toContain('FLAGS+=("--changed-files-from" "$CHANGED_FILES_FROM")');
     expect(scanStep).toContain(
@@ -106,7 +129,40 @@ describe("GitHub Action contract", () => {
     expect(scanStep).toContain('PACKAGE_SPEC="react-doctor@$INPUT_VERSION"');
     expect(scanStep).toContain("SCAN_STATUS=$?");
     expect(scanStep).toContain("scripts/ensure-json-report.mjs");
-    expect(readActionYaml()).not.toContain("--score");
+    expect(actionYaml).not.toContain("--score");
+  });
+
+  it("fetches the PR base commit and forwards it for baseline (new-vs-existing) mode", () => {
+    const actionYaml = readActionYaml();
+    const baseStep = normalizeWhitespace(extractStep(actionYaml, "- id: base"));
+    const scanStep = normalizeWhitespace(
+      extractStep(actionYaml, "INPUT_PROJECT: ${{ inputs.project }}"),
+    );
+
+    // The base commit is fetched so react-doctor can read base content + the
+    // merge-base, and forwarded via REACT_DOCTOR_BASE_SHA (a branch name won't
+    // resolve in a shallow PR checkout).
+    expect(baseStep).toContain("github.event_name == 'pull_request'");
+    expect(baseStep).toContain("BASE_SHA: ${{ github.event.pull_request.base.sha }}");
+    expect(baseStep).toContain(
+      'git -C "$INPUT_DIRECTORY" fetch --no-tags --depth=1 origin "$BASE_SHA"',
+    );
+    expect(scanStep).toContain("REACT_DOCTOR_BASE_SHA: ${{ github.event.pull_request.base.sha }}");
+  });
+
+  it("posts inline review comments anchored to changed diff lines", () => {
+    const actionYaml = readActionYaml();
+    const reviewStep = normalizeWhitespace(
+      extractStep(actionYaml, "- name: Post inline review comments"),
+    );
+
+    expect(reviewStep).toContain("inputs.review-comments == 'true'");
+    expect(reviewStep).toContain("github.rest.pulls.listFiles");
+    expect(reviewStep).toContain("github.rest.pulls.createReview");
+    expect(reviewStep).toContain('event: "COMMENT"');
+    expect(reviewStep).toContain('side: "RIGHT"');
+    expect(reviewStep).toContain("github.rest.pulls.deleteReviewComment");
+    expect(reviewStep).toContain("<!-- react-doctor:review -->");
   });
 
   it("renders and posts the sticky comment before restoring scan failure", () => {
@@ -127,19 +183,58 @@ describe("GitHub Action contract", () => {
     expect(commentStep).toContain("core.warning");
   });
 
-  it("non-blocking input makes the fail gate always exit 0", () => {
+  it("defaults blocking to none (advisory) and propagates the CLI exit code", () => {
     const actionYaml = readActionYaml();
     const inputsBlock = extractBlock(actionYaml, "inputs:", "\noutputs:");
-    const nonBlockingInput = extractBlock(actionYaml, "  non-blocking:", "  comment:");
+    const blockingInput = extractBlock(actionYaml, "  blocking:", "  comment:");
     const failStep = normalizeWhitespace(
       extractStep(actionYaml, "- name: Fail if React Doctor found blocking issues"),
     );
 
-    expect(inputsBlock).toContain("  non-blocking:");
-    expect(normalizeWhitespace(nonBlockingInput)).toContain('default: "false"');
-    expect(failStep).toContain("INPUT_NON_BLOCKING: ${{ inputs.non-blocking }}");
-    expect(failStep).toContain('if [ "$INPUT_NON_BLOCKING" = "true" ]; then');
-    expect(failStep).toContain("exit 0");
-    expect(failStep).toContain('exit "$SCAN_STATUS"');
+    expect(inputsBlock).toContain("  blocking:");
+    expect(normalizeWhitespace(blockingInput)).toContain('default: "none"');
+    // The gate lives in the CLI exit code now; the action just propagates it.
+    expect(failStep).toContain('exit "${SCAN_STATUS:-1}"');
+    expect(failStep).not.toContain("INPUT_NON_BLOCKING");
+  });
+
+  it("surfaces results on every event but only fails the run on pull requests", () => {
+    const actionYaml = readActionYaml();
+    const renderStep = normalizeWhitespace(extractStep(actionYaml, "- id: render"));
+    const failStep = normalizeWhitespace(
+      extractStep(actionYaml, "- name: Fail if React Doctor found blocking issues"),
+    );
+
+    // The rendered report is mirrored into the job summary so a push to the
+    // default branch (no PR comment) still shows its result on the run page.
+    expect(renderStep).toContain("GITHUB_STEP_SUMMARY");
+
+    // Non-PR events (push to `main`) report findings but never fail the run, so
+    // the default branch doesn't go red on pre-existing issues; PRs still
+    // propagate the CLI exit code.
+    expect(failStep).toContain("EVENT_NAME: ${{ github.event_name }}");
+    expect(failStep).toContain('if [ "$EVENT_NAME" != "pull_request" ]; then exit 0');
+    expect(failStep).toContain('exit "${SCAN_STATUS:-1}"');
+  });
+
+  it("publishes a commit status that carries the score and stays green on pushes", () => {
+    const actionYaml = readActionYaml();
+    const inputsBlock = extractBlock(actionYaml, "inputs:", "\noutputs:");
+    const statusStep = normalizeWhitespace(
+      extractStep(actionYaml, "- name: Publish commit status"),
+    );
+
+    expect(inputsBlock).toContain("  commit-status:");
+    expect(statusStep).toContain("inputs.commit-status == 'true'");
+    expect(statusStep).toContain("github.rest.repos.createCommitStatus");
+    expect(statusStep).toContain('context: "React Doctor"');
+    expect(statusStep).toContain("target_url:");
+    expect(statusStep).toContain("Score: ${score}/100");
+    // Advisory on push: only a PR whose scan failed posts a red (failure) status.
+    expect(statusStep).toContain(
+      'const state = isPullRequest && scanFailed ? "failure" : "success"',
+    );
+    // Missing `statuses: write` is a soft failure, not a crash.
+    expect(statusStep).toContain("core.warning");
   });
 });

@@ -17,7 +17,7 @@
   "scripts": {
     "dev": "turbo run dev --filter=react-doctor",
     "build": "turbo run build",
-    "test": "turbo run test --filter=react-doctor --filter=@react-doctor/core --filter=@react-doctor/api",
+    "test": "turbo run test --filter=react-doctor --filter=@react-doctor/core --filter=@react-doctor/api --filter=@react-doctor/language-server",
     "test:public-react-repos": "REACT_DOCTOR_PUBLIC_REPOS=1 vp test run packages/react-doctor/tests/public-react-repos.test.ts",
     "typecheck": "turbo run typecheck",
     "lint": "vp lint",
@@ -30,6 +30,7 @@
     "release": "pnpm build && pnpm check:published-deps && node scripts/sentry-sourcemaps.mjs && changeset publish",
     "check:published-deps": "node --experimental-strip-types --no-warnings scripts/check-published-deps.ts",
     "smoke:json-report": "node --experimental-strip-types --no-warnings scripts/smoke-json-report.ts",
+    "smoke:packed-cli-install": "node --experimental-strip-types --no-warnings scripts/smoke-packed-cli-install.ts",
     "smoke:tty-prompt": "python3 scripts/smoke-tty-prompt.py",
     "build:schema": "node --experimental-strip-types --no-warnings scripts/generate-config-schema.ts"
   },
@@ -40,7 +41,7 @@
     "agent-install": "0.0.5",
     "conf": "^15.1.0",
     "confbox": "^0.2.4",
-    "deslop-js": "^0.0.19",
+    "deslop-js": "^0.0.21",
     "effect": "4.0.0-beta.70",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-scope": "^9.1.2",
@@ -51,7 +52,11 @@
     "oxlint": "^1.66.0",
     "picomatch": "^4.0.4",
     "prompts": "^2.4.2",
-    "typescript": "^6.0.3"
+    "semver": "^7.7.4",
+    "typescript": "^6.0.3",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.7.0",
@@ -66,7 +71,7 @@
     "vite-plus": "^0.1.15"
   },
   "engines": {
-    "node": "^20.19.0 || >=22.12.0",
+    "node": "^20.19.0 || >=22.13.0",
     "pnpm": ">=10.16.0"
   },
   "packageManager": "pnpm@10.29.1",

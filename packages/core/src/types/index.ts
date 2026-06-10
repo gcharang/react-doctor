@@ -1,10 +1,11 @@
 export type {
+  BlockingLevel,
   DiagnosticSurface,
-  FailOnLevel,
   ReactDoctorConfig,
   ReactDoctorIgnoreOverride,
   RuleSeverityControls,
   RuleSeverityOverride,
+  ScopeValue,
   SurfaceControls,
 } from "./config.js";
 export type {
@@ -17,9 +18,15 @@ export type {
   ProjectResultError,
   ProjectResultOk,
 } from "./diagnose.js";
-export type { CleanedDiagnostic, Diagnostic, OxlintOutput } from "./diagnostic.js";
+export type {
+  CleanedDiagnostic,
+  Diagnostic,
+  DiagnosticRelatedLocation,
+  OxlintOutput,
+} from "./diagnostic.js";
 export type { HandleErrorOptions } from "./handle-error.js";
 export type {
+  ChangedFileLineRanges,
   DiffInfo,
   InspectOptions,
   InspectResult,

@@ -2,8 +2,16 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import type { Answers, PromptObject } from "prompts";
-import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import * as fs from "node:fs";
+
+// Keeps the suite hermetic: the real detection spawns `gh` / `git` against
+// the temp fixture, and a cold `gh.exe` on Windows CI has blown the 30s test
+// timeout. Returning null exercises the same `main` fallback the fixtures
+// (which have no git remote) would land on anyway.
+vi.mock("../src/cli/utils/detect-default-branch.js", () => ({
+  detectDefaultBranch: async () => null,
+}));
 import {
   CODING_AGENT_ENVIRONMENT_VALUE_VARIABLES,
   CODING_AGENT_ENVIRONMENT_VARIABLES,
@@ -11,6 +19,7 @@ import {
 import { NON_INTERACTIVE_ENVIRONMENT_VARIABLES } from "../src/cli/utils/is-non-interactive-environment.js";
 import { runInstallReactDoctor } from "../src/cli/utils/install-react-doctor.js";
 import type { InstallReactDoctorDependencyRunnerInput } from "../src/cli/utils/install-react-doctor.js";
+import { recordActionUpgradeDecision } from "../src/cli/utils/action-upgrade-prompt.js";
 import { setSpinnerSilent } from "../src/cli/utils/spinner.js";
 import { silenceConsoleForTest } from "./helpers/silence-console.js";
 
@@ -42,6 +51,27 @@ const writeValidSkill = (sourceDir: string): void => {
 
 const writePackageJson = (projectRoot: string, value: Record<string, unknown>): void => {
   fs.writeFileSync(path.join(projectRoot, "package.json"), `${JSON.stringify(value, null, 2)}\n`);
+};
+
+const writeExistingWorkflow = (projectRoot: string, actionRef: string): string => {
+  const workflowPath = path.join(projectRoot, ".github", "workflows", "react-doctor.yml");
+  fs.mkdirSync(path.dirname(workflowPath), { recursive: true });
+  fs.writeFileSync(
+    workflowPath,
+    [
+      "name: React Doctor",
+      "on:",
+      "  pull_request:",
+      "jobs:",
+      "  react-doctor:",
+      "    runs-on: ubuntu-latest",
+      "    steps:",
+      "      - uses: actions/checkout@v5",
+      `      - uses: ${actionRef}`,
+      "",
+    ].join("\n"),
+  );
+  return workflowPath;
 };
 
 const readFixturePackageJson = (projectRoot: string): Record<string, unknown> =>
@@ -103,7 +133,17 @@ const runInteractiveInstallReactDoctorForTest = async (
     const answers: Answers<PromptName> = Object.create(null);
     const questionName = promptQuestion?.name;
     if (typeof questionName !== "string") return answers;
-    answers[questionName] = questionName === "agents" ? ["cursor"] : options.setupOptions;
+    if (questionName === "agents") {
+      answers[questionName] = ["cursor"];
+    } else if (questionName === "ciChoice") {
+      answers[questionName] = options.setupOptions.includes("workflow") ? "ci-yes" : "ci-no";
+    } else if (questionName === "upgradeChoice") {
+      answers[questionName] = options.setupOptions.includes("workflow-upgrade")
+        ? "upgrade-yes"
+        : "upgrade-no";
+    } else {
+      answers[questionName] = options.setupOptions;
+    }
     return answers;
   };
 
@@ -578,7 +618,7 @@ describe("runInstallReactDoctor", () => {
     expect(
       fs.existsSync(path.join(fixture.projectRoot, ".agents/skills/react-doctor/SKILL.md")),
     ).toBe(true);
-    expect(fs.readFileSync(hookPath, "utf8")).toContain("react-doctor --staged --fail-on warning");
+    expect(fs.readFileSync(hookPath, "utf8")).toContain("react-doctor --staged --blocking warning");
     expect(fs.existsSync(path.join(fixture.projectRoot, ".react-doctor/hooks/pre-commit"))).toBe(
       false,
     );
@@ -626,21 +666,24 @@ describe("runInstallReactDoctor", () => {
       promptQuestions,
     });
 
-    expect(promptQuestions).toHaveLength(2);
-    expect(promptQuestions[1]).toEqual(
+    expect(promptQuestions).toHaveLength(3);
+    // CI is asked first, as its own dedicated question (the shared pitch).
+    expect(promptQuestions[0]).toEqual(
+      expect.objectContaining({ type: "select", name: "ciChoice" }),
+    );
+    expect(promptQuestions[2]).toEqual(
       expect.objectContaining({
         type: "multiselect",
         name: "setupOptions",
         message: "Select additional React Doctor setup:",
       }),
     );
-    expect(promptQuestions[1]).toEqual(
+    expect(promptQuestions[2]).toEqual(
       expect.objectContaining({
         choices: expect.arrayContaining([
           expect.objectContaining({ value: "skip" }),
           expect.objectContaining({ value: "git-hook" }),
           expect.objectContaining({ value: "agent-hooks" }),
-          expect.objectContaining({ value: "workflow" }),
         ]),
       }),
     );
@@ -650,8 +693,12 @@ describe("runInstallReactDoctor", () => {
     expect(workflowContent).toContain("name: React Doctor");
     expect(workflowContent).toContain("pull-requests: write");
     expect(workflowContent).toContain("issues: write");
+    expect(workflowContent).toContain("statuses: write");
     expect(workflowContent).toContain("actions/checkout@v5");
     expect(workflowContent).toContain("gcharang/react-doctor@pinned");
+    expect(workflowContent).toContain("Advisory by default");
+    expect(workflowContent).toContain("#   blocking: error");
+    expect(workflowContent).not.toContain("\n        with:\n");
     expect(workflowContent).not.toContain("github-token");
     expect(workflowContent).not.toContain("diff: main");
   });
@@ -716,7 +763,10 @@ describe("runInstallReactDoctor", () => {
   it("--yes installs Git and agent hooks in CI using real git detection", async () => {
     writeValidSkill(fixture.sourceDir);
     process.env.CI = "1";
-    execFileSync("git", ["init"], { cwd: fixture.projectRoot, stdio: "ignore" });
+    execFileSync("git", ["init"], {
+      cwd: fixture.projectRoot,
+      stdio: "ignore",
+    });
 
     await runInstallReactDoctorForTest({
       yes: true,
@@ -728,7 +778,7 @@ describe("runInstallReactDoctor", () => {
 
     expect(
       fs.readFileSync(path.join(fixture.projectRoot, ".git/hooks/pre-commit"), "utf8"),
-    ).toContain("react-doctor --staged --fail-on warning");
+    ).toContain("react-doctor --staged --blocking warning");
     expect(fs.existsSync(path.join(fixture.projectRoot, ".react-doctor/hooks/pre-commit"))).toBe(
       false,
     );
@@ -740,10 +790,148 @@ describe("runInstallReactDoctor", () => {
     ).toContain("PostToolBatch");
   });
 
+  it("--yes upgrades an existing @v1 workflow to @v2 in place", async () => {
+    writeValidSkill(fixture.sourceDir);
+    writePackageJson(fixture.projectRoot, { scripts: {} });
+    const workflowPath = writeExistingWorkflow(fixture.projectRoot, "millionco/react-doctor@v1");
+
+    await runInstallReactDoctorForTest({
+      yes: true,
+      sourceDir: fixture.sourceDir,
+      projectRoot: fixture.projectRoot,
+      detectedAgents: ["cursor"],
+      gitHookPath: null,
+    });
+
+    const workflowContent = fs.readFileSync(workflowPath, "utf8");
+    expect(workflowContent).toContain("millionco/react-doctor@v2");
+    expect(workflowContent).not.toContain("millionco/react-doctor@v1");
+  });
+
+  it("--yes leaves an exactly-pinned workflow untouched", async () => {
+    writeValidSkill(fixture.sourceDir);
+    writePackageJson(fixture.projectRoot, { scripts: {} });
+    const workflowPath = writeExistingWorkflow(
+      fixture.projectRoot,
+      "millionco/react-doctor@v1.2.3",
+    );
+    const originalContent = fs.readFileSync(workflowPath, "utf8");
+
+    await runInstallReactDoctorForTest({
+      yes: true,
+      sourceDir: fixture.sourceDir,
+      projectRoot: fixture.projectRoot,
+      detectedAgents: ["cursor"],
+      gitHookPath: null,
+    });
+
+    expect(fs.readFileSync(workflowPath, "utf8")).toBe(originalContent);
+  });
+
+  it("--yes leaves an already-@v2 workflow untouched", async () => {
+    writeValidSkill(fixture.sourceDir);
+    writePackageJson(fixture.projectRoot, { scripts: {} });
+    const workflowPath = writeExistingWorkflow(fixture.projectRoot, "millionco/react-doctor@v2");
+    const originalContent = fs.readFileSync(workflowPath, "utf8");
+
+    await runInstallReactDoctorForTest({
+      yes: true,
+      sourceDir: fixture.sourceDir,
+      projectRoot: fixture.projectRoot,
+      detectedAgents: ["cursor"],
+      gitHookPath: null,
+    });
+
+    expect(fs.readFileSync(workflowPath, "utf8")).toBe(originalContent);
+  });
+
+  it("interactively upgrades an existing @v1 workflow when the offer is accepted", async () => {
+    writeValidSkill(fixture.sourceDir);
+    writePackageJson(fixture.projectRoot, { scripts: {} });
+    const hookPath = path.join(fixture.projectRoot, ".git/hooks/pre-commit");
+    const workflowPath = writeExistingWorkflow(fixture.projectRoot, "millionco/react-doctor@v1");
+    const promptQuestions: unknown[] = [];
+
+    await runInteractiveInstallReactDoctorForTest({
+      sourceDir: fixture.sourceDir,
+      projectRoot: fixture.projectRoot,
+      gitHookPath: hookPath,
+      setupOptions: ["workflow-upgrade"],
+      promptQuestions,
+    });
+
+    // The upgrade prompt replaces the "add" prompt when a workflow exists.
+    expect(promptQuestions[0]).toEqual(
+      expect.objectContaining({ type: "select", name: "upgradeChoice" }),
+    );
+    expect(fs.readFileSync(workflowPath, "utf8")).toContain("millionco/react-doctor@v2");
+  });
+
+  it("interactively keeps an existing @v1 workflow when the offer is declined", async () => {
+    writeValidSkill(fixture.sourceDir);
+    writePackageJson(fixture.projectRoot, { scripts: {} });
+    const hookPath = path.join(fixture.projectRoot, ".git/hooks/pre-commit");
+    const workflowPath = writeExistingWorkflow(fixture.projectRoot, "millionco/react-doctor@v1");
+
+    await runInteractiveInstallReactDoctorForTest({
+      sourceDir: fixture.sourceDir,
+      projectRoot: fixture.projectRoot,
+      gitHookPath: hookPath,
+      setupOptions: [],
+    });
+
+    expect(fs.readFileSync(workflowPath, "utf8")).toContain("millionco/react-doctor@v1");
+    expect(fs.readFileSync(workflowPath, "utf8")).not.toContain("millionco/react-doctor@v2");
+  });
+
+  it("interactively skips the @v1 upgrade offer once the decision is already persisted", async () => {
+    writeValidSkill(fixture.sourceDir);
+    writePackageJson(fixture.projectRoot, { scripts: {} });
+    const hookPath = path.join(fixture.projectRoot, ".git/hooks/pre-commit");
+    const workflowPath = writeExistingWorkflow(fixture.projectRoot, "millionco/react-doctor@v1");
+    recordActionUpgradeDecision(fixture.projectRoot, "declined");
+    const promptQuestions: unknown[] = [];
+
+    await runInteractiveInstallReactDoctorForTest({
+      sourceDir: fixture.sourceDir,
+      projectRoot: fixture.projectRoot,
+      gitHookPath: hookPath,
+      // Would normally accept the bump — but the persisted decline suppresses
+      // the offer entirely, so the prompt is never shown.
+      setupOptions: ["workflow-upgrade"],
+      promptQuestions,
+    });
+
+    expect(promptQuestions).not.toContainEqual(expect.objectContaining({ name: "upgradeChoice" }));
+    expect(fs.readFileSync(workflowPath, "utf8")).toContain("millionco/react-doctor@v1");
+    expect(fs.readFileSync(workflowPath, "utf8")).not.toContain("millionco/react-doctor@v2");
+  });
+
+  it("--yes does not re-apply an already-declined @v1 upgrade", async () => {
+    writeValidSkill(fixture.sourceDir);
+    writePackageJson(fixture.projectRoot, { scripts: {} });
+    const workflowPath = writeExistingWorkflow(fixture.projectRoot, "millionco/react-doctor@v1");
+    recordActionUpgradeDecision(fixture.projectRoot, "declined");
+
+    await runInstallReactDoctorForTest({
+      yes: true,
+      sourceDir: fixture.sourceDir,
+      projectRoot: fixture.projectRoot,
+      detectedAgents: ["cursor"],
+      gitHookPath: null,
+    });
+
+    expect(fs.readFileSync(workflowPath, "utf8")).toContain("millionco/react-doctor@v1");
+    expect(fs.readFileSync(workflowPath, "utf8")).not.toContain("millionco/react-doctor@v2");
+  });
+
   it("CI skips prompts without --yes but does not install the optional Git hook", async () => {
     writeValidSkill(fixture.sourceDir);
     process.env.CI = "1";
-    execFileSync("git", ["init"], { cwd: fixture.projectRoot, stdio: "ignore" });
+    execFileSync("git", ["init"], {
+      cwd: fixture.projectRoot,
+      stdio: "ignore",
+    });
 
     await runInstallReactDoctorForTest({
       agentHooks: true,

@@ -146,10 +146,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -165,10 +165,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -184,10 +184,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -203,10 +203,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -222,10 +222,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -241,10 +241,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -260,10 +260,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -279,10 +279,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -298,10 +298,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -317,10 +317,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -336,10 +336,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -374,10 +374,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -412,10 +412,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -431,10 +431,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -450,10 +450,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -469,10 +469,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -488,10 +488,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -507,10 +507,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -526,10 +526,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -545,10 +545,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -564,10 +564,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -583,10 +583,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -602,10 +602,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -621,10 +621,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -640,10 +640,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -659,10 +659,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -678,10 +678,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -697,10 +697,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -735,10 +735,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -754,10 +754,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -773,10 +773,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -792,10 +792,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -811,10 +811,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -830,10 +830,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -849,10 +849,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -868,10 +868,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -944,10 +944,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -963,10 +963,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Security";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -982,10 +982,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1001,10 +1001,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1020,10 +1020,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1039,10 +1039,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1058,10 +1058,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1343,10 +1343,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1362,10 +1362,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1381,10 +1381,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1400,10 +1400,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1419,10 +1419,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1438,10 +1438,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1457,10 +1457,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1476,10 +1476,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1495,10 +1495,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1514,10 +1514,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1533,10 +1533,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1552,10 +1552,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1571,10 +1571,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1590,10 +1590,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1609,29 +1609,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Security";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
-    readonly disabledBy?: ReadonlyArray<string>;
-    readonly tags?: ReadonlyArray<string>;
-    readonly defaultEnabled?: boolean;
-    readonly lifecycle?: "retired";
-    readonly recommendation?: string;
-    readonly create: (context: RuleContext) => RuleVisitors;
-  };
-}, {
-  readonly key: "react-doctor/jsx-no-target-blank";
-  readonly id: "jsx-no-target-blank";
-  readonly source: "react-doctor";
-  readonly originallyExternal: true;
-  readonly rule: {
-    readonly framework: "global";
-    readonly category: "Security";
-    readonly id: string;
-    readonly title?: string;
-    readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1647,10 +1628,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1666,10 +1647,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1685,10 +1666,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1704,10 +1685,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1723,10 +1704,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1742,10 +1723,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1761,10 +1742,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1780,10 +1761,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -1799,6 +1780,25 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/nextjs-async-client-component";
+  readonly id: "nextjs-async-client-component";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
@@ -1811,8 +1811,27 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly create: (context: RuleContext) => RuleVisitors;
   };
 }, {
-  readonly key: "react-doctor/nextjs-async-client-component";
-  readonly id: "nextjs-async-client-component";
+  readonly key: "react-doctor/nextjs-error-boundary-missing-use-client";
+  readonly id: "nextjs-error-boundary-missing-use-client";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/nextjs-global-error-missing-html-body";
+  readonly id: "nextjs-global-error-missing-html-body";
   readonly source: "react-doctor";
   readonly originallyExternal: false;
   readonly rule: {
@@ -1963,8 +1982,65 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly create: (context: RuleContext) => RuleVisitors;
   };
 }, {
+  readonly key: "react-doctor/nextjs-no-default-export-in-route-handler";
+  readonly id: "nextjs-no-default-export-in-route-handler";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/nextjs-no-edge-og-runtime";
+  readonly id: "nextjs-no-edge-og-runtime";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
   readonly key: "react-doctor/nextjs-no-font-link";
   readonly id: "nextjs-no-font-link";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/nextjs-no-google-analytics-script";
+  readonly id: "nextjs-no-google-analytics-script";
   readonly source: "react-doctor";
   readonly originallyExternal: false;
   readonly rule: {
@@ -2077,6 +2153,25 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly create: (context: RuleContext) => RuleVisitors;
   };
 }, {
+  readonly key: "react-doctor/nextjs-no-script-in-head";
+  readonly id: "nextjs-no-script-in-head";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
   readonly key: "react-doctor/nextjs-no-side-effect-in-get-handler";
   readonly id: "nextjs-no-side-effect-in-get-handler";
   readonly source: "react-doctor";
@@ -2115,6 +2210,25 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly create: (context: RuleContext) => RuleVisitors;
   };
 }, {
+  readonly key: "react-doctor/nextjs-no-vercel-og-import";
+  readonly id: "nextjs-no-vercel-og-import";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
   readonly key: "react-doctor/no-access-key";
   readonly id: "no-access-key";
   readonly source: "react-doctor";
@@ -2122,10 +2236,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2141,10 +2255,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2160,10 +2274,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2198,10 +2312,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2217,10 +2331,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2255,10 +2369,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2274,10 +2388,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2293,10 +2407,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2312,10 +2426,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2331,10 +2445,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2350,10 +2464,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2369,10 +2483,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Security";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2388,10 +2502,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2445,10 +2559,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2464,10 +2578,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2483,10 +2597,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2502,10 +2616,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2521,10 +2635,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2540,10 +2654,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2559,10 +2673,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2597,10 +2711,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2616,10 +2730,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2654,10 +2768,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2673,10 +2787,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2692,10 +2806,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2711,10 +2825,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2749,10 +2863,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2768,10 +2882,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2787,10 +2901,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2806,10 +2920,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2825,10 +2939,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2901,10 +3015,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -2958,10 +3072,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3015,10 +3129,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3034,10 +3148,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3050,6 +3164,25 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly id: "no-is-mounted";
   readonly source: "react-doctor";
   readonly originallyExternal: true;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-jsx-element-type";
+  readonly id: "no-jsx-element-type";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
@@ -3091,10 +3224,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3110,10 +3243,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3224,10 +3357,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3262,10 +3395,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3281,10 +3414,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3300,10 +3433,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3319,10 +3452,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3357,10 +3490,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3376,10 +3509,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3395,10 +3528,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3433,10 +3566,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3452,10 +3585,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3471,10 +3604,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3528,10 +3661,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3604,10 +3737,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3661,10 +3794,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3680,10 +3813,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3737,10 +3870,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3756,10 +3889,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3775,10 +3908,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3813,10 +3946,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3832,10 +3965,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3851,10 +3984,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3889,10 +4022,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3908,10 +4041,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3927,10 +4060,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -3965,10 +4098,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4022,10 +4155,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4041,10 +4174,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4060,10 +4193,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4079,10 +4212,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4098,10 +4231,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4136,10 +4269,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4174,10 +4307,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4307,6 +4440,25 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/prefer-explicit-variants";
+  readonly id: "prefer-explicit-variants";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Maintainability";
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
@@ -4326,10 +4478,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4345,10 +4497,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4402,10 +4554,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4421,10 +4573,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4440,10 +4592,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4459,10 +4611,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4477,6 +4629,25 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly originallyExternal: false;
   readonly rule: {
     readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/query-destructure-result";
+  readonly id: "query-destructure-result";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "tanstack-query";
     readonly category: "Bugs";
     readonly id: string;
     readonly title?: string;
@@ -4630,10 +4801,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4649,10 +4820,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4668,10 +4839,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4687,10 +4858,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4725,10 +4896,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4744,10 +4915,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4763,10 +4934,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4782,10 +4953,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4820,10 +4991,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4839,10 +5010,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4858,10 +5029,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4877,10 +5048,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4896,10 +5067,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4915,10 +5086,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4934,10 +5105,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4953,10 +5124,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4972,10 +5143,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -4991,10 +5162,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -5010,10 +5181,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -5029,10 +5200,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -5694,10 +5865,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -5713,10 +5884,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -5732,10 +5903,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -5751,10 +5922,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -5770,10 +5941,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -5941,10 +6112,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -5960,10 +6131,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -5979,10 +6150,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6283,10 +6454,10 @@ declare const REACT_DOCTOR_RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6444,10 +6615,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6463,10 +6634,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6482,10 +6653,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6501,10 +6672,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6520,10 +6691,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6539,10 +6710,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6558,10 +6729,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6577,10 +6748,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6596,10 +6767,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6615,10 +6786,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6634,10 +6805,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6672,10 +6843,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6710,10 +6881,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6729,10 +6900,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6748,10 +6919,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6767,10 +6938,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6786,10 +6957,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6805,10 +6976,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6824,10 +6995,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6843,10 +7014,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6862,10 +7033,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6881,10 +7052,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6900,10 +7071,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6919,10 +7090,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6938,10 +7109,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6957,10 +7128,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6976,10 +7147,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -6995,10 +7166,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7033,10 +7204,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7052,10 +7223,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7071,10 +7242,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7090,10 +7261,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7109,10 +7280,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7128,10 +7299,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7147,10 +7318,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7166,10 +7337,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7242,10 +7413,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7261,10 +7432,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Security";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7280,10 +7451,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7299,10 +7470,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7318,10 +7489,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7337,10 +7508,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7356,10 +7527,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7641,10 +7812,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7660,10 +7831,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7679,10 +7850,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7698,10 +7869,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7717,10 +7888,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7736,10 +7907,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7755,10 +7926,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7774,10 +7945,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7793,10 +7964,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7812,10 +7983,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7831,10 +8002,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7850,10 +8021,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7869,10 +8040,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7888,10 +8059,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7907,29 +8078,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Security";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
-    readonly disabledBy?: ReadonlyArray<string>;
-    readonly tags?: ReadonlyArray<string>;
-    readonly defaultEnabled?: boolean;
-    readonly lifecycle?: "retired";
-    readonly recommendation?: string;
-    readonly create: (context: RuleContext) => RuleVisitors;
-  };
-}, {
-  readonly key: "react-doctor/jsx-no-target-blank";
-  readonly id: "jsx-no-target-blank";
-  readonly source: "react-doctor";
-  readonly originallyExternal: true;
-  readonly rule: {
-    readonly framework: "global";
-    readonly category: "Security";
-    readonly id: string;
-    readonly title?: string;
-    readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7945,10 +8097,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7964,10 +8116,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -7983,10 +8135,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8002,10 +8154,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8021,10 +8173,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8040,10 +8192,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8059,10 +8211,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8078,10 +8230,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8097,6 +8249,25 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/nextjs-async-client-component";
+  readonly id: "nextjs-async-client-component";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
@@ -8109,8 +8280,27 @@ declare const RULES: readonly [{
     readonly create: (context: RuleContext) => RuleVisitors;
   };
 }, {
-  readonly key: "react-doctor/nextjs-async-client-component";
-  readonly id: "nextjs-async-client-component";
+  readonly key: "react-doctor/nextjs-error-boundary-missing-use-client";
+  readonly id: "nextjs-error-boundary-missing-use-client";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/nextjs-global-error-missing-html-body";
+  readonly id: "nextjs-global-error-missing-html-body";
   readonly source: "react-doctor";
   readonly originallyExternal: false;
   readonly rule: {
@@ -8261,8 +8451,65 @@ declare const RULES: readonly [{
     readonly create: (context: RuleContext) => RuleVisitors;
   };
 }, {
+  readonly key: "react-doctor/nextjs-no-default-export-in-route-handler";
+  readonly id: "nextjs-no-default-export-in-route-handler";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/nextjs-no-edge-og-runtime";
+  readonly id: "nextjs-no-edge-og-runtime";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
   readonly key: "react-doctor/nextjs-no-font-link";
   readonly id: "nextjs-no-font-link";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/nextjs-no-google-analytics-script";
+  readonly id: "nextjs-no-google-analytics-script";
   readonly source: "react-doctor";
   readonly originallyExternal: false;
   readonly rule: {
@@ -8375,6 +8622,25 @@ declare const RULES: readonly [{
     readonly create: (context: RuleContext) => RuleVisitors;
   };
 }, {
+  readonly key: "react-doctor/nextjs-no-script-in-head";
+  readonly id: "nextjs-no-script-in-head";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
   readonly key: "react-doctor/nextjs-no-side-effect-in-get-handler";
   readonly id: "nextjs-no-side-effect-in-get-handler";
   readonly source: "react-doctor";
@@ -8413,6 +8679,25 @@ declare const RULES: readonly [{
     readonly create: (context: RuleContext) => RuleVisitors;
   };
 }, {
+  readonly key: "react-doctor/nextjs-no-vercel-og-import";
+  readonly id: "nextjs-no-vercel-og-import";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "nextjs";
+    readonly category: "Bugs";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
   readonly key: "react-doctor/no-access-key";
   readonly id: "no-access-key";
   readonly source: "react-doctor";
@@ -8420,10 +8705,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8439,10 +8724,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8458,10 +8743,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8496,10 +8781,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8515,10 +8800,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8553,10 +8838,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8572,10 +8857,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8591,10 +8876,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8610,10 +8895,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8629,10 +8914,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8648,10 +8933,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8667,10 +8952,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Security";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8686,10 +8971,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8743,10 +9028,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8762,10 +9047,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8781,10 +9066,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8800,10 +9085,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8819,10 +9104,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8838,10 +9123,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8857,10 +9142,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8895,10 +9180,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8914,10 +9199,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8952,10 +9237,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8971,10 +9256,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -8990,10 +9275,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9009,10 +9294,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9047,10 +9332,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9066,10 +9351,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9085,10 +9370,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9104,10 +9389,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9123,10 +9408,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9199,10 +9484,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9256,10 +9541,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9313,10 +9598,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9332,10 +9617,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9348,6 +9633,25 @@ declare const RULES: readonly [{
   readonly id: "no-is-mounted";
   readonly source: "react-doctor";
   readonly originallyExternal: true;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-jsx-element-type";
+  readonly id: "no-jsx-element-type";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
@@ -9389,10 +9693,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9408,10 +9712,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9522,10 +9826,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9560,10 +9864,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9579,10 +9883,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9598,10 +9902,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9617,10 +9921,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9655,10 +9959,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9674,10 +9978,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9693,10 +9997,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9731,10 +10035,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9750,10 +10054,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9769,10 +10073,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9826,10 +10130,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9902,10 +10206,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9959,10 +10263,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -9978,10 +10282,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10035,10 +10339,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10054,10 +10358,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10073,10 +10377,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10111,10 +10415,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10130,10 +10434,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10149,10 +10453,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10187,10 +10491,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10206,10 +10510,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10225,10 +10529,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10263,10 +10567,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10320,10 +10624,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10339,10 +10643,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10358,10 +10662,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10377,10 +10681,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10396,10 +10700,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10434,10 +10738,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10472,10 +10776,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10605,6 +10909,25 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/prefer-explicit-variants";
+  readonly id: "prefer-explicit-variants";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Maintainability";
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
@@ -10624,10 +10947,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10643,10 +10966,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10700,10 +11023,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10719,10 +11042,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10738,10 +11061,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10757,10 +11080,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10775,6 +11098,25 @@ declare const RULES: readonly [{
   readonly originallyExternal: false;
   readonly rule: {
     readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/query-destructure-result";
+  readonly id: "query-destructure-result";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "tanstack-query";
     readonly category: "Bugs";
     readonly id: string;
     readonly title?: string;
@@ -10928,10 +11270,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10947,10 +11289,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10966,10 +11308,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -10985,10 +11327,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11023,10 +11365,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11042,10 +11384,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11061,10 +11403,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11080,10 +11422,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11118,10 +11460,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11137,10 +11479,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11156,10 +11498,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11175,10 +11517,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11194,10 +11536,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11213,10 +11555,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11232,10 +11574,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11251,10 +11593,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11270,10 +11612,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11289,10 +11631,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11308,10 +11650,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11327,10 +11669,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Performance";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -11992,10 +12334,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -12011,10 +12353,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -12030,10 +12372,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -12049,10 +12391,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -12068,10 +12410,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -12239,10 +12581,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Maintainability";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -12258,10 +12600,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -12277,10 +12619,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Accessibility";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
@@ -12581,10 +12923,10 @@ declare const RULES: readonly [{
   readonly rule: {
     readonly framework: "global";
     readonly category: "Bugs";
+    readonly requires: readonly string[];
     readonly id: string;
     readonly title?: string;
     readonly severity: RuleSeverity;
-    readonly requires?: ReadonlyArray<string>;
     readonly disabledBy?: ReadonlyArray<string>;
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
