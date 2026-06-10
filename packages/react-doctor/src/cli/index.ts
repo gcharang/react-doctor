@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { CANONICAL_GITHUB_URL, highlighter } from "@react-doctor/core";
 import { flushSentry, initializeSentry } from "../instrument.js";
 import { inspectAction } from "./commands/inspect.js";
@@ -14,6 +14,7 @@ import {
   rulesUnignoreTagAction,
 } from "./commands/rules.js";
 import { versionAction } from "./commands/version.js";
+import { whyAction } from "./commands/why.js";
 import { applyColorPreference } from "./utils/apply-color-preference.js";
 import { exitGracefully } from "./utils/exit-gracefully.js";
 import { guardStdin } from "./utils/guard-stdin.js";
@@ -21,6 +22,7 @@ import { handleError, handleUserError } from "./utils/handle-error.js";
 import { isExpectedUserError } from "./utils/is-expected-user-error.js";
 import { isJsonModeActive, writeJsonErrorReport } from "./utils/json-mode.js";
 import { normalizeHelpInvocation } from "./utils/normalize-help-command.js";
+import { assertNoRemovedFlags } from "./utils/removed-cli-flags.js";
 import { reportErrorToSentry } from "./utils/report-error.js";
 import { stripUnknownCliFlags } from "./utils/strip-unknown-cli-flags.js";
 import { unrefStdin } from "./utils/unref-stdin.js";
@@ -59,9 +61,10 @@ ${formatExampleLines([
   ["react-doctor ./apps/web", "scan a specific directory"],
   ["react-doctor --diff main", "scan only files changed vs. main"],
   ["react-doctor --staged", "scan staged files (pre-commit hook)"],
-  ["react-doctor --fail-on warning", "exit non-zero on warnings (CI gate)"],
+  ["react-doctor --category Security", "show only one diagnostic category"],
+  ["react-doctor --blocking warning", "fail CI on warnings too (default: error)"],
   ["react-doctor --json > report.json", "write a machine-readable report"],
-  ["react-doctor --explain src/App.tsx:42", "explain why a rule fired there"],
+  ["react-doctor why src/App.tsx:42", "explain why a rule fired there"],
   ["react-doctor install", "set up the agent skill and git hook"],
 ])}
 
@@ -89,6 +92,11 @@ ${highlighter.dim("Learn more:")}
   ${highlighter.info(CANONICAL_GITHUB_URL)}
 `;
 
+const collectCategoryOption = (value: string, previousValues: string[] | undefined): string[] => [
+  ...(previousValues ?? []),
+  value,
+];
+
 const program = new Command()
   .name("react-doctor")
   .description("Diagnose React codebase health")
@@ -106,43 +114,55 @@ const program = new Command()
   .option("--json", "output a single structured JSON report (suppresses other output)")
   .option("--json-compact", "with --json, emit compact JSON (no indentation)")
   .option("-y, --yes", "skip prompts, scan all workspace projects")
-  .option("--full", "force a full scan (overrides any `diff` value in config or `--diff`)")
   .option(
     "--no-parallel",
     "lint serially with one worker (default: parallel across CPU cores; set the worker count with REACT_DOCTOR_PARALLEL)",
   )
   .option("--project <name>", "select workspace project (comma-separated for multiple)")
   .option(
-    "--diff [base]",
-    "scan only files changed vs base branch (pass `false` to disable; overridden by --full)",
+    "--scope <value>",
+    "how much to scan/report: full (default), files, changed (only new issues vs base), or lines (only changed lines)",
   )
-  .option(
-    "--changed-files-from <file>",
-    "internal: scan source files listed in a newline-delimited changed-files file",
+  .option("--base <ref>", "base git ref for files/changed/lines scope (auto-detected when omitted)")
+  .addOption(
+    // Deprecated alias for `--scope` (warns at runtime). `--diff <base>` →
+    // `--scope changed --base <base>`, `--diff false` → `--scope full`. Hidden
+    // from --help but kept functional; takes an optional value, so removing it
+    // would turn `--diff main` into a stray positional. Remove in a future major.
+    new Option(
+      "--diff [base]",
+      "[deprecated] alias for --scope changed (pass `false` to force a full scan)",
+    ).hideHelp(),
+  )
+  .addOption(
+    // Internal: the GitHub Action passes the PR's changed-file list here.
+    // Hidden from --help; it's plumbing, not user surface.
+    new Option(
+      "--changed-files-from <file>",
+      "scan source files listed in a newline-delimited changed-files file",
+    ).hideHelp(),
   )
   .option("--no-score", "skip the score API, the share URL, and crash reporting")
+  .addOption(
+    new Option(
+      "--category <category>",
+      "only show diagnostics in a category (repeatable; e.g. Security)",
+    ).argParser(collectCategoryOption),
+  )
   .option(
     "--no-telemetry",
     "alias for --no-score (skip the score API, share URL, and crash reporting)",
   )
   .option("--staged", "scan only staged (git index) files for pre-commit hooks")
   .option(
-    "--fail-on <level>",
-    "exit with error code on diagnostics: error, warning, none (default: none)",
+    "--blocking <level>",
+    "severity that fails CI: error (default), warning, or none (advisory)",
   )
-  .option("--annotations", "output diagnostics as GitHub Actions annotations")
-  .option(
-    "--pr-comment",
-    "tune CLI output for sticky PR comments (drops weak-signal rule families like `design` from the printed list and the fail-on gate; configure via config.surfaces)",
-  )
-  .option(
-    "--explain <file:line>",
-    "diagnose why a rule fired or why a suppression didn't apply at a specific location",
-  )
-  .option("--why <file:line>", "alias for --explain")
-  .option(
-    "--respect-inline-disables",
-    "respect inline `// eslint-disable*` / `// oxlint-disable*` comments (default)",
+  .addOption(
+    // Deprecated alias for --blocking (warns at runtime). Hidden from --help but
+    // kept functional: it takes a value, so hard-removing it would turn
+    // `--fail-on warning` into a stray positional. Remove in a future major.
+    new Option("--fail-on <level>", "[deprecated] alias for --blocking <level>").hideHelp(),
   )
   .option(
     "--no-respect-inline-disables",
@@ -150,11 +170,24 @@ const program = new Command()
   )
   .option("--warnings", "show warning-severity diagnostics (default)")
   .option("--no-warnings", "hide warning-severity diagnostics (errors only)")
+  .option(
+    "--sfw",
+    "demo: print the Socket.dev supply-chain score of every direct dependency, then exit",
+  )
   .option("--color", "force colored output")
   .option("--no-color", "disable colored output (also honors NO_COLOR)")
   .addHelpText("after", renderRootHelpEpilog);
 
 program.action(inspectAction);
+
+program
+  .command("why <location>")
+  .description("Explain why a rule fired (or why a suppression didn't apply) at a file:line")
+  .option("--project <name>", "select workspace project (comma-separated for multiple)")
+  .option("-c, --cwd <cwd>", "working directory", process.cwd())
+  .option("--color", "force colored output")
+  .option("--no-color", "disable colored output (also honors NO_COLOR)")
+  .action((location, options) => whyAction(location, options));
 
 program
   .command("install")
@@ -244,6 +277,19 @@ rules
   .option("-c, --cwd <cwd>", "working directory", process.cwd())
   .action((tag, _options, command) => rulesUnignoreTagAction(tag, command.optsWithGlobals()));
 
+// NOTE: `react-doctor experimental-lsp` is intentionally NOT wired through
+// commander. The bin shim (bin/react-doctor.js) fast-paths it to a dedicated
+// server entry so the CLI layer (commander / prompts / ora) never touches
+// process.stdin before the LSP stdio transport attaches. This command is
+// registered only so `--help` lists it; its body never runs in practice.
+// It's gated behind the `experimental-` prefix because the editor language
+// server is still unstable (protocol, caching, and diagnostics may change).
+program
+  .command("experimental-lsp", { hidden: false })
+  .description("[experimental] run the React Doctor language server over stdio (for editors)")
+  .allowUnknownOption()
+  .action(() => {});
+
 // HACK: when stdout is piped into a process that closes early (e.g.
 // `react-doctor . | head`), Node throws an uncaught EPIPE on the next
 // write. Exit cleanly instead of dumping a stack trace.
@@ -272,8 +318,11 @@ applyColorPreference(strippedArgv);
 // 12-factor (#1): map `help` / `help <command>` to Commander's `--help`.
 const argv = normalizeHelpInvocation(strippedArgv, knownCommands);
 
-program
-  .parseAsync(argv)
+Promise.resolve()
+  // Reject removed flags before parsing so they're a clean migration error, not
+  // a silent no-op (they'd otherwise be stripped before Commander sees them).
+  .then(() => assertNoRemovedFlags(process.argv))
+  .then(() => program.parseAsync(argv))
   // Deliver any queued performance transaction before the process exits on the
   // success path; error funnels flush via `reportErrorToSentry`.
   .then(() => flushSentry())
@@ -284,7 +333,7 @@ program
     const isUserError = isExpectedUserError(error);
     const sentryEventId = isUserError ? undefined : await reportErrorToSentry(error);
     if (isJsonModeActive()) {
-      writeJsonErrorReport(error);
+      writeJsonErrorReport(error, sentryEventId);
       process.exit(1);
     }
     if (isUserError) {

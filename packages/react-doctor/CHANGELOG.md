@@ -1,5 +1,118 @@
 # react-doctor
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [[`77a70ab`](https://github.com/millionco/react-doctor/commit/77a70ab8a78dd21dc305a6c2b924e4bbc44058ce)]:
+  - oxlint-plugin-react-doctor@0.5.1
+
+## 0.5.0
+
+### Minor Changes
+
+- [#756](https://github.com/millionco/react-doctor/pull/756) [`93d4eec`](https://github.com/millionco/react-doctor/commit/93d4eecdb8e9e339f4258e67fcfc3649e2024ede) Thanks [@NisargIO](https://github.com/NisargIO)! - React Doctor now runs on repositories that don't depend on React. Previously a scan hard-failed with `No React project found` / `No React dependency`, even though many checks (security, bundle size, JS performance, architecture, and the Zod rules) are framework-agnostic and apply to any TypeScript / JavaScript codebase.
+
+  A project is now analyzable when it has source files, with or without React. A bare directory of TypeScript files — including a monorepo's `packages/` subfolder that has no `package.json` of its own — is scanned by inheriting dependency/framework detection from the enclosing workspace root.
+
+  React-flavoured rules stay off without React. A new `react` capability (set only when React or Preact is present) gates every React-runtime rule family (hooks, JSX, accessibility, render performance, React state) plus any rule tagged `react-jsx-only`, so hook/component-name heuristics like `rules-of-hooks`, `no-legacy-class-lifecycles`, and `no-nested-component-definition` can't false-fire on ordinary TypeScript. Once React (or Preact) is detected, every rule behaves exactly as before.
+
+- [#747](https://github.com/millionco/react-doctor/pull/747) [`a254414`](https://github.com/millionco/react-doctor/commit/a2544146668e8cbaa77d0d846eb252acf083a0ba) Thanks [@NisargIO](https://github.com/NisargIO)! - Add a `--sfw` demo flag that prints the Socket.dev supply-chain score (0–100) of every direct dependency — across every workspace `package.json` in a monorepo, de-duplicated by `name@version` — color-coded and sorted worst-first, then exits without running a scan. Scores come from Socket's free, keyless PURL endpoint (the same one the supply-chain check uses).
+
+- [#747](https://github.com/millionco/react-doctor/pull/747) [`a254414`](https://github.com/millionco/react-doctor/commit/a2544146668e8cbaa77d0d846eb252acf083a0ba) Thanks [@NisargIO](https://github.com/NisargIO)! - Add a Socket.dev supply-chain score check. Every direct dependency in `package.json` is scored against Socket's free, keyless PURL endpoint (the same lookup Socket Firewall's free tier uses) and any dependency whose Socket score falls below `supplyChain.minScore` (default `50`, 0–100 scale) produces a `Security` diagnostic anchored at the offending `package.json` entry. At the default `severity: "error"` a low score fails the scan at the standard `blocking` gate.
+
+  The check runs by default; opt out with `supplyChain: { enabled: false }`. It is fail-open (per-package timeouts / network failures are skipped, never sinking the scan). A plain `--diff` / `--staged` scan skips it like the other whole-project checks, but a diff that edits a `package.json` (including any workspace's in a monorepo) still scores that project's dependencies — so a PR that adds or bumps a dependency is covered. `next` is excluded (its framework-specific risks are already covered by the Next.js / server-components rules).
+
+### Patch Changes
+
+- [#739](https://github.com/millionco/react-doctor/pull/739) [`829655c`](https://github.com/millionco/react-doctor/commit/829655c4049342fc0b967e8c60c865f1586875a4) Thanks [@NisargIO](https://github.com/NisargIO)! - CI setup: collapsed the multi-line inline comments in the generated `.github/workflows/react-doctor.yml` to a single explanatory sentence per trigger and one line for the concurrency block, and dropped the permissions comment (the four well-named keys are self-explanatory). The resulting workflow still configures the same triggers, permissions, and action ref — just with less scrolling for new users.
+
+- [#729](https://github.com/millionco/react-doctor/pull/729) [`25cc69b`](https://github.com/millionco/react-doctor/commit/25cc69bd8fb64d395d33562439e8f50660f9b7b2) Thanks [@aidenybai](https://github.com/aidenybai)! - Fold the standalone `doctor-explain` skill into the `react-doctor` skill as `references/explain.md`.
+
+  Rule-explanation and config-tuning guidance now ships as an on-demand reference inside the primary skill (per the agentskills.io `references/` convention) instead of a separate sibling skill. `react-doctor install` installs a single skill, and the dead bundled-sibling-skill install machinery is removed.
+
+- [#752](https://github.com/millionco/react-doctor/pull/752) [`5b06a86`](https://github.com/millionco/react-doctor/commit/5b06a865faf1cb02acbd9492eeaa9abe92336aa7) Thanks [@rayhanadev](https://github.com/rayhanadev)! - Name every unused dependency in the verbose warning tail.
+
+  Unused-dependency warnings all report at the same line-less location (`package.json:0`), so the dim location header collapsed every finding into one line and dropped the package names — leaving only a generic `deslop/unused-dependency ×N` line ([#690](https://github.com/millionco/react-doctor/issues/690)). `react-doctor --verbose` now lists each `deslop/unused-dependency` and `deslop/unused-dev-dependency` by name, with the shared "why" explanation shown once instead of repeated per package. Errors and code-frame rendering are unchanged.
+
+- Updated dependencies [[`b4b79ad`](https://github.com/millionco/react-doctor/commit/b4b79addce225c47048127e04be2670c13bca332), [`af98f83`](https://github.com/millionco/react-doctor/commit/af98f83614526cca30f3a31ec2507a5df5da2bed), [`93d4eec`](https://github.com/millionco/react-doctor/commit/93d4eecdb8e9e339f4258e67fcfc3649e2024ede)]:
+  - oxlint-plugin-react-doctor@0.5.0
+
+## 0.4.2
+
+### Patch Changes
+
+- [#721](https://github.com/millionco/react-doctor/pull/721) [`d17dc87`](https://github.com/millionco/react-doctor/commit/d17dc87865e059f21534990d0925115db439dc3e) Thanks [@aidenybai](https://github.com/aidenybai)! - Add a `defineConfig` helper for authoring a typed `doctor.config.{ts,js,mjs,cjs}` and read `react-doctor.config.json` as a deprecated fallback.
+
+  `defineConfig` is exported from `react-doctor/api` (and `@react-doctor/api` / `@react-doctor/core`) as an identity helper that gives editor autocomplete and type-checking without an explicit `satisfies ReactDoctorConfig` annotation:
+
+  ```ts
+  // doctor.config.ts
+  import { defineConfig } from "react-doctor/api";
+
+  export default defineConfig({
+    lint: true,
+    rules: { "react-doctor/no-array-index-as-key": "off" },
+  });
+  ```
+
+  The pre-migration `react-doctor.config.json` filename is now read as the lowest-priority fallback (after `doctor.config.*` and `package.json#reactDoctor`) instead of being ignored, so an un-migrated config keeps applying. It still emits a deprecation warning nudging a rename, and interactive runs continue to auto-migrate it to `doctor.config.ts`. A present-but-broken legacy file stops config resolution (it won't silently inherit an ancestor repo's config), and `react-doctor rules <...>` migrates a legacy file to `doctor.config.json` on write rather than editing it in place.
+
+  Note: a `react-doctor.config.json` that was previously ignored in non-interactive runs (CI, coding agents, `--json`/`--score`/`--staged`) is now honored again, which can change which rules fire, the score, and PR gating for projects that still have one. Rename it to `doctor.config.json` (or delete it) to avoid surprises.
+
+- Updated dependencies []:
+  - oxlint-plugin-react-doctor@0.4.2
+
+## 0.4.1
+
+### Patch Changes
+
+- [#711](https://github.com/millionco/react-doctor/pull/711) [`36ecd05`](https://github.com/millionco/react-doctor/commit/36ecd053cfe22e16678ac2ff307e015b6f9a2859) Thanks [@devin-ai-integration](https://github.com/apps/devin-ai-integration)! - Fix false positive in `require-reduced-motion`: the check now searches untracked files so newly created source (e.g. a `providers.tsx` with `<MotionConfig reducedMotion="user">` not yet committed) is detected.
+
+- [#706](https://github.com/millionco/react-doctor/pull/706) [`15bd9d8`](https://github.com/millionco/react-doctor/commit/15bd9d861703c6d3b0e2fd8ffad82b7b6a922b00) Thanks [@rayhanadev](https://github.com/rayhanadev)! - CI setup now offers a one-time, per-repo prompt to upgrade an existing React Doctor GitHub Actions workflow from `@v1` to `@v2` — accepting opens a PR with the bump, declining is remembered so it never asks again. The generated / "Add to CI" workflow now pins `millionco/react-doctor@v2` and grants `statuses: write`, so the action can publish the score as a commit status (and surface results on pushes to the default branch).
+
+- Updated dependencies [[`dc35070`](https://github.com/millionco/react-doctor/commit/dc35070a5066f9864a7565b952dec2f81bff1223), [`b1a22ef`](https://github.com/millionco/react-doctor/commit/b1a22efdf7b18f2cc8b7af6c0b12173ed3c76d34), [`73dcb20`](https://github.com/millionco/react-doctor/commit/73dcb2040dc6aa207beea074f846fd675c30bd2b), [`64667da`](https://github.com/millionco/react-doctor/commit/64667dae16b812ad9b4304bd7906d5ddbb50921a), [`ee9ab33`](https://github.com/millionco/react-doctor/commit/ee9ab336d3b2918d319bc048b5b164f58611df83), [`fe5f3de`](https://github.com/millionco/react-doctor/commit/fe5f3de330c5c55f6bcbed68070296eb67c2ec5b), [`831cf3f`](https://github.com/millionco/react-doctor/commit/831cf3fbfd703f5048de5c2c3258e47988a2cce0)]:
+  - oxlint-plugin-react-doctor@0.4.1
+
+## 0.4.0
+
+### Minor Changes
+
+- [#663](https://github.com/millionco/react-doctor/pull/663) [`9a8ad6e`](https://github.com/millionco/react-doctor/commit/9a8ad6e40d9ed1fbe7ddb1f1c57bfd5c791a4b9e) Thanks [@rayhanadev](https://github.com/rayhanadev)! - Rework CI reporting: a renamed `blocking` gate, PR-introduced-issues-only baselines, inline PR review comments, and a simpler CLI flag surface.
+
+  **CI gate**
+
+  - **`fail-on` is renamed to `blocking`** (CLI `--blocking <level>`, config `blocking`, GitHub Action `blocking` input). Same `error | warning | none` values, default `error`: a scan fails CI when an `error`-severity diagnostic reaches the `ciFailure` surface; `warning` blocks on any diagnostic; `none` stays advisory (always exits 0). `--fail-on` / `failOn` still work as a deprecated, warned alias hidden from `--help`.
+  - `--blocking warning` now wins over `--no-warnings` (it previously silently no-op'd the gate — you can't block on warnings you've hidden).
+
+  **Baseline — report only the issues a PR introduces (Codecov-style)**
+
+  - In `--diff <base>` mode, react-doctor runs a second lint pass over the changed files as they existed at the base merge-base and reports only the diagnostics the change introduced; pre-existing findings that merely shifted lines are matched out by a content fingerprint (`file + rule + flagged-line hash`). The head project-health **score is unchanged**; the gate fails on newly-introduced errors only. If the baseline can't be computed (base unreachable, or a lint pass failed), the run degrades to a plain diff — all findings stay visible and CI isn't gated on findings whose new-vs-pre-existing attribution is unknown.
+  - **New core API:** `computeDiagnosticDelta`, `Git.showRefContent` / `Git.mergeBase`, `materializeSourceTree`, and `InspectOptions.baseline` / `InspectResult.baselineDelta`.
+  - **JSON report v2:** baseline runs emit `schemaVersion: 2` with a `baseline` block (`newCount`, `fixedCount`, `baseTotalCount`) and `mode: "baseline"`; `summary.score` stays the head score. v1 reports are unchanged.
+
+  **GitHub Action**
+
+  - Posts **inline PR review comments** on the changed lines that triggered each diagnostic (with fix guidance + a docs link), plus a restyled CLI-style sticky summary with linkable findings and the new / fixed delta. The `annotations` input was removed.
+  - On pull requests it fetches the base commit for baselining — use `fetch-depth: 0` on `actions/checkout`. New `fixed-issues` output. Defaults: `project: "*"`, `node-version: 24`.
+
+  **CLI flags (fewer flags, fewer footguns)**
+
+  - `--explain` / `--why` → the `react-doctor why <file>:<line>` subcommand (`rules explain <rule>` still explains what a rule means).
+  - Removed `--full` (use `--diff false` to force a full scan), `--pr-comment` (the Action renders its comment from `--json`), and the positive `--respect-inline-disables` (already the default; use `--no-respect-inline-disables` for audit mode). The internal `--changed-files-from` is hidden from `--help`.
+  - Removed flags now fail with a migration error instead of being silently dropped, and an empty `--project` filter (e.g. `--project ","`) is rejected.
+
+### Patch Changes
+
+- [#681](https://github.com/millionco/react-doctor/pull/681) [`915745e`](https://github.com/millionco/react-doctor/commit/915745ef7b88730e153d93bf52ce48bce2806495) Thanks [@rayhanadev](https://github.com/rayhanadev)! - Add `react-doctor experimental-lsp`, an experimental language server that surfaces React Doctor diagnostics directly in your editor — VS Code, Cursor, Zed, Neovim, Sublime Text, Emacs, Helix, or any LSP client. It is gated behind the `experimental-` prefix while its protocol, caching, and diagnostics stabilize. It scans the file you are editing live from the unsaved buffer, underlines the exact offending token via precise ranges, shows rich hovers (rule, category, recommendation, docs link), and offers quick fixes (disable-for-this-line with the correct comment style, suppress-all-in-file, explain, open docs, report false positive). It discovers every React project across workspace folders and monorepo packages, runs offline (no score lookup, no git), prioritizes open-buffer scans, supports push and pull diagnostics, and invalidates caches when config / package.json / lockfiles change. The background workspace scan is chunked so diagnostics stream in progressively (seconds to first results on large repos), parallelizes across all CPU cores, reserves a slot so edits stay responsive while it runs, and cancels in-flight work when config changes. Results are cached per file (by content metadata, invalidated on config change) and persisted to disk, so re-opening the editor or re-scanning surfaces diagnostics almost instantly — on an ~8,800-file repo a cold scan is ~27s and a warm scan ~2s.
+
+  Start it with `react-doctor experimental-lsp --stdio` (or `npx react-doctor@latest experimental-lsp --stdio`). A `scanOnType` initialization option toggles live-as-you-type scanning, with first-class companion extensions for VS Code/Cursor and Zed.
+
+  Like the CLI, the language server reports anonymized usage analytics to Sentry — a per-workspace-scan wide event plus session/scan counters — sharing the CLI's IP-stripping and path/secret scrubbing. Opt out with `REACT_DOCTOR_NO_TELEMETRY=1` (or by launching it with `--no-telemetry`).
+
+- Updated dependencies []:
+  - oxlint-plugin-react-doctor@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

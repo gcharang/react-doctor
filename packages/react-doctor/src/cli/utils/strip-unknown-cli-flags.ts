@@ -10,10 +10,8 @@ interface CliFlagSpec {
 
 const ROOT_FLAG_SPEC: CliFlagSpec = {
   longOptionsWithoutValues: new Set([
-    "--annotations",
     "--color",
     "--dead-code",
-    "--full",
     "--help",
     "--json",
     "--json-compact",
@@ -26,9 +24,8 @@ const ROOT_FLAG_SPEC: CliFlagSpec = {
     "--no-score",
     "--no-telemetry",
     "--no-warnings",
-    "--pr-comment",
-    "--respect-inline-disables",
     "--score",
+    "--sfw",
     "--staged",
     "--verbose",
     "--version",
@@ -36,11 +33,13 @@ const ROOT_FLAG_SPEC: CliFlagSpec = {
     "--yes",
   ]),
   longOptionsWithRequiredValues: new Set([
+    "--base",
+    "--category",
     "--changed-files-from",
-    "--explain",
+    "--blocking",
     "--fail-on",
     "--project",
-    "--why",
+    "--scope",
   ]),
   longOptionsWithOptionalValues: new Set(["--diff"]),
   shortOptionsWithoutValues: new Set(["-h", "-v", "-y"]),
@@ -89,11 +88,22 @@ const RULES_FLAG_SPEC: CliFlagSpec = {
   shortOptionsWithRequiredValues: new Set(["-c"]),
 };
 
+// `why <file:line>` takes a positional location (passed through untouched) plus
+// the working-directory / project / color options.
+const WHY_FLAG_SPEC: CliFlagSpec = {
+  longOptionsWithoutValues: new Set(["--color", "--help", "--no-color"]),
+  longOptionsWithRequiredValues: new Set(["--cwd", "--project"]),
+  longOptionsWithOptionalValues: new Set(),
+  shortOptionsWithoutValues: new Set(["-h"]),
+  shortOptionsWithRequiredValues: new Set(["-c"]),
+};
+
 const COMMAND_FLAG_SPECS = new Map<string, CliFlagSpec>([
   ["install", INSTALL_FLAG_SPEC],
   ["setup", INSTALL_FLAG_SPEC],
   ["version", VERSION_FLAG_SPEC],
   ["rules", RULES_FLAG_SPEC],
+  ["why", WHY_FLAG_SPEC],
 ]);
 
 const isFlagLike = (argument: string): boolean => argument.startsWith("-") && argument !== "-";

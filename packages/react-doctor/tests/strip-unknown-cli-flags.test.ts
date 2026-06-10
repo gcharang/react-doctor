@@ -19,6 +19,8 @@ describe("stripUnknownCliFlags", () => {
         "web",
         "--changed-files-from",
         "/tmp/react-doctor-changed-files.txt",
+        "--category",
+        "Security",
         "--diff",
         "main",
         "--fail-on=warning",
@@ -30,9 +32,27 @@ describe("stripUnknownCliFlags", () => {
       "web",
       "--changed-files-from",
       "/tmp/react-doctor-changed-files.txt",
+      "--category",
+      "Security",
       "--diff",
       "main",
       "--fail-on=warning",
+    ]);
+  });
+
+  it("keeps --scope / --base and consumes their values (no value leaks as a positional)", () => {
+    // Regression: the action invokes `react-doctor . --scope changed --changed-files-from <f>`.
+    // If --scope isn't a known value-taking flag, its value `changed` leaks as a 2nd
+    // positional and Commander throws "too many arguments".
+    expect(
+      stripUserArguments([".", "--scope", "changed", "--changed-files-from", "/tmp/changed.txt"]),
+    ).toEqual([".", "--scope", "changed", "--changed-files-from", "/tmp/changed.txt"]);
+    expect(stripUserArguments([".", "--scope", "lines", "--base", "main"])).toEqual([
+      ".",
+      "--scope",
+      "lines",
+      "--base",
+      "main",
     ]);
   });
 
@@ -85,6 +105,16 @@ describe("stripUnknownCliFlags", () => {
     expect(
       stripUserArguments(["rules", "enable", "no-danger", "--severity", "error", "--offline"]),
     ).toEqual(["rules", "enable", "no-danger", "--severity", "error"]);
+  });
+
+  it("keeps the why subcommand positional and options, dropping unknown ones", () => {
+    expect(
+      stripUserArguments(["why", "src/App.tsx:42", "--project", "web", "-c", "/tmp/project"]),
+    ).toEqual(["why", "src/App.tsx:42", "--project", "web", "-c", "/tmp/project"]);
+    expect(stripUserArguments(["why", "src/App.tsx:42", "--offline"])).toEqual([
+      "why",
+      "src/App.tsx:42",
+    ]);
   });
 
   it("keeps color flags on rules subcommands so the color resolver can see them", () => {

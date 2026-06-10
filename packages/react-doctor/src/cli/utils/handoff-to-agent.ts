@@ -1,20 +1,25 @@
+import * as fs from "node:fs";
 import { getSkillAgentConfig } from "agent-install";
 import type { Diagnostic } from "@react-doctor/core";
-import { CI_URL, highlighter } from "@react-doctor/core";
+import { highlighter } from "@react-doctor/core";
 import { buildHandoffPayload } from "./build-handoff-payload.js";
 import { cliLogger as logger } from "./cli-logger.js";
 import { detectAvailableAgents } from "./detect-agents.js";
 import { findNearestPackageDirectory } from "./install-doctor-script.js";
-import { installReactDoctorScriptStep } from "./install-react-doctor.js";
 import {
-  installReactDoctorWorkflow,
   isReactDoctorWorkflowInstalled,
+  readReactDoctorWorkflow,
+  upgradeWorkflowActionToV2,
+  workflowUsesV1Action,
+  type InstalledReactDoctorWorkflow,
 } from "./install-github-workflow.js";
-import { reportWorkflowResult } from "./report-workflow-result.js";
+import { hasHandledActionUpgrade, recordActionUpgradeDecision } from "./action-upgrade-prompt.js";
+import { askAddToGitHubActions } from "./ask-add-to-github-actions.js";
+import { askUpgradeActionVersion } from "./ask-upgrade-action-version.js";
+import { setUpGitHubActions } from "./set-up-github-actions.js";
 import { installReactDoctorSkillForAgent } from "./install-skill-for-agent.js";
 import { isCommandAvailable } from "./is-command-available.js";
-import { CI_TRUST_COMPANIES, METRIC } from "./constants.js";
-import { openUrl } from "./open-url.js";
+import { METRIC } from "./constants.js";
 import { openWorkflowPullRequest, stageWorkflowFile } from "./open-workflow-pull-request.js";
 import { recordCount } from "./record-metric.js";
 import {
@@ -33,9 +38,6 @@ export interface HandoffToAgentInput {
   readonly interactive: boolean;
 }
 
-const CI_YES_CHOICE = "ci-yes";
-const CI_LEARN_MORE_CHOICE = "ci-learn-more";
-const CI_NO_CHOICE = "ci-no";
 const CLIPBOARD_CHOICE = "clipboard";
 const SKIP_CHOICE = "skip";
 
@@ -46,148 +48,102 @@ const printPayload = (payload: string): void => {
   logger.log(highlighter.dim("──────────────────────"));
 };
 
-// Sets React Doctor up to scan every pull request: writes the GitHub Actions
-// workflow + adds a `doctor` package script (which runs `npx react-doctor@latest`,
-// no local dep required). The local dev-dep install isn't called from this path:
-// nothing here needs it, and on pnpm with a beta channel it noisily trips the
-// supply-chain trust guard for zero user benefit. Users who actually want a
-// pinned local copy go through the `react-doctor install` command. Resolves the
-// nearest package root first (mirroring `install`) so a nested scan directory
-// doesn't drop the workflow in the wrong place. The script step throws on a
-// read-only / permission-denied FS, so it's guarded: a failed setup must
-// never crash a scan that already succeeded.
-//
-// When the workflow is freshly written AND the user has `gh` installed,
-// `openWorkflowPullRequest` commits the YAML on a dedicated branch and
-// opens a PR for review — that matches the "everything else lands as a
-// reviewable PR" mental model teams already have for CI changes, instead
-// of silently dropping a top-level workflow file into their working tree.
-// On any failure (gh missing, not authenticated, push refused, …) we fall
-// back to `git add`ing the file so it at least shows up in the user's
-// next `git status` / commit instead of becoming an orphan untracked path.
-const setUpGitHubActions = async (rootDirectory: string): Promise<void> => {
-  const projectRoot = findNearestPackageDirectory(rootDirectory) ?? rootDirectory;
+const UPGRADE_COMMIT_MESSAGE = "ci: upgrade React Doctor GitHub Action to v2";
+const UPGRADE_PR_TITLE = "Upgrade React Doctor Action to v2";
+const UPGRADE_PR_BODY = `Bumps the React Doctor GitHub Actions workflow to the action's latest major, \`millionco/react-doctor@v2\`.
+
+Docs: https://www.react.doctor/ci`;
+
+// Writes the `@v2` bump into the existing (tracked) workflow file and opens a
+// PR for it — mirroring the fresh-install flow's commit-on-a-branch model so
+// the change lands as a reviewable PR rather than a silent edit. On a PR-open
+// success the user's working tree is restored to `@v1` (the bump lives only on
+// the PR branch); when `gh` is unavailable we fall back to staging the edit so
+// it shows up in their next commit. Returns whether the bump was applied: a
+// write failure returns `false` so the caller doesn't record the offer as
+// handled, leaving it to re-prompt on the next scan.
+const upgradeGitHubActionsWorkflow = async (
+  workflow: InstalledReactDoctorWorkflow,
+): Promise<boolean> => {
+  const { content, changed } = upgradeWorkflowActionToV2(workflow.content);
+  if (!changed) return false;
+
+  const upgradeSpinner = spinner("Opening a pull request to upgrade React Doctor to v2...").start();
   try {
-    installReactDoctorScriptStep(projectRoot);
-  } catch {}
+    fs.writeFileSync(workflow.workflowPath, content);
+  } catch {
+    upgradeSpinner.fail("Couldn't update the workflow file.");
+    return false;
+  }
 
-  const workflowSpinner = spinner("Adding GitHub Actions workflow...").start();
-  const workflowResult = installReactDoctorWorkflow(projectRoot);
-  reportWorkflowResult(workflowSpinner, workflowResult, projectRoot);
+  const pullRequestResult = await openWorkflowPullRequest({
+    workflowPath: workflow.workflowPath,
+    commitMessage: UPGRADE_COMMIT_MESSAGE,
+    prTitle: UPGRADE_PR_TITLE,
+    prBody: UPGRADE_PR_BODY,
+  });
 
-  logger.break();
-  if (workflowResult.status === "failed") {
-    logger.log(
-      `  Couldn't set up GitHub Actions automatically. Follow the guide at ${highlighter.info(CI_URL)}`,
+  if (pullRequestResult.status === "pr-opened") {
+    upgradeSpinner.succeed(
+      `Opened pull request for review: ${highlighter.info(pullRequestResult.url)}`,
     );
-    return;
-  }
-  if (workflowResult.status === "created") {
-    const pullRequestSpinner = spinner("Opening a pull request for review...").start();
-    const pullRequestResult = await openWorkflowPullRequest({
-      workflowPath: workflowResult.workflowPath,
-    });
-    if (pullRequestResult.status === "pr-opened") {
-      pullRequestSpinner.succeed(
-        `Opened pull request for review: ${highlighter.info(pullRequestResult.url)}`,
-      );
-    } else if (pullRequestResult.status === "branch-pushed") {
-      pullRequestSpinner.warn(
-        `Pushed branch ${highlighter.bold(pullRequestResult.branch)} but couldn't open a PR. Open one with: gh pr create --head ${pullRequestResult.branch}`,
-      );
-    } else {
-      pullRequestSpinner.stop();
-      const didStage = await stageWorkflowFile({ workflowPath: workflowResult.workflowPath });
-      if (didStage) {
-        logger.log(`  Staged the workflow file. Commit it to start scanning every pull request.`);
-      } else {
-        logger.log("  React Doctor will now scan every new pull request automatically.");
-      }
+  } else if (pullRequestResult.status === "branch-pushed") {
+    upgradeSpinner.warn(
+      `Pushed branch ${highlighter.bold(
+        pullRequestResult.branch,
+      )} but couldn't open a PR. Open one with: gh pr create --head ${pullRequestResult.branch}`,
+    );
+  } else {
+    upgradeSpinner.stop();
+    // A git failure mid-flight (e.g. a rejected push) leaves openWorkflowPull-
+    // Request having restored the original branch — reverting the tracked file
+    // back to `@v1`. Re-write the bump so the working tree definitely lands on
+    // `@v2` before staging, keeping the "updated to @v2" message honest (and the
+    // recorded `accepted` decision truthful).
+    try {
+      fs.writeFileSync(workflow.workflowPath, content);
+    } catch {
+      logger.log("  Couldn't finish the upgrade. Re-run React Doctor to try again.");
+      return false;
     }
+    const didStage = await stageWorkflowFile({
+      workflowPath: workflow.workflowPath,
+    });
+    logger.log(
+      didStage
+        ? "  Updated the workflow to @v2 and staged it. Commit it to finish the upgrade."
+        : "  Updated the workflow to @v2. Commit the change to finish the upgrade.",
+    );
   }
-  logger.log(`  Learn more: ${highlighter.info(CI_URL)}`);
+
+  return true;
 };
 
-// First handoff question, asked only when the GitHub Actions workflow isn't
-// already on disk. Pulled out of the main handoff prompt so the agent
-// selection below stays a clean "what runs next?" question instead of a
-// multi-axis decision.
-//
-// The pitch (incremental backlog + social proof) lives as part of the
-// `message` text, indented under the question itself so the value is
-// visually attached to the action it justifies — printing those lines via
-// `logger.log` before the prompt left them floating with a blank line
-// between the value prop and the question, and users skip past floating
-// preamble. `\x1b[22m` (SGR "bold off") cancels the bold the `prompts`
-// `select` renderer wraps every message in (`select.js` line 131:
-// `color.bold(this.msg)`), so the question stays bold while the indented
-// pitch lines render in normal weight (and dim, for the social-proof
-// tagline) — matching the original two-line layout's emphasis.
-//
-// `hint: " "` (single space — `""` would re-trigger the library's
-// `opts.hint || "- Use arrow-keys..."` fallback) suppresses the verbose
-// default hint so the trailing ` ›` rides quietly on the last pitch line
-// instead of becoming a "› - Use arrow-keys. Return to submit." row that
-// reads as broken UI between the pitch and the choices.
-//
-// "Learn more" opens the docs in the user's default browser via `openUrl` and
-// re-prompts, so the user can decide after reading without restarting the
-// CLI. Non-interactive runs never reach this function (the caller short-circuits
-// on `!input.interactive`); cancel (Esc / Ctrl-C) maps to "no" so a stray
-// keypress doesn't accidentally install workflow files.
-type CiHandoffOutcome = "yes" | "no" | "cancel";
+// Offered once per repo: when a React Doctor workflow is already on disk but
+// still pins the action's previous floating major (`@v1`), invite the user to
+// bump it to `@v2` via a PR. A decline is persisted per-repo, and an accept
+// only once the bump is actually applied, so the offer never repeats; a cancel
+// (or a failed write) leaves it un-answered so the prompt can return next scan.
+// The caller has already gated on an interactive run with findings.
+const maybeOfferActionUpgrade = async (projectRoot: string): Promise<void> => {
+  const workflow = readReactDoctorWorkflow(projectRoot);
+  if (!workflow || !workflowUsesV1Action(workflow.content)) return;
+  if (hasHandledActionUpgrade(projectRoot)) return;
 
-const SGR_BOLD_OFF = "\x1b[22m";
+  const outcome = await askUpgradeActionVersion();
+  if (outcome === "cancel") return;
 
-const ciQuestionMessage = [
-  "Add React Doctor to GitHub Actions?",
-  `${SGR_BOLD_OFF}  ${highlighter.dim("Scan every pull request to prevent new React issues while you fix the backlog.")}`,
-  `${SGR_BOLD_OFF}  ${highlighter.dim(`Used by teams at ${CI_TRUST_COMPANIES}.`)}`,
-].join("\n");
+  recordCount(METRIC.agentHandoff, 1, {
+    outcome: outcome === "yes" ? "upgrade-accepted" : "upgrade-declined",
+  });
 
-const askAddToGitHubActions = async (): Promise<CiHandoffOutcome> => {
-  while (true) {
-    const { ciChoice } = await prompts<"ciChoice">(
-      {
-        type: "select",
-        name: "ciChoice",
-        message: ciQuestionMessage,
-        hint: " ",
-        choices: [
-          {
-            title: "Yes (recommended)",
-            description: "Adds the workflow file and a doctor package script",
-            value: CI_YES_CHOICE,
-          },
-          {
-            title: "Learn more",
-            description: highlighter.info(CI_URL),
-            value: CI_LEARN_MORE_CHOICE,
-          },
-          {
-            title: "No, thanks",
-            description: "Continue to the agent handoff",
-            value: CI_NO_CHOICE,
-          },
-        ],
-        initial: 0,
-      },
-      { onCancel: () => true },
-    );
-
-    if (ciChoice === undefined) return "cancel";
-    if (ciChoice === CI_YES_CHOICE) return "yes";
-    if (ciChoice === CI_NO_CHOICE) return "no";
-
-    // CI_LEARN_MORE_CHOICE: open the docs and loop back to the question.
-    const opened = openUrl(CI_URL);
-    logger.log(
-      opened
-        ? `Opened ${highlighter.info(CI_URL)} in your browser.`
-        : `Visit ${highlighter.info(CI_URL)} to learn more.`,
-    );
-    logger.break();
+  if (outcome === "no") {
+    recordActionUpgradeDecision(projectRoot, "declined");
+    return;
   }
+
+  const didApplyUpgrade = await upgradeGitHubActionsWorkflow(workflow);
+  if (didApplyUpgrade) recordActionUpgradeDecision(projectRoot, "accepted");
 };
 
 // CLI agents we can launch: detected as installed by `agent-install`
@@ -229,9 +185,13 @@ export const handoffToAgent = async (input: HandoffToAgentInput): Promise<void> 
     });
     if (ciOutcome === "cancel") return;
     if (ciOutcome === "yes") {
-      await setUpGitHubActions(input.rootDirectory);
+      await setUpGitHubActions({ rootDirectory: input.rootDirectory });
       logger.break();
     }
+  } else {
+    // Workflow already present: offer the one-time `@v1` → `@v2` upgrade
+    // instead. Mutually exclusive with the "add" prompt above.
+    await maybeOfferActionUpgrade(projectRootForCi);
   }
 
   const launchableAgents = await detectLaunchableAgents();

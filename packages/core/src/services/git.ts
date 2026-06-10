@@ -16,6 +16,8 @@ import {
   GitInvocationFailed,
   ReactDoctorError,
 } from "../errors.js";
+import { parseChangedLineRanges } from "../parse-changed-line-ranges.js";
+import type { ChangedFileLineRanges } from "../types/index.js";
 
 interface GitInvocationResult {
   readonly status: number;
@@ -149,6 +151,14 @@ export interface GitDiffSelection {
    */
   readonly currentBranch: string | null;
   readonly baseBranch: string;
+  /**
+   * The commit the changed-file diff was actually computed against — for
+   * two-dot `A..B` it's `A`, for three-dot `A...B` and the single-base path
+   * it's the merge-base. Baseline reads base content from here so the file set
+   * and the base snapshot agree (two-dot must NOT be merge-based with HEAD).
+   * Absent for uncommitted (`isCurrentChanges`) selections.
+   */
+  readonly diffBaseRef?: string;
   readonly changedFiles: ReadonlyArray<string>;
   readonly isCurrentChanges: boolean;
 }
@@ -180,6 +190,16 @@ interface GitGrepInput {
 interface GitGrepResult {
   readonly status: number;
   readonly stdout: string;
+}
+
+interface GitChangedLineRangesInput {
+  readonly directory: string;
+  /** Ref to diff against; omit for working-tree / index diffs. */
+  readonly baseRef?: string;
+  /** When `true`, diff the index (`--cached`) instead of the working tree. */
+  readonly cached?: boolean;
+  /** Files to limit the diff to (relative to `directory`). */
+  readonly files: ReadonlyArray<string>;
 }
 
 /**
@@ -214,6 +234,16 @@ export class Git extends Context.Service<
       branch: string,
     ) => Effect.Effect<boolean, ReactDoctorError>;
     /**
+     * `git merge-base <ref> HEAD` — the commit a baseline scan should read
+     * file content from, so "issues introduced" is measured against the
+     * branch point rather than the (possibly advanced) base tip. `null` when
+     * `ref` is unsafe / missing or no merge-base exists.
+     */
+    readonly mergeBase: (input: {
+      readonly directory: string;
+      readonly ref: string;
+    }) => Effect.Effect<string | null, ReactDoctorError>;
+    /**
      * High-level diff selection: resolves current branch + base
      * branch + changed file list with the same semantics as the
      * legacy `getDiffInfo` helper. `null` when no diff is detectable
@@ -233,11 +263,35 @@ export class Git extends Context.Service<
       options?: GitShowOptions,
     ) => Effect.Effect<string | null, ReactDoctorError>;
     /**
+     * `git show <ref>:<path>` contents — the file as it existed at `ref`.
+     * `null` when the ref is unsafe / missing or the path didn't exist there
+     * (e.g. a file added by the PR). Used to materialize a base-branch tree
+     * for baseline diffing.
+     */
+    readonly showRefContent: (input: {
+      readonly directory: string;
+      readonly ref: string;
+      readonly relativePath: string;
+      readonly options?: GitShowOptions;
+    }) => Effect.Effect<string | null, ReactDoctorError>;
+    /**
      * `git grep -l` (default). Returns `null` when git itself isn't
      * available or the directory isn't a repository so callers can
      * fall back to a filesystem walk.
      */
     readonly grep: (input: GitGrepInput) => Effect.Effect<GitGrepResult | null, ReactDoctorError>;
+    /**
+     * Per-file changed line ranges for the `lines` scope. Runs
+     * `git diff --unified=0` (optionally `--cached`, optionally against
+     * `baseRef`) limited to `files`, and parses the new-side hunks. Returns
+     * `null` when the ranges can't be computed (unsafe `baseRef`, or git
+     * exited non-zero) so the caller degrades to file-level scope instead of
+     * hiding every finding behind empty ranges; an empty array means git
+     * succeeded but the files added no lines.
+     */
+    readonly changedLineRanges: (
+      input: GitChangedLineRangesInput,
+    ) => Effect.Effect<ReadonlyArray<ChangedFileLineRanges> | null, ReactDoctorError>;
   }
 >()("react-doctor/Git") {
   static readonly layerNode: Layer.Layer<Git> = Layer.effect(
@@ -382,6 +436,16 @@ export class Git extends Context.Service<
           Effect.map((result) => (result.status === 0 ? trimOrNull(result.stdout) : null)),
         );
 
+      const mergeBase = (input: {
+        readonly directory: string;
+        readonly ref: string;
+      }): Effect.Effect<string | null, ReactDoctorError> =>
+        isSafeGitRevision(input.ref)
+          ? runGit(input.directory, ["merge-base", input.ref, "HEAD"]).pipe(
+              Effect.map((result) => (result.status === 0 ? trimOrNull(result.stdout) : null)),
+            )
+          : Effect.succeed(null);
+
       const githubRepo = (directory: string): Effect.Effect<string | null, ReactDoctorError> =>
         runGit(directory, ["config", "--get", "remote.origin.url"]).pipe(
           Effect.map((result) =>
@@ -507,6 +571,7 @@ export class Git extends Context.Service<
           return {
             currentBranch: resolvedCurrentBranch,
             baseBranch: baseRef,
+            diffBaseRef,
             changedFiles: splitNullSeparated(diff.stdout),
             isCurrentChanges: false,
           } satisfies GitDiffSelection;
@@ -519,6 +584,7 @@ export class Git extends Context.Service<
         githubRepo,
         githubViewerPermission,
         branchExists,
+        mergeBase,
         diffSelection: ({ directory, explicitBaseBranch }) =>
           Effect.gen(function* () {
             if (explicitBaseBranch !== undefined && explicitBaseBranch.trim().length === 0) {
@@ -607,6 +673,7 @@ export class Git extends Context.Service<
             return {
               currentBranch: resolvedCurrentBranch,
               baseBranch,
+              diffBaseRef: mergeBaseRef,
               changedFiles: splitNullSeparated(diff.stdout),
               isCurrentChanges: false,
             } satisfies GitDiffSelection;
@@ -632,6 +699,25 @@ export class Git extends Context.Service<
             directory,
             maxStdoutBytes: options?.maxBufferBytes,
           }).pipe(Effect.map((result) => (result.status === 0 ? result.stdout : null))),
+        showRefContent: ({ directory, ref, relativePath, options }) =>
+          // Validate the ref before it reaches git: `git show <ref>:<path>`
+          // takes the next token as a revision, so an unguarded `-`-leading
+          // value could smuggle an option (CVE-2018-17456 shape).
+          //
+          // The `./` prefix is required: in `git show <ref>:<path>`, a bare
+          // path is resolved relative to the REPO ROOT, but `relativePath` is
+          // relative to `directory` (the scanned project, which may be a
+          // monorepo subproject). `./` makes git resolve it relative to the cwd
+          // instead, so a subproject's base content is read correctly rather
+          // than silently missing (which would make every finding look "new").
+          isSafeGitRevision(ref)
+            ? runCommand({
+                command: "git",
+                args: ["show", `${ref}:./${relativePath}`],
+                directory,
+                maxStdoutBytes: options?.maxBufferBytes,
+              }).pipe(Effect.map((result) => (result.status === 0 ? result.stdout : null)))
+            : Effect.succeed(null),
         grep: (input) =>
           Effect.gen(function* () {
             const args: string[] = ["grep"];
@@ -651,6 +737,26 @@ export class Git extends Context.Service<
             // Status 128 = "not a git repo" → caller should fall back.
             if (result.status === 128) return null;
             return { status: result.status, stdout: result.stdout } satisfies GitGrepResult;
+          }),
+        changedLineRanges: ({ directory, baseRef, cached, files }) =>
+          Effect.gen(function* () {
+            if (files.length === 0) return [];
+            // An unsafe base ref can't reach git (CVE-2018-17456 shape) and a
+            // failed diff both mean "couldn't compute" — return null so the
+            // caller degrades to file-level scope rather than hiding everything.
+            if (baseRef !== undefined && !isSafeGitRevision(baseRef)) return null;
+            const result = yield* runGit(directory, [
+              "diff",
+              "--unified=0",
+              "--diff-filter=ACMR",
+              "--relative",
+              ...(cached ? ["--cached"] : []),
+              ...(baseRef !== undefined ? [baseRef] : []),
+              "--",
+              ...files,
+            ]);
+            if (result.status !== 0) return null;
+            return parseChangedLineRanges(result.stdout);
           }),
       });
     }),
@@ -676,10 +782,15 @@ export class Git extends Context.Service<
     readonly githubRepo?: string | null;
     readonly githubViewerPermission?: string | null;
     readonly branchExists?: ReadonlyMap<string, boolean>;
+    /** Keyed by the `ref` argument; value is the resolved merge-base SHA. */
+    readonly mergeBase?: ReadonlyMap<string, string>;
     readonly stagedFiles?: ReadonlyArray<string>;
     readonly stagedContent?: ReadonlyMap<string, string>;
+    /** Keyed by `<ref>:<relativePath>`. */
+    readonly refContent?: ReadonlyMap<string, string>;
     readonly diffSelection?: GitDiffSelection | null;
     readonly grepMatches?: ReadonlyArray<string> | null;
+    readonly changedLineRanges?: ReadonlyArray<ChangedFileLineRanges>;
   }): Layer.Layer<Git> =>
     Layer.succeed(
       Git,
@@ -691,10 +802,13 @@ export class Git extends Context.Service<
         githubViewerPermission: () => Effect.succeed(snapshot.githubViewerPermission ?? null),
         branchExists: (_directory, branch) =>
           Effect.succeed(snapshot.branchExists?.get(branch) ?? false),
+        mergeBase: ({ ref }) => Effect.succeed(snapshot.mergeBase?.get(ref) ?? null),
         diffSelection: () => Effect.succeed(snapshot.diffSelection ?? null),
         stagedFilePaths: () => Effect.succeed(snapshot.stagedFiles ?? []),
         showStagedContent: (_directory, relativePath) =>
           Effect.succeed(snapshot.stagedContent?.get(relativePath) ?? null),
+        showRefContent: ({ ref, relativePath }) =>
+          Effect.succeed(snapshot.refContent?.get(`${ref}:${relativePath}`) ?? null),
         grep: () =>
           Effect.sync(() => {
             const matches = snapshot.grepMatches;
@@ -702,6 +816,7 @@ export class Git extends Context.Service<
             const stdout = matches.length === 0 ? "" : `${matches.join("\n")}\n`;
             return { status: matches.length === 0 ? 1 : 0, stdout } satisfies GitGrepResult;
           }),
+        changedLineRanges: () => Effect.succeed(snapshot.changedLineRanges ?? []),
       }),
     );
 }

@@ -54,22 +54,35 @@ describe("resolveCliInspectOptions: CI behavior (issue #302)", () => {
   });
 });
 
-describe("resolveCliInspectOptions: warnings vs --fail-on", () => {
+describe("resolveCliInspectOptions: warnings vs --blocking", () => {
   it("leaves warnings unset by default (shown via the inspect() default)", () => {
     expect(resolveCliInspectOptions({}, null).warnings).toBeUndefined();
   });
 
-  it("forces warnings on for --fail-on warning (flag or config) so the gate can fire", () => {
+  it("forces warnings on for --blocking warning (flag or config) so the gate can fire", () => {
+    expect(resolveCliInspectOptions({ blocking: "warning" }, null).warnings).toBe(true);
+    expect(resolveCliInspectOptions({}, { blocking: "warning" }).warnings).toBe(true);
+  });
+
+  it("honors the deprecated failOn alias for the warning gate", () => {
     expect(resolveCliInspectOptions({ failOn: "warning" }, null).warnings).toBe(true);
     expect(resolveCliInspectOptions({}, { failOn: "warning" }).warnings).toBe(true);
   });
 
-  it("does not set warnings when failing on errors", () => {
-    expect(resolveCliInspectOptions({ failOn: "error" }, null).warnings).toBeUndefined();
+  it("does not set warnings when blocking on errors", () => {
+    expect(resolveCliInspectOptions({ blocking: "error" }, null).warnings).toBeUndefined();
   });
 
-  it("respects an explicit --no-warnings even with --fail-on warning", () => {
-    expect(resolveCliInspectOptions({ failOn: "warning", warnings: false }, null).warnings).toBe(
+  it("forces warnings on for --blocking warning even over an explicit --no-warnings", () => {
+    // The gate wins: you can't block on warnings you've hidden. (Previously this
+    // silently no-op'd the gate — REACT-DOCTOR footgun.)
+    expect(resolveCliInspectOptions({ blocking: "warning", warnings: false }, null).warnings).toBe(
+      true,
+    );
+  });
+
+  it("respects --no-warnings when the gate is not warning-level", () => {
+    expect(resolveCliInspectOptions({ blocking: "error", warnings: false }, null).warnings).toBe(
       false,
     );
   });
@@ -87,5 +100,33 @@ describe("resolveCliInspectOptions: --no-telemetry alias", () => {
 
   it("keeps scoring on by default", () => {
     expect(resolveCliInspectOptions({}, null).noScore).toBe(false);
+  });
+});
+
+describe("resolveCliInspectOptions: category filtering", () => {
+  it("canonicalizes a single category case-insensitively", () => {
+    expect(resolveCliInspectOptions({ category: "security" }, null).categoryFilters).toEqual([
+      "Security",
+    ]);
+  });
+
+  it("supports repeated and comma-separated categories", () => {
+    expect(
+      resolveCliInspectOptions({ category: ["security", "Performance, accessibility"] }, null)
+        .categoryFilters,
+    ).toEqual(["Security", "Performance", "Accessibility"]);
+  });
+
+  it("deduplicates repeated categories while keeping order", () => {
+    expect(
+      resolveCliInspectOptions({ category: ["Security", "security", "Performance"] }, null)
+        .categoryFilters,
+    ).toEqual(["Security", "Performance"]);
+  });
+
+  it("rejects an unknown category with the known category list", () => {
+    expect(() => resolveCliInspectOptions({ category: "correctness" }, null)).toThrow(
+      'Unknown category "correctness". Expected one of: Security, Bugs, Performance, Accessibility, Maintainability.',
+    );
   });
 });

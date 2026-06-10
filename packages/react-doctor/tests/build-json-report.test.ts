@@ -14,11 +14,14 @@ const SAMPLE_PROJECT: ProjectInfo = {
   hasTypeScript: true,
   hasReactCompiler: false,
   hasTanStackQuery: false,
+  nextjsVersion: null,
+  nextjsMajorVersion: null,
   hasReactNativeWorkspace: false,
   expoVersion: null,
   shopifyFlashListVersion: null,
   shopifyFlashListMajorVersion: null,
   hasReanimated: false,
+  isPreES2023Target: false,
   preactVersion: null,
   preactMajorVersion: null,
   sourceFileCount: 42,
@@ -29,8 +32,9 @@ const buildSampleDiagnostic = (overrides: Partial<Diagnostic> = {}): Diagnostic 
   plugin: "react",
   rule: "no-danger",
   severity: "warning",
-  message: "Avoid dangerouslySetInnerHTML",
-  help: "Use safer alternatives",
+  message:
+    "dangerouslySetInnerHTML bypasses React escaping, so untrusted HTML can execute script in the user's browser.",
+  help: "Render structured React content instead, or sanitize trusted HTML before passing it to dangerouslySetInnerHTML.",
   line: 10,
   column: 1,
   category: "security",
@@ -151,7 +155,12 @@ describe("buildJsonReportError", () => {
     });
 
     expect(report.ok).toBe(false);
-    expect(report.error).toEqual({ message: "boom", name: "TypeError", chain: ["boom"] });
+    expect(report.error).toEqual({
+      message: "boom",
+      name: "TypeError",
+      chain: ["boom"],
+      sentryEventId: null,
+    });
     expect(report.diagnostics).toEqual([]);
     expect(report.projects).toEqual([]);
     expect(report.summary.totalDiagnosticCount).toBe(0);
@@ -168,6 +177,7 @@ describe("buildJsonReportError", () => {
       message: "raw failure",
       name: "Error",
       chain: ["raw failure"],
+      sentryEventId: null,
     });
   });
 

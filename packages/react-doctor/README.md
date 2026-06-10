@@ -37,68 +37,17 @@ npx react-doctor@latest install
 
 Works with Claude Code, Cursor, Codex, OpenCode, and many more.
 
-### 3. Run in CI (GitHub Actions) for your team
+### 3. Run in CI
 
-[![GitHub Action](https://img.shields.io/badge/GitHub%20Action-React%20Doctor-000000?style=flat&labelColor=000000&logo=githubactions&logoColor=white)](https://github.com/marketplace/actions/react-doctor)
+React Doctor CI (GitHub Actions) reviews every pull request automatically and reports only the issues your change introduced, not your existing backlog.
 
-Add the reusable GitHub Action from Marketplace to scan every pull request, show inline annotations, and leave findings where reviewers already look.
+[Add GitHub Action →](https://react.doctor/docs/ci-and-prs/github-actions-setup)
 
-```yaml
-name: React Doctor
+### 4. Configure rules
 
-on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+You can configure which rules to run and how to run them in `doctor.config.ts`.
 
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
-
-concurrency:
-  group: react-doctor-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  react-doctor:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: millionco/react-doctor@v1
-```
-
-`@v1` always resolves to the latest `v1.x` release of the Action. For hardened CI — recommended whenever the workflow is granted `pull-requests: write` — pin to a full commit SHA instead and let Dependabot or Renovate keep it current:
-
-```yaml
-- uses: millionco/react-doctor@b612664043a9be414166e3c6a69b355e39a8dcf4 # v1.1.1
-```
-
-[Add GitHub Action →](https://github.com/marketplace/actions/react-doctor)
-
-### 4. Configure rules in `doctor.config.ts`
-
-Configure with a `doctor.config.ts` (or `.js`, `.mjs`, `.cjs`, `.json`, `.jsonc`) in your project root.
-
-```ts
-// doctor.config.ts
-import type { ReactDoctorConfig } from "react-doctor/api";
-
-export default {
-  lint: true,
-  rules: {
-    "react-doctor/no-array-index-as-key": "off",
-  },
-} satisfies ReactDoctorConfig;
-```
-
-Prefer JSON? Use `doctor.config.json`:
-
-```jsonc
-{
-  "$schema": "https://react.doctor/schema/config.json",
-  "lint": true,
-}
-```
+[Learn more →](https://react.doctor/docs/configuration/config-files)
 
 ## Telemetry
 

@@ -7,6 +7,11 @@ export const SEQUENTIAL_AWAIT_THRESHOLD = 3;
 export const PROPERTY_ACCESS_REPEAT_THRESHOLD = 3;
 export const BOOLEAN_PROP_THRESHOLD = 4;
 export const RENDER_PROP_PROLIFERATION_THRESHOLD = 3;
+// Distinct boolean props a single component must use as the test of a
+// two-sided JSX ternary before `prefer-explicit-variants` fires. Two is
+// the "several variants jammed into one component" signal — a lone
+// `isMobile ? <Mobile /> : <Desktop />` switch is legitimate and stays quiet.
+export const BOOLEAN_PROP_VARIANT_BRANCH_THRESHOLD = 2;
 export const GET_HANDLER_BINDING_RESOLUTION_DEPTH = 3;
 // Chains rooted in a literal array `[a, b, c].map(...).filter(...)` at
 // or below this length are skipped by the iteration-combination rules
@@ -22,6 +27,15 @@ export const SMALL_LITERAL_ARRAY_MAX_ELEMENTS = 8;
 // giving up.
 export const CROSS_FILE_PARSE_MAX_BYTES = 2_000_000;
 export const CROSS_FILE_BARREL_FOLLOW_DEPTH = 4;
+
+// Bounds for upward directory walks used by cross-file resolvers:
+// `CROSS_FILE_DIRECTORY_WALK_MAX_LEVELS` caps how many parent
+// directories we climb looking for a `tsconfig.json` (alias resolution)
+// or an ancestor `layout.tsx` (App Router Suspense boundary), so a file
+// deep outside any project can't trigger an unbounded climb to the
+// filesystem root. `TSCONFIG_EXTENDS_MAX_DEPTH` caps `extends` chains.
+export const CROSS_FILE_DIRECTORY_WALK_MAX_LEVELS = 30;
+export const TSCONFIG_EXTENDS_MAX_DEPTH = 8;
 
 // Upper bound on the number of distinct control-flow path states the
 // reducer mutation analyzer tracks before bailing out. A reducer with N

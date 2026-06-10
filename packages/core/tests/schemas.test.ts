@@ -46,6 +46,38 @@ describe("Diagnostic schema", () => {
     expect(decoded.suppressionHint).toBe("// react-doctor-disable-next-line no-barrel-import");
   });
 
+  it("decodes precise span + related-location metadata when present", () => {
+    const decoded = Schema.decodeUnknownSync(Diagnostic)({
+      filePath: "/repo/src/App.tsx",
+      plugin: "react-doctor",
+      rule: "no-derived-state-effect",
+      severity: "warning",
+      message: "Derived state",
+      help: "Compute during render",
+      line: 12,
+      column: 4,
+      offset: 240,
+      length: 18,
+      endLine: 12,
+      endColumn: 22,
+      category: "State & Effects",
+      relatedLocations: [
+        {
+          filePath: "/repo/src/App.tsx",
+          line: 9,
+          column: 9,
+          offset: 180,
+          length: 4,
+          message: "prop declared here",
+        },
+      ],
+    });
+    expect(decoded.offset).toBe(240);
+    expect(decoded.length).toBe(18);
+    expect(decoded.endColumn).toBe(22);
+    expect(decoded.relatedLocations?.[0]?.message).toBe("prop declared here");
+  });
+
   it("rejects an unknown severity value", () => {
     expect(() =>
       Schema.decodeUnknownSync(Diagnostic)({
@@ -68,8 +100,9 @@ describe("Diagnostic schema", () => {
       plugin: "react",
       rule: "no-danger",
       severity: "warning",
-      message: "Avoid dangerouslySetInnerHTML",
-      help: "Use safer alternatives",
+      message:
+        "dangerouslySetInnerHTML bypasses React escaping, so untrusted HTML can execute script in the user's browser.",
+      help: "Render structured React content instead, or sanitize trusted HTML before passing it to dangerouslySetInnerHTML.",
       line: 10,
       column: 1,
       category: "Security",
