@@ -47,6 +47,7 @@ import { playWelcomeScene, RETURNING_USER_SPEED_MULTIPLIER } from "../utils/rend
 import { reportErrorToSentry } from "../utils/report-error.js";
 import { readChangedFilesFrom } from "../utils/read-changed-files-from.js";
 import { printMultiProjectSummary } from "../utils/render-multi-project-summary.js";
+import { printDiagnosticsDump } from "../utils/render-summary.js";
 import { isCiOrCodingAgentEnvironment } from "../utils/is-ci-environment.js";
 import {
   printAgentInstallHint,
@@ -576,9 +577,39 @@ export const inspectAction = async (directory: string, flags: InspectFlags): Pro
           categoryFilters,
           userConfig,
           verbose: Boolean(flags.verbose),
+          outputDirectory: flags.outputDir,
           isOffline: !shouldShowShareLink,
           projectName: path.basename(resolvedDirectory),
         }),
+      );
+    }
+
+    const surfaceDiagnostics = filterDiagnosticsForSurface(
+      allDiagnostics,
+      scanOptions.outputSurface ?? "cli",
+      userConfig,
+    );
+    const selectedSurfaceDiagnostics = filterDiagnosticsByCategories(
+      surfaceDiagnostics,
+      categoryFilters,
+    );
+
+    // Single-project scans dump from `inspect()` rendering, and non-quiet
+    // monorepo scans from the multi-project summary. Everything else —
+    // quiet workspace scans (`--json` / `--score`) and runs where every
+    // project was skipped in diff mode — dumps here; quiet runs send the
+    // path line to stderr to keep machine-read stdout clean.
+    const didScansWriteDump = isMultiProject
+      ? !isQuiet && completedScans.length > 0
+      : completedScans.length > 0;
+    if (flags.outputDir && !didScansWriteDump) {
+      await Effect.runPromise(
+        printDiagnosticsDump(
+          selectedSurfaceDiagnostics,
+          flags.outputDir,
+          false,
+          isQuiet ? "stderr" : "stdout",
+        ),
       );
     }
 
@@ -602,16 +633,6 @@ export const inspectAction = async (directory: string, flags: InspectFlags): Pro
       startTime,
     });
 
-    const surfaceDiagnostics = filterDiagnosticsForSurface(
-      allDiagnostics,
-      scanOptions.outputSurface ?? "cli",
-      userConfig,
-    );
-    const selectedSurfaceDiagnostics = filterDiagnosticsByCategories(
-      surfaceDiagnostics,
-      categoryFilters,
-    );
-
     // After the results print, offer to hand the issues to a coding agent
     // — an interactive select (no flag). Skipped for quiet, skip-prompts,
     // non-TTY, and agent/CI runs (those get the install hint below).
@@ -623,6 +644,7 @@ export const inspectAction = async (directory: string, flags: InspectFlags): Pro
         projectName: path.basename(resolvedDirectory),
         rootDirectory: resolvedDirectory,
         interactive: true,
+        outputDirectory: flags.outputDir,
       });
       return;
     }

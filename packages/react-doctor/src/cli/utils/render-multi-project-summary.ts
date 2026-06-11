@@ -81,6 +81,7 @@ export interface MultiProjectSummaryInput {
   readonly userConfig: ReactDoctorConfig | null;
   readonly categoryFilters?: ReadonlySet<string>;
   readonly verbose: boolean;
+  readonly outputDirectory?: string | null;
   readonly isOffline: boolean;
   readonly projectName: string;
 }
@@ -187,6 +188,7 @@ export const printMultiProjectSummary = (input: MultiProjectSummaryInput): Effec
       totalSourceFileCount,
       noScoreMessage: "Score unavailable.",
       verbose,
+      outputDirectory: input.outputDirectory,
       animateProjection: animateRender,
     });
 
