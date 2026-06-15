@@ -1,10 +1,13 @@
+import * as fs from "node:fs";
+import os from "node:os";
+import * as path from "node:path";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
-import { describe, expect, it } from "vite-plus/test";
-import type { Diagnostic, ProjectInfo } from "@react-doctor/core";
+import { afterAll, describe, expect, it } from "vite-plus/test";
+import type { Diagnostic, ProjectInfo, ReactDoctorConfig } from "@react-doctor/core";
 import {
   DeadCodeAnalysisFailed,
   GitInvocationFailed,
@@ -23,6 +26,13 @@ import { Project } from "../src/services/project.js";
 import { Reporter, ReporterCapture } from "../src/services/reporter.js";
 import { Score } from "../src/services/score.js";
 import { SupplyChain } from "../src/services/supply-chain.js";
+
+const temporaryDirectories: string[] = [];
+afterAll(() => {
+  for (const directory of temporaryDirectories) {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 const sampleProject: ProjectInfo = {
   rootDirectory: "/repo",
@@ -433,8 +443,14 @@ describe("runInspect — scan progress phases", () => {
       "unused-file",
     ]);
     expect(phaseEvents).toEqual(["lint", "afterLint", "dead-code"]);
-    expect(result.progressEvents.map((event) => event.text)).toContain("Scanning...");
-    expect(result.progressEvents.map((event) => event.text)).toContain("Analyzing dead code...");
+    const progressTexts = result.progressEvents.map((event) => event.text);
+    expect(progressTexts).toContain("Scanning...");
+    // The dead-code phase carries the scanned file total so the counter never
+    // appears to stall short of N before the handoff (issue #815).
+    expect(
+      progressTexts.some((text) => /^Scanned \d+ files?, analyzing dead code\.\.\.$/.test(text)),
+      `dead-code phase should report the scanned file total, got: ${progressTexts.join(" | ")}`,
+    ).toBe(true);
   });
 });
 
@@ -584,5 +600,77 @@ describe("runInspect — supply-chain in diff mode", () => {
       }).pipe(Effect.provide(layersOf({ supplyChain: [supplyChainDiagnostic] }))),
     );
     expect(output.diagnostics.map((d) => d.rule)).toContain("low-supply-chain-score");
+  });
+});
+
+describe("runInspect — security scan rules in the environment-checks phase", () => {
+  // Unlike the mocked Linter/DeadCode services, environment checks read
+  // the real filesystem at the resolved scan directory, so these tests
+  // scan a temp project seeded with a scan-rule finding.
+  const makeScanRuleProject = (): string => {
+    const rootDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "react-doctor-security-scan-"));
+    temporaryDirectories.push(rootDirectory);
+    fs.mkdirSync(path.join(rootDirectory, "public"), { recursive: true });
+    fs.writeFileSync(
+      path.join(rootDirectory, "public", "debug.log"),
+      "internal route dump /admin/api session=abc\n",
+    );
+    return rootDirectory;
+  };
+
+  const scanRuleLayersOf = (rootDirectory: string, config: ReactDoctorConfig | null = null) =>
+    Layer.mergeAll(
+      Project.layerOf({ ...sampleProject, rootDirectory }),
+      Config.layerOf({ config, resolvedDirectory: rootDirectory, configSourceDirectory: null }),
+      Files.layerInMemory(new Map()),
+      Linter.layerOf([]),
+      LintPartialFailures.layerLive,
+      DeadCode.layerOf([]),
+      Git.layerOf({}),
+      Score.layerOf(null),
+      SupplyChain.layerOf([]),
+      Progress.layerNoop,
+      Reporter.layerNoop,
+    );
+
+  it("emits scan-rule diagnostics in a full scan", async () => {
+    const rootDirectory = makeScanRuleProject();
+    const output = await Effect.runPromise(
+      runInspect({ ...baseInput, directory: rootDirectory }).pipe(
+        Effect.provide(scanRuleLayersOf(rootDirectory)),
+      ),
+    );
+    const scanDiagnostics = output.diagnostics.filter((d) => d.rule === "public-debug-artifact");
+    expect(scanDiagnostics).toHaveLength(1);
+    expect(scanDiagnostics[0]?.severity).toBe("warning");
+    expect(scanDiagnostics[0]?.category).toBe("Security");
+  });
+
+  it("skips the file scan in diff mode (includePaths.length > 0)", async () => {
+    const rootDirectory = makeScanRuleProject();
+    const output = await Effect.runPromise(
+      runInspect({
+        ...baseInput,
+        directory: rootDirectory,
+        includePaths: ["src/App.tsx"],
+      }).pipe(Effect.provide(scanRuleLayersOf(rootDirectory))),
+    );
+    expect(output.diagnostics.map((d) => d.rule)).not.toContain("public-debug-artifact");
+  });
+
+  it("applies user severity overrides to scan-rule diagnostics", async () => {
+    const rootDirectory = makeScanRuleProject();
+    const output = await Effect.runPromise(
+      runInspect({ ...baseInput, directory: rootDirectory }).pipe(
+        Effect.provide(
+          scanRuleLayersOf(rootDirectory, {
+            rules: { "react-doctor/public-debug-artifact": "error" },
+          }),
+        ),
+      ),
+    );
+    const scanDiagnostics = output.diagnostics.filter((d) => d.rule === "public-debug-artifact");
+    expect(scanDiagnostics).toHaveLength(1);
+    expect(scanDiagnostics[0]?.severity).toBe("error");
   });
 });

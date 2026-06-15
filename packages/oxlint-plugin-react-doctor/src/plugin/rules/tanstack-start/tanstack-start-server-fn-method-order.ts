@@ -1,22 +1,25 @@
 import {
+  TANSTACK_INPUT_VALIDATOR_METHOD_NAMES,
   TANSTACK_MIDDLEWARE_METHOD_ORDER,
   TANSTACK_SERVER_FN_NAMES,
 } from "../../constants/tanstack.js";
 import { defineRule } from "../../utils/define-rule.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
-import type { Rule } from "../../utils/rule.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
-export const tanstackStartServerFnMethodOrder = defineRule<Rule>({
+const toMethodOrderToken = (methodName: string): string =>
+  TANSTACK_INPUT_VALIDATOR_METHOD_NAMES.has(methodName) ? "validator" : methodName;
+
+export const tanstackStartServerFnMethodOrder = defineRule({
   id: "tanstack-start-server-fn-method-order",
   title: "Server function method order breaks type inference",
   tags: ["test-noise"],
   requires: ["tanstack-start"],
   severity: "error",
   recommendation:
-    "Chain methods in order: .middleware() → .inputValidator() → .client() → .server() → .handler(). Types depend on this sequence.",
+    "Chain methods in order: .middleware() → .validator() → .client() → .server() → .handler(). Types depend on this sequence.",
   create: (context: RuleContext) => ({
     CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
       if (!isNodeOfType(node.callee, "MemberExpression")) return;
@@ -50,12 +53,14 @@ export const tanstackStartServerFnMethodOrder = defineRule<Rule>({
       if (methodNames[methodNames.length - 1] !== ownMethodName) return;
 
       const orderSensitiveMethods = methodNames.filter((name) =>
-        TANSTACK_MIDDLEWARE_METHOD_ORDER.includes(name),
+        TANSTACK_MIDDLEWARE_METHOD_ORDER.includes(toMethodOrderToken(name)),
       );
 
       let lastIndex = -1;
       for (const methodName of orderSensitiveMethods) {
-        const currentIndex = TANSTACK_MIDDLEWARE_METHOD_ORDER.indexOf(methodName);
+        const currentIndex = TANSTACK_MIDDLEWARE_METHOD_ORDER.indexOf(
+          toMethodOrderToken(methodName),
+        );
         if (currentIndex < lastIndex) {
           const expectedBefore = TANSTACK_MIDDLEWARE_METHOD_ORDER[lastIndex];
           context.report({

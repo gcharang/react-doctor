@@ -134,6 +134,13 @@ export const MIN_SCAN_CONCURRENCY = 1;
 
 export const MAX_SCAN_CONCURRENCY = 16;
 
+// Default worker count for a `diagnose({ projects })` batch. Each project
+// scan already fans out its own oxlint workers (bounded by the constants
+// above), so batch concurrency multiplies process count — a small bound
+// keeps an 80-module monorepo from spawning hundreds of subprocesses by
+// default. Callers opt into more via `DiagnoseProjectsInput.concurrency`.
+export const DEFAULT_PROJECT_SCAN_CONCURRENCY = 4;
+
 export const DEFAULT_BRANCH_CANDIDATES = ["main", "master"];
 
 // JSON-format oxlint / eslint configs react-doctor can fold into the
@@ -434,10 +441,11 @@ export const SUPPLY_CHAIN_PLUGIN = "socket";
 export const SUPPLY_CHAIN_RULE = "low-supply-chain-score";
 export const SUPPLY_CHAIN_CATEGORY = "Security";
 
-// Default minimum acceptable Socket score (0..100). A dependency scoring
-// below this fails the check. Tuned to Socket's own "needs review" band —
-// most healthy, widely-used packages sit comfortably above it. Overridable
-// per project via `supplyChain.minScore`.
+// Default minimum acceptable Socket score (0..100), applied to the security
+// axes (supply chain, vulnerability) — a dependency whose worst security
+// axis scores below this fails the check. Tuned to Socket's own "needs
+// review" band — most healthy, widely-used packages sit comfortably above
+// it. Overridable per project via `supplyChain.minScore`.
 export const SUPPLY_CHAIN_DEFAULT_MIN_SCORE = 50;
 
 // Socket scores arrive normalized 0..1; multiply by this to present the
@@ -449,8 +457,17 @@ export const SOCKET_SCORE_SCALE = 100;
 // per-route rate limit.
 export const SUPPLY_CHAIN_FETCH_CONCURRENCY = 8;
 
-// Packages excluded from the Socket supply-chain check (the gate and the
-// `--sfw` listing). react-doctor already covers these frameworks' specific
+// Most severe Socket alerts to name in one supply-chain diagnostic before
+// collapsing the remainder into a "+N more" count, so a noisy package
+// doesn't flood the message.
+export const SUPPLY_CHAIN_MAX_ALERTS_SHOWN = 3;
+
+// Cap for the first-sentence Socket alert note woven into a diagnostic, so a
+// paragraph-long malware description doesn't blow out the message line.
+export const SUPPLY_CHAIN_ALERT_NOTE_MAX_CHARS = 160;
+
+// Packages excluded from the Socket supply-chain check (the score gate).
+// react-doctor already covers these frameworks' specific
 // risks through dedicated rules — e.g. Next.js via the server-components /
 // Next rule family — so a low Socket score would be redundant noise rather
 // than an actionable, distinct supply-chain signal.

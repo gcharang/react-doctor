@@ -18,6 +18,7 @@ import { checkPnpmHardening } from "./check-pnpm-hardening.js";
 import { checkReactNativeProject } from "./check-react-native-project.js";
 import { checkReactServerComponentsAdvisory } from "./check-react-server-components-advisory.js";
 import { checkReducedMotion } from "./check-reduced-motion.js";
+import { checkSecurityScan } from "./check-security-scan.js";
 import { DEFAULT_SHOW_WARNINGS } from "./constants.js";
 import { highlighter } from "./highlighter.js";
 import { computeExplicitLintIncludePaths } from "./explicit-lint-include-paths.js";
@@ -221,7 +222,8 @@ const formatLintFailText = (
  *
  *   1. Config.resolve(directory) → Project.discover → Git metadata
  *   2. beforeLint hook (e.g. CLI renders the project-detection block)
- *   3. environment checks (reduced-motion + pnpm hardening)
+ *   3. environment checks (reduced-motion + pnpm hardening +
+ *      expo/react-native + security scan)
  *   4. Linter.run + DeadCode.run — forked as concurrent fibers so
  *      their wall-clock times overlap. Progress spinners stay
  *      sequential (lint first, then dead-code) for clean terminal
@@ -348,6 +350,7 @@ export const runInspect = <HooksR = never>(
           ...checkReactServerComponentsAdvisory(scanDirectory, project),
           ...checkExpoProject(scanDirectory, project),
           ...checkReactNativeProject(scanDirectory, project),
+          ...checkSecurityScan(scanDirectory, { project, ignoredTags: input.ignoredTags }),
         ];
     const envCollected = yield* Stream.runCollect(
       applyPerElementPipeline(Stream.fromIterable(environmentDiagnostics)),
@@ -441,6 +444,16 @@ export const runInspect = <HooksR = never>(
       yield* scanProgress.fail(formatLintFailText(lintFailureState.reasonTag, process.version));
     }
 
+    // ora throttles renders to its frame interval, so the final `(N, N)`
+    // progress frame the linter emits on its last batch is overwritten by the
+    // next phase's text before it ever paints — the live counter looks frozen
+    // short of N even though every file was scanned (issue #815). Resolve the
+    // full total now and carry it into the dead-code label so "scanned N files"
+    // stays visible for the whole (longer) dead-code pass.
+    const totalFileCount =
+      lastReportedTotalFileCount || (lintIncludePaths?.length ?? project.sourceFileCount);
+    const scannedFilesLabel = `${totalFileCount} ${totalFileCount === 1 ? "file" : "files"}`;
+
     // Dead-code analysis only ever emits `"warning"`-severity diagnostics
     // (the `deslop` plugin, all `Maintainability`). Warnings show by
     // default, so this normally runs; only when the user opts out via
@@ -456,7 +469,7 @@ export const runInspect = <HooksR = never>(
     const deadCodeCollected =
       lintFailureState.didFail || !shouldRunDeadCode
         ? []
-        : yield* scanProgress.update("Analyzing dead code...").pipe(
+        : yield* scanProgress.update(`Scanned ${scannedFilesLabel}, analyzing dead code...`).pipe(
             Effect.andThen(
               Stream.runCollect(
                 applyPerElementPipeline(
@@ -483,8 +496,6 @@ export const runInspect = <HooksR = never>(
 
     const scanElapsedMilliseconds = Date.now() - scanStartTime;
     const scanElapsedSeconds = (scanElapsedMilliseconds / 1000).toFixed(1);
-    const totalFileCount =
-      lastReportedTotalFileCount || (lintIncludePaths?.length ?? project.sourceFileCount);
 
     if (!lintFailureState.didFail) {
       if (deadCodeFailureState.didFail) {
@@ -493,7 +504,7 @@ export const runInspect = <HooksR = never>(
         yield* scanProgress.stop();
       } else {
         yield* scanProgress.succeed(
-          `Scanned ${totalFileCount} ${totalFileCount === 1 ? "file" : "files"} in ${scanElapsedSeconds}s${workerCountSuffix}`,
+          `Scanned ${scannedFilesLabel} in ${scanElapsedSeconds}s${workerCountSuffix}`,
         );
       }
     }

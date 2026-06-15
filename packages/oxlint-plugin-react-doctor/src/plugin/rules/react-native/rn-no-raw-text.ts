@@ -8,7 +8,6 @@ import { defineRule } from "../../utils/define-rule.js";
 import { hasDirective } from "../../utils/has-directive.js";
 import { isInsidePlatformOsWebBranch } from "../../utils/is-inside-platform-os-web-branch.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
-import type { Rule } from "../../utils/rule.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { resolveJsxElementName } from "./utils/resolve-jsx-element-name.js";
 import { collectTextWrapperComponents } from "./utils/collect-text-wrapper-components.js";
@@ -91,11 +90,12 @@ const isInsideTextHandlingComponent = (node: EsTreeNodeOfType<"JSXElement">): bo
   return false;
 };
 
-export const rnNoRawText = defineRule<Rule>({
+export const rnNoRawText = defineRule({
   id: "rn-no-raw-text",
   title: "Raw text outside a Text component",
   requires: ["react-native"],
   severity: "error",
+  tags: ["test-noise"],
   recommendation:
     "Text outside a `<Text>` component crashes on React Native. Wrap it like `<Text>{value}</Text>`.",
   create: (context: RuleContext) => {
@@ -108,8 +108,9 @@ export const rnNoRawText = defineRule<Rule>({
     // in a WebView as DOM rather than on React Native primitives.
     let isDomComponentFile = false;
 
-    // Auto-detected in-file text wrappers — components whose returned root is
-    // a real `<Text>` (so they forward children into text). Populated from the
+    // Auto-detected in-file text wrappers — components that forward their
+    // children into a real `<Text>` (either as the returned root or nested
+    // inside the returned markup). Populated from the
     // program on first visit so usage anywhere in the file (declared before or
     // after) is seen. Manual `textComponents` / `rawTextWrapperComponents`
     // overrides are applied separately in the core diagnostic pipeline
