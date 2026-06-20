@@ -1,9 +1,9 @@
 name: React Doctor
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
     branches: [main]
 
 permissions:
@@ -11,6 +11,14 @@ permissions:
   pull-requests: write
   issues: write
   statuses: write
+
+concurrency:
+  group: react-doctor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
 jobs:
   react-doctor:
@@ -29,8 +37,11 @@ jobs:
           node-version: 22.18.0
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --prefer-offline
 
+      # Build the workspace CLI and point the local action at it (version:
+      # ./packages/react-doctor) so this job dogfoods the PR's own action AND
+      # CLI, not the published npm release.
       - run: pnpm --filter react-doctor... build
 
       - uses: ./
