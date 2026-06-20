@@ -21,7 +21,7 @@ npx github:gcharang/react-doctor#pinned rules explain react-doctor/no-array-inde
 5. Validate the change did what they wanted:
 
 ```bash
-npx github:gcharang/react-doctor#pinned --verbose --diff
+npx github:gcharang/react-doctor#pinned --verbose --scope changed
 ```
 
 ## Commands

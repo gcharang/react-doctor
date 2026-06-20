@@ -156,11 +156,11 @@ export interface SurfaceControls {
  *
  * Mirrors how Socket Firewall's free tier (`sfw`) works: each direct
  * dependency's PURL is looked up against Socket's keyless
- * `firewall-api.socket.dev/purl/<purl>` endpoint, which returns a
- * supply-chain score (0–100 once normalized). A dependency scoring below
- * `minScore` produces a diagnostic; at the default `severity: "error"` it
- * fails the scan (non-zero CI exit), the same way an error-severity lint
- * finding does.
+ * `firewall-api.socket.dev/purl/<purl>` endpoint, which returns per-axis
+ * scores (0–100 once normalized). A dependency whose worst security axis
+ * (supply chain or vulnerability) scores below `minScore` produces a
+ * diagnostic; at the default `severity: "error"` it fails the scan
+ * (non-zero CI exit), the same way an error-severity lint finding does.
  */
 export interface SupplyChainConfig {
   /**
@@ -172,8 +172,9 @@ export interface SupplyChainConfig {
   enabled?: boolean;
   /**
    * Minimum acceptable Socket score on a 0–100 scale. A direct dependency
-   * whose Socket `overall` score is below this is flagged. Default: `50`.
-   * Values outside `0..100` are clamped.
+   * whose worst Socket *security* axis — supply chain or vulnerability — is
+   * below this is flagged; the quality / maintenance / license axes never
+   * gate. Default: `50`. Values outside `0..100` are clamped.
    */
   minScore?: number;
   /**
@@ -280,6 +281,22 @@ export interface ReactDoctorConfig {
    * requested directory).
    */
   rootDir?: string;
+  /**
+   * Projects to scan and score separately — the config-file equivalent of
+   * the CLI `--project` flag, for repos that always want per-module scoring
+   * (e.g. a monorepo dashboard tracking each module's score daily) without
+   * passing the flag on every run.
+   *
+   * Entries resolve exactly like `--project` values: workspace package
+   * names (or directory basenames) first, then directory paths relative to
+   * the scanned root. `"*"` selects every discovered workspace project.
+   * Invalid entries fail the run with the same error as the flag.
+   *
+   * Precedence: an explicit `--project` flag overrides this list. Only the
+   * config at the invocation root is consulted — `projects` inside a
+   * module's own config is ignored (modules can't redirect the scan).
+   */
+  projects?: string[];
   textComponents?: string[];
   /**
    * Names of components that safely route string-only children through a
@@ -307,9 +324,10 @@ export interface ReactDoctorConfig {
    * list, user-provided names are treated as distinctive and never
    * subject to receiver-object disambiguation.
    *
-   * Use this to teach react-doctor about custom auth guards in
-   * codebases that wrap their auth library — e.g. a project-local
-   * `requireWorkspaceMember` or `ensureSignedIn`.
+   * Common guard conventions are already recognized automatically
+   * (`requireAdmin`, `ensureSignedIn`, `getCurrentUser`, `hasRole`, …),
+   * so this is only needed for domain-specific guards whose names carry
+   * no auth noun — e.g. a project-local `requireWorkspaceMember`.
    */
   serverAuthFunctionNames?: string[];
   /**

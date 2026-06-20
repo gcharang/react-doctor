@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { TSCONFIG_FILENAMES } from "../../constants.js";
 
 const esmRequire = createRequire(import.meta.url);
 
@@ -44,8 +45,6 @@ export const resolvePluginPath = (): string => {
     throw error;
   }
 };
-
-const TSCONFIG_FILENAMES = ["tsconfig.json", "tsconfig.base.json"];
 
 export const resolveTsConfigRelativePath = (rootDirectory: string): string | null => {
   for (const filename of TSCONFIG_FILENAMES) {

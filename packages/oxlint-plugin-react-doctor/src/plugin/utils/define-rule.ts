@@ -1,3 +1,4 @@
+import type { FileScan } from "./file-scan.js";
 import { isTestlikeFilename } from "./is-testlike-filename.js";
 import {
   fileImportsNonReactJsxDialect,
@@ -6,10 +7,13 @@ import {
 import type { Rule } from "./rule.js";
 import type { EsTreeNodeOfType } from "./es-tree-node-of-type.js";
 
-interface DefineRule {
-  (rule: Rule): Rule;
-  <RuleDefinition>(rule: RuleDefinition): RuleDefinition;
-}
+// A rule definition has exactly one execution mode. An AST rule provides
+// `create` (per-file visitors, hosted by oxlint/ESLint); a scan rule
+// provides `scan` (a project-level file scan, executed by
+// @react-doctor/core's check-security-scan environment check) and gets an
+// inert visitor factory injected for host compatibility. Metadata,
+// registration, tags, and severity flow identically either way.
+export type RuleDefinition = Rule | (Omit<Rule, "create"> & { scan: FileScan });
 
 // Rules tagged `"test-noise"` are by-design noisy in tests / stories /
 // playgrounds — design-system style preferences, deprecated-API hints,
@@ -91,11 +95,12 @@ const wrapCreateForReactJsxOnly = <
     return wrappedVisitors;
   }) as CreateFn;
 
-export const defineRule: DefineRule = <RuleDefinition>(rule: RuleDefinition): RuleDefinition => {
-  const tags = (rule as { tags?: ReadonlyArray<string> }).tags;
-  const create = (rule as { create?: unknown }).create;
-  if (typeof create !== "function") return rule;
-  let wrappedCreate = create as (...args: unknown[]) => unknown;
+export const defineRule = (rule: RuleDefinition): Rule => {
+  if (!("create" in rule)) {
+    return { ...rule, create: () => ({}) };
+  }
+  const tags = rule.tags;
+  let wrappedCreate = rule.create;
   // `migration-hint` wins over `test-noise` — deprecated API usage in
   // test code is the very surface that needs migration (`react-dom/test-utils`
   // imports, legacy lifecycle methods in test class fixtures, etc.).
@@ -107,9 +112,9 @@ export const defineRule: DefineRule = <RuleDefinition>(rule: RuleDefinition): Ru
   if (tags?.includes("react-jsx-only")) {
     wrappedCreate = wrapCreateForReactJsxOnly(wrappedCreate as never) as never;
   }
-  if (wrappedCreate === create) return rule;
+  if (wrappedCreate === rule.create) return rule;
   return {
     ...rule,
     create: wrappedCreate,
-  } as RuleDefinition;
+  };
 };

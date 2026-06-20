@@ -11444,11 +11444,11 @@ interface SurfaceControls {
  *
  * Mirrors how Socket Firewall's free tier (`sfw`) works: each direct
  * dependency's PURL is looked up against Socket's keyless
- * `firewall-api.socket.dev/purl/<purl>` endpoint, which returns a
- * supply-chain score (0–100 once normalized). A dependency scoring below
- * `minScore` produces a diagnostic; at the default `severity: "error"` it
- * fails the scan (non-zero CI exit), the same way an error-severity lint
- * finding does.
+ * `firewall-api.socket.dev/purl/<purl>` endpoint, which returns per-axis
+ * scores (0–100 once normalized). A dependency whose worst security axis
+ * (supply chain or vulnerability) scores below `minScore` produces a
+ * diagnostic; at the default `severity: "error"` it fails the scan
+ * (non-zero CI exit), the same way an error-severity lint finding does.
  */
 interface SupplyChainConfig {
   /**
@@ -11460,8 +11460,9 @@ interface SupplyChainConfig {
   enabled?: boolean;
   /**
    * Minimum acceptable Socket score on a 0–100 scale. A direct dependency
-   * whose Socket `overall` score is below this is flagged. Default: `50`.
-   * Values outside `0..100` are clamped.
+   * whose worst Socket *security* axis — supply chain or vulnerability — is
+   * below this is flagged; the quality / maintenance / license axes never
+   * gate. Default: `50`. Values outside `0..100` are clamped.
    */
   minScore?: number;
   /**
@@ -11567,6 +11568,22 @@ interface ReactDoctorConfig {
    * requested directory).
    */
   rootDir?: string;
+  /**
+   * Projects to scan and score separately — the config-file equivalent of
+   * the CLI `--project` flag, for repos that always want per-module scoring
+   * (e.g. a monorepo dashboard tracking each module's score daily) without
+   * passing the flag on every run.
+   *
+   * Entries resolve exactly like `--project` values: workspace package
+   * names (or directory basenames) first, then directory paths relative to
+   * the scanned root. `"*"` selects every discovered workspace project.
+   * Invalid entries fail the run with the same error as the flag.
+   *
+   * Precedence: an explicit `--project` flag overrides this list. Only the
+   * config at the invocation root is consulted — `projects` inside a
+   * module's own config is ignored (modules can't redirect the scan).
+   */
+  projects?: string[];
   textComponents?: string[];
   /**
    * Names of components that safely route string-only children through a
@@ -11594,9 +11611,10 @@ interface ReactDoctorConfig {
    * list, user-provided names are treated as distinctive and never
    * subject to receiver-object disambiguation.
    *
-   * Use this to teach react-doctor about custom auth guards in
-   * codebases that wrap their auth library — e.g. a project-local
-   * `requireWorkspaceMember` or `ensureSignedIn`.
+   * Common guard conventions are already recognized automatically
+   * (`requireAdmin`, `ensureSignedIn`, `getCurrentUser`, `hasRole`, …),
+   * so this is only needed for domain-specific guards whose names carry
+   * no auth noun — e.g. a project-local `requireWorkspaceMember`.
    */
   serverAuthFunctionNames?: string[];
   /**
@@ -11766,6 +11784,7 @@ interface DiagnosticRelatedLocation {
   endColumn?: number;
   message: string;
 }
+type DiagnosticFileContext = "test" | "story" | "production";
 interface Diagnostic {
   filePath: string;
   plugin: string;
@@ -11792,9 +11811,24 @@ interface Diagnostic {
   /** 1-indexed end column of the primary span, when derivable. */
   endColumn?: number;
   category: string;
+  /**
+   * Set when the file never ships to users (`"test"` / `"story"`), so
+   * renderers can label the site instead of implying production impact.
+   * Omitted for production files (the default).
+   */
+  fileContext?: Exclude<DiagnosticFileContext, "production">;
   suppressionHint?: string;
   /** Secondary source locations (oxlint's non-primary labels). */
   relatedLocations?: DiagnosticRelatedLocation[];
+  /**
+   * Stable id shared by every finding that a single fix resolves together —
+   * e.g. four `useEffect`s that reset state on one prop change all clear with
+   * one `key` prop. Set only when ≥2 findings share a root cause; absent for
+   * standalone findings. A consumer that turns findings into work items should
+   * group by it so one fix reads as one task, not N. Presentation-only and
+   * score-neutral — the score never reads it.
+   */
+  fixGroupId?: string;
 }
 //#endregion
 //#region src/types/project-info.d.ts
@@ -11931,12 +11965,55 @@ interface DiagnoseResult {
   elapsedMilliseconds: number;
 }
 /**
- * A single project to scan as part of a `diagnoseProjects()` batch.
+ * A single project to scan as part of a `diagnose({ projects })` batch.
  * Scan options (`deadCode`, `lint`, etc.) are flat on the entry and
  * layer on top of the global defaults — omitted fields fall through.
- * `config` is a full `ReactDoctorConfig` override that replaces the
- * on-disk `doctor.config.*` for this project's scan.
  */
+interface ProjectDefinition extends DiagnoseOptions {
+  directory: string;
+  /**
+   * Per-project config overrides, layered additively (see
+   * `mergeReactDoctorConfigs`) on top of the project's on-disk
+   * `doctor.config.*` and the batch-level `DiagnoseProjectsInput.config`
+   * — so disabling one rule here keeps every base rule intact.
+   */
+  config?: ReactDoctorConfig;
+}
+interface ProjectResultOk extends DiagnoseResult {
+  ok: true;
+  directory: string;
+}
+interface ProjectResultError {
+  ok: false;
+  directory: string;
+  error: Error;
+}
+type ProjectResult = ProjectResultOk | ProjectResultError;
+interface DiagnoseProjectsInput extends DiagnoseOptions {
+  projects: ProjectDefinition[];
+  /**
+   * Config overrides applied to every project in the batch, layered
+   * additively (see `mergeReactDoctorConfigs`) between each project's
+   * on-disk `doctor.config.*` and its `ProjectDefinition.config` — one
+   * base rule set for the batch, overridden per project only where needed.
+   */
+  config?: ReactDoctorConfig;
+  /**
+   * Maximum number of projects to scan concurrently. Defaults to
+   * `DEFAULT_PROJECT_SCAN_CONCURRENCY` (4) — each project scan fans out
+   * its own lint workers, so the batch is bounded rather than fully
+   * parallel. Set to `1` for sequential execution. Values below 1 are
+   * clamped to 1.
+   */
+  concurrency?: number;
+}
+interface DiagnoseProjectsResult {
+  projects: ProjectResult[];
+  diagnostics: Diagnostic[];
+  score: ScoreResult | null;
+  elapsedMilliseconds: number;
+} //#endregion
+//#region src/types/handle-error.d.ts
 //#endregion
 //#region src/types/inspect.d.ts
 interface InspectResult {
@@ -11976,6 +12053,14 @@ interface InspectResult {
    * summary to report combined scan time.
    */
   scanElapsedMilliseconds?: number;
+  /**
+   * Per-file lint cache outcome: files served from cache, and total files
+   * considered. Both absent when the cache was off or bypassed (audit mode,
+   * adopted `extends`, user plugins). The CLI projects these onto the Sentry
+   * wide event as `lintCacheHitRatio`.
+   */
+  lintCacheHitFileCount?: number | null;
+  lintCacheTotalFileCount?: number | null;
   /**
    * Present only for a baseline run (`InspectOptions.baseline` set). The
    * `diagnostics` above are then the *introduced* findings only; this
@@ -12057,6 +12142,16 @@ interface JsonReportProjectEntry {
   skippedChecks: string[];
   /** Human-readable explanation per skipped check. See `InspectResult.skippedCheckReasons`. */
   skippedCheckReasons?: Record<string, string>;
+  /**
+   * Number of source files this scan's linter examined. In diff / changed
+   * mode it's the count of changed React-eligible files (`.tsx`/`.jsx` plus
+   * framework entry files); in a full scan it's the whole source tree. `0`
+   * in a diff scan means the changed files held nothing React Doctor lints —
+   * the GitHub Action reads that as "nothing to report" (skips the PR comment;
+   * the commit status says "skipped"). Optional: absent on reports from
+   * constructors that don't track it (e.g. `toJsonReport`).
+   */
+  scannedFileCount?: number;
   elapsedMilliseconds: number;
 }
 interface JsonReportSummary {
@@ -12192,6 +12287,12 @@ declare const OxlintBatchExceeded_base: Class<OxlintBatchExceeded, TaggedStruct<
 declare class OxlintBatchExceeded extends OxlintBatchExceeded_base {
   get message(): string;
 }
+declare const ScanDeadlineExceeded_base: Class<ScanDeadlineExceeded, TaggedStruct<"ScanDeadlineExceeded", {
+  readonly detail: String;
+}>, YieldableError>;
+declare class ScanDeadlineExceeded extends ScanDeadlineExceeded_base {
+  get message(): string;
+}
 declare const OxlintSpawnFailed_base: Class<OxlintSpawnFailed, TaggedStruct<"OxlintSpawnFailed", {
   readonly cause: Unknown;
 }>, YieldableError>;
@@ -12257,7 +12358,7 @@ declare class GitBaseBranchInvalid extends GitBaseBranchInvalid_base {
   get message(): string;
 }
 declare const ReactDoctorError_base: Class<ReactDoctorError, TaggedStruct<"ReactDoctorError", {
-  readonly reason: Union<readonly [typeof OxlintUnavailable, typeof OxlintBatchExceeded, typeof OxlintSpawnFailed, typeof OxlintOutputUnparseable, typeof ConfigParseFailed, typeof ProjectNotFound, typeof NoReactDependency, typeof AmbiguousProject, typeof DeadCodeAnalysisFailed, typeof GitInvocationFailed, typeof GitBaseBranchMissing, typeof GitBaseBranchInvalid]>;
+  readonly reason: Union<readonly [typeof OxlintUnavailable, typeof OxlintBatchExceeded, typeof ScanDeadlineExceeded, typeof OxlintSpawnFailed, typeof OxlintOutputUnparseable, typeof ConfigParseFailed, typeof ProjectNotFound, typeof NoReactDependency, typeof AmbiguousProject, typeof DeadCodeAnalysisFailed, typeof GitInvocationFailed, typeof GitBaseBranchMissing, typeof GitBaseBranchInvalid]>;
 }>, YieldableError>;
 declare class ReactDoctorError extends ReactDoctorError_base {
   get message(): string;
@@ -12359,41 +12460,20 @@ declare const defineConfig: (config: ReactDoctorConfig) => ReactDoctorConfig; //
 //#endregion
 //#region ../api/dist/index.d.ts
 //#region src/diagnose.d.ts
-declare const diagnose: (directory: string, options?: DiagnoseOptions) => Promise<DiagnoseResult>;
-/**
- * Scan multiple projects in parallel and return per-project scores,
- * diagnostics, and an aggregate score (worst-of across all projects).
- *
- * Each project runs its own independent `runInspect` pipeline — the
- * same pipeline `diagnose()` uses — so per-project config overrides,
- * dead-code analysis, and scoring all work identically to a single
- * `diagnose()` call.
- *
- * Projects that fail (e.g. missing `package.json`, no React dependency)
- * are included in the result with `ok: false` rather than aborting the
- * entire batch, so callers always receive partial results.
- *
- * ```ts
- * const result = await diagnoseProjects({
- *   projects: [
- *     { directory: "packages/app" },
- *     { directory: "packages/shared", deadCode: false },
- *     { directory: "packages/admin", config: {
- *       rules: { "react-doctor/no-array-index-as-key": "off" },
- *     }},
- *   ],
- *   concurrency: 4,
- * });
- *
- * for (const project of result.projects) {
- *   if (project.ok) {
- *     console.log(project.directory, project.score);
- *   } else {
- *     console.error(project.directory, project.error);
- *   }
- * }
- * ```
- */
+interface Diagnose {
+  /** Scan a single project directory and return diagnostics + score. */
+  (directory: string, options?: DiagnoseOptions): Promise<DiagnoseResult>;
+  /**
+   * Scan multiple projects in parallel — each through the same pipeline as
+   * the single-directory form — and return per-project results plus an
+   * aggregate worst-of score. A failing project (e.g. no `package.json`)
+   * comes back with `ok: false` instead of aborting the batch. Per-project
+   * `config` layers on the batch `config`, which layers on each project's
+   * on-disk config (see `mergeReactDoctorConfigs`).
+   */
+  (input: DiagnoseProjectsInput): Promise<DiagnoseProjectsResult>;
+}
+declare const diagnose: Diagnose; //#endregion
 //#endregion
 //#region src/index.d.ts
 declare const clearCaches: () => void;
@@ -12404,5 +12484,5 @@ interface ToJsonReportOptions {
 }
 declare const toJsonReport: (result: DiagnoseResult, options: ToJsonReportOptions) => JsonReport;
 //#endregion
-export { AmbiguousProjectError, type DiagnoseOptions, type DiagnoseResult, type Diagnostic, type DiffInfo, type JsonReport, type JsonReportDiffInfo, type JsonReportError, type JsonReportMode, type JsonReportProjectEntry, type JsonReportSummary, NoReactDependencyError, NotADirectoryError, PackageJsonNotFoundError, type ProjectInfo, ProjectNotFoundError, type ReactDoctorConfig, ReactDoctorError, type ScoreResult, buildJsonReport, buildJsonReportError, clearCaches, defineConfig, diagnose, filterSourceFiles, getDiffInfo, isProjectDiscoveryError, isReactDoctorError, summarizeDiagnostics, toJsonReport };
+export { AmbiguousProjectError, type DiagnoseOptions, type DiagnoseProjectsInput, type DiagnoseProjectsResult, type DiagnoseResult, type Diagnostic, type DiffInfo, type JsonReport, type JsonReportDiffInfo, type JsonReportError, type JsonReportMode, type JsonReportProjectEntry, type JsonReportSummary, NoReactDependencyError, NotADirectoryError, PackageJsonNotFoundError, type ProjectDefinition, type ProjectInfo, ProjectNotFoundError, type ProjectResult, type ProjectResultError, type ProjectResultOk, type ReactDoctorConfig, ReactDoctorError, type ScoreResult, buildJsonReport, buildJsonReportError, clearCaches, defineConfig, diagnose, filterSourceFiles, getDiffInfo, isProjectDiscoveryError, isReactDoctorError, summarizeDiagnostics, toJsonReport };
 //# sourceMappingURL=index.d.ts.map

@@ -8,13 +8,13 @@ import path from "node:path";
 import * as NodeChildProcess from "node:child_process";
 import { spawn, spawnSync } from "node:child_process";
 import * as ts from "typescript";
-import reactDoctorPlugin, { ALL_REACT_DOCTOR_RULE_KEYS, FRAMEWORK_SPECIFIC_RULE_KEYS, MOTION_LIBRARY_PACKAGES, REACT_COMPILER_RULES, REACT_DOCTOR_RULES } from "oxlint-plugin-react-doctor";
+import reactDoctorPlugin, { ALL_REACT_DOCTOR_RULE_KEYS, CROSS_FILE_RULE_IDS, FRAMEWORK_SPECIFIC_RULE_KEYS, MOTION_LIBRARY_PACKAGES, REACT_COMPILER_RULES, REACT_DOCTOR_RULES, classifySecurityScanFile, shouldReadSecurityScanContent } from "oxlint-plugin-react-doctor";
 import { parseJSON5 } from "confbox";
-import { createJiti } from "jiti";
-import * as Crypto from "node:crypto";
-import crypto from "node:crypto";
 import * as NodeUrl from "node:url";
 import { fileURLToPath } from "node:url";
+import { createJiti } from "jiti";
+import * as Crypto from "node:crypto";
+import crypto, { createHash } from "node:crypto";
 import { CodeActionKind, CodeActionTriggerKind, DidChangeWatchedFilesNotification, DocumentDiagnosticReportKind, FileChangeType, TextDocumentSyncKind, TextDocuments, createConnection } from "vscode-languageserver/node.js";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "vscode-uri";
@@ -7223,7 +7223,7 @@ const provideContext$1 = /* @__PURE__ */ dual(2, (self, context) => {
 	return updateContext$1(self, merge$3(context));
 });
 /** @internal */
-const provideService$1 = function() {
+const provideService$3 = function() {
 	if (arguments.length === 1) return dual(2, (self, impl) => provideServiceImpl(self, arguments[0], impl));
 	return dual(3, (self, service, impl) => provideServiceImpl(self, service, impl)).apply(this, arguments);
 };
@@ -7444,7 +7444,7 @@ const constScopeEmpty = { _tag: "Empty" };
 /** @internal */
 const scope = scopeTag;
 /** @internal */
-const provideScope = /* @__PURE__ */ provideService$1(scopeTag);
+const provideScope = /* @__PURE__ */ provideService$3(scopeTag);
 /** @internal */
 const scoped$1 = (self) => withFiber$1((fiber) => {
 	const prev = fiber.context;
@@ -7887,7 +7887,7 @@ const makeLatchUnsafe = (open) => new Latch(open ?? false);
 /** @internal */
 const makeLatch = (open) => sync$2(() => makeLatchUnsafe(open));
 /** @internal */
-const withTracerEnabled$1 = /* @__PURE__ */ provideService$1(TracerEnabled);
+const withTracerEnabled$1 = /* @__PURE__ */ provideService$3(TracerEnabled);
 const bigint0 = /* @__PURE__ */ BigInt(0);
 const NoopSpanProto = {
 	_tag: "Span",
@@ -7968,7 +7968,7 @@ const useSpan$1 = (name, ...args) => {
 		}));
 	});
 };
-const provideParentSpan = /* @__PURE__ */ provideService$1(ParentSpan);
+const provideParentSpan = /* @__PURE__ */ provideService$3(ParentSpan);
 /** @internal */
 const withParentSpan$1 = function() {
 	const dataFirst = isEffect$1(arguments[0]);
@@ -9535,7 +9535,7 @@ var CurrentMemoMap = class extends Service()("effect/Layer/CurrentMemoMap") {
 * @category memo map
 * @since 2.0.0
 */
-const buildWithMemoMap = /* @__PURE__ */ dual(3, (self, memoMap, scope) => provideService$1(map$4(self.build(memoMap, scope), add(CurrentMemoMap, memoMap)), CurrentMemoMap, memoMap));
+const buildWithMemoMap = /* @__PURE__ */ dual(3, (self, memoMap, scope) => provideService$3(map$4(self.build(memoMap, scope), add(CurrentMemoMap, memoMap)), CurrentMemoMap, memoMap));
 /**
 * Builds a layer into an `Effect` value. Any resources associated with this
 * layer will be released when the specified scope is closed unless their scope
@@ -10888,7 +10888,7 @@ const provide$1 = /* @__PURE__ */ dual((args) => isEffect$1(args[0]), (self, sou
 /** @internal */
 const repeatOrElse = /* @__PURE__ */ dual(3, (self, schedule, orElse) => flatMap$4(toStepWithMetadata(schedule), (step) => {
 	let meta = CurrentMetadata.defaultValue();
-	return catch_$2(forever$2(tap$2(flatMap$4(suspend$3(() => provideService$1(self, CurrentMetadata, meta)), step), (meta_) => sync$2(() => {
+	return catch_$2(forever$2(tap$2(flatMap$4(suspend$3(() => provideService$3(self, CurrentMetadata, meta)), step), (meta_) => sync$2(() => {
 		meta = meta_;
 	})), { disableYield: true }), (error) => isDone$2(error) ? succeed$5(error.value) : orElse(error, meta.attempt === 0 ? none() : some(meta)));
 }));
@@ -10896,7 +10896,7 @@ const repeatOrElse = /* @__PURE__ */ dual(3, (self, schedule, orElse) => flatMap
 const retryOrElse = /* @__PURE__ */ dual(3, (self, policy, orElse) => flatMap$4(toStepWithMetadata(policy), (step) => {
 	let meta = CurrentMetadata.defaultValue();
 	let lastError;
-	const loop = catch_$2(suspend$3(() => provideService$1(self, CurrentMetadata, meta)), (error) => {
+	const loop = catch_$2(suspend$3(() => provideService$3(self, CurrentMetadata, meta)), (error) => {
 		lastError = error;
 		return flatMap$4(step(error), (meta_) => {
 			meta = meta_;
@@ -12976,7 +12976,7 @@ const updateContext = updateContext$1;
 * @category Context
 * @since 2.0.0
 */
-const provideService = provideService$1;
+const provideService$2 = provideService$3;
 /**
 * Scopes all resources used in this workflow to the lifetime of the workflow,
 * ensuring that their finalizers are run as soon as this workflow completes
@@ -18018,6 +18018,20 @@ function decodeUnknownOption$1(schema, options) {
 	return asOption(decodeUnknownEffect(schema, options));
 }
 /**
+* Creates a synchronous decoder for `unknown` input.
+*
+* **Details**
+*
+* The returned function returns the decoded `Type` on success and throws an
+* `Error` with the `SchemaIssue.Issue` in its `cause` on decoding failure.
+*
+* @category decoding
+* @since 3.10.0
+*/
+function decodeUnknownSync$1(schema, options) {
+	return asSync(decodeUnknownEffect(schema, options));
+}
+/**
 * Creates an effectful encoder for `unknown` input.
 *
 * **Details**
@@ -18318,6 +18332,40 @@ function isSchemaError(u) {
 * @since 3.10.0
 */
 const decodeUnknownOption = decodeUnknownOption$1;
+/**
+* Decodes an `unknown` input against a schema synchronously, returning the
+* decoded value or throwing an `Error` whose cause contains the schema issue.
+* Use this when you want to validate data at a boundary and treat a schema
+* mismatch as an exception. For typed input use `decodeSync`.
+*
+* **Details**
+*
+* Only service-free schemas can be decoded synchronously. For non-throwing
+* alternatives see `decodeUnknownOption`, `decodeUnknownExit`, or
+* `decodeUnknownEffect`. Options may be provided either when creating the
+* decoder or when applying it; application options override creation options.
+*
+* **Example** (Decoding with a transformation schema)
+*
+* ```ts
+* import { Schema } from "effect"
+*
+* const NumberFromString = Schema.NumberFromString
+*
+* console.log(Schema.decodeUnknownSync(NumberFromString)("42"))
+* // Output: 42
+*
+* Schema.decodeUnknownSync(NumberFromString)("not a number")
+* // throws SchemaError: NumberFromString
+* //   └─ Encoded side transformation failure
+* //      └─ NumberFromString
+* //         └─ Expected a numeric string, actual "not a number"
+* ```
+*
+* @category decoding
+* @since 4.0.0
+*/
+const decodeUnknownSync = decodeUnknownSync$1;
 /**
 * Encodes an `unknown` input against a schema synchronously, throwing a
 * {@link SchemaError} on failure. Use this when you want to serialize data at a
@@ -19283,8 +19331,10 @@ var Diagnostic = class extends Class("Diagnostic")({
 	endLine: optional(Number$1),
 	endColumn: optional(Number$1),
 	category: String$1,
+	fileContext: optional(Literals(["test", "story"])),
 	suppressionHint: optional(String$1),
-	relatedLocations: optional(ArraySchema(DiagnosticRelatedLocation))
+	relatedLocations: optional(ArraySchema(DiagnosticRelatedLocation)),
+	fixGroupId: optional(String$1)
 }) {};
 /**
 * Deterministic identity string for a diagnostic. Same diagnostic
@@ -19333,6 +19383,7 @@ var JsonReportProjectEntry = class extends Class("JsonReportProjectEntry")({
 	score: Unknown,
 	skippedChecks: ArraySchema(String$1),
 	skippedCheckReasons: optional(Record$1(String$1, String$1)),
+	scannedFileCount: optional(Number$1),
 	elapsedMilliseconds: Number$1
 }) {};
 /**
@@ -19383,8 +19434,1346 @@ var JsonReportV2 = class extends Class("JsonReportV2")({
 }) {};
 Union([JsonReportV1, JsonReportV2]);
 //#endregion
-//#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/constants.js
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/constants.js
 var require_constants$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SEMVER_SPEC_VERSION = "2.0.0";
+	const MAX_LENGTH = 256;
+	const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER || 9007199254740991;
+	module.exports = {
+		MAX_LENGTH,
+		MAX_SAFE_COMPONENT_LENGTH: 16,
+		MAX_SAFE_BUILD_LENGTH: MAX_LENGTH - 6,
+		MAX_SAFE_INTEGER,
+		RELEASE_TYPES: [
+			"major",
+			"premajor",
+			"minor",
+			"preminor",
+			"patch",
+			"prepatch",
+			"prerelease"
+		],
+		SEMVER_SPEC_VERSION,
+		FLAG_INCLUDE_PRERELEASE: 1,
+		FLAG_LOOSE: 2
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/debug.js
+var require_debug = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	module.exports = typeof process === "object" && process.env && process.env.NODE_DEBUG && /\bsemver\b/i.test(process.env.NODE_DEBUG) ? (...args) => console.error("SEMVER", ...args) : () => {};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/re.js
+var require_re = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const { MAX_SAFE_COMPONENT_LENGTH, MAX_SAFE_BUILD_LENGTH, MAX_LENGTH } = require_constants$1();
+	const debug = require_debug();
+	exports = module.exports = {};
+	const re = exports.re = [];
+	const safeRe = exports.safeRe = [];
+	const src = exports.src = [];
+	const safeSrc = exports.safeSrc = [];
+	const t = exports.t = {};
+	let R = 0;
+	const LETTERDASHNUMBER = "[a-zA-Z0-9-]";
+	const safeRegexReplacements = [
+		["\\s", 1],
+		["\\d", MAX_LENGTH],
+		[LETTERDASHNUMBER, MAX_SAFE_BUILD_LENGTH]
+	];
+	const makeSafeRegex = (value) => {
+		for (const [token, max] of safeRegexReplacements) value = value.split(`${token}*`).join(`${token}{0,${max}}`).split(`${token}+`).join(`${token}{1,${max}}`);
+		return value;
+	};
+	const createToken = (name, value, isGlobal) => {
+		const safe = makeSafeRegex(value);
+		const index = R++;
+		debug(name, index, value);
+		t[name] = index;
+		src[index] = value;
+		safeSrc[index] = safe;
+		re[index] = new RegExp(value, isGlobal ? "g" : void 0);
+		safeRe[index] = new RegExp(safe, isGlobal ? "g" : void 0);
+	};
+	createToken("NUMERICIDENTIFIER", "0|[1-9]\\d*");
+	createToken("NUMERICIDENTIFIERLOOSE", "\\d+");
+	createToken("NONNUMERICIDENTIFIER", `\\d*[a-zA-Z-]${LETTERDASHNUMBER}*`);
+	createToken("MAINVERSION", `(${src[t.NUMERICIDENTIFIER]})\\.(${src[t.NUMERICIDENTIFIER]})\\.(${src[t.NUMERICIDENTIFIER]})`);
+	createToken("MAINVERSIONLOOSE", `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.(${src[t.NUMERICIDENTIFIERLOOSE]})\\.(${src[t.NUMERICIDENTIFIERLOOSE]})`);
+	createToken("PRERELEASEIDENTIFIER", `(?:${src[t.NONNUMERICIDENTIFIER]}|${src[t.NUMERICIDENTIFIER]})`);
+	createToken("PRERELEASEIDENTIFIERLOOSE", `(?:${src[t.NONNUMERICIDENTIFIER]}|${src[t.NUMERICIDENTIFIERLOOSE]})`);
+	createToken("PRERELEASE", `(?:-(${src[t.PRERELEASEIDENTIFIER]}(?:\\.${src[t.PRERELEASEIDENTIFIER]})*))`);
+	createToken("PRERELEASELOOSE", `(?:-?(${src[t.PRERELEASEIDENTIFIERLOOSE]}(?:\\.${src[t.PRERELEASEIDENTIFIERLOOSE]})*))`);
+	createToken("BUILDIDENTIFIER", `${LETTERDASHNUMBER}+`);
+	createToken("BUILD", `(?:\\+(${src[t.BUILDIDENTIFIER]}(?:\\.${src[t.BUILDIDENTIFIER]})*))`);
+	createToken("FULLPLAIN", `v?${src[t.MAINVERSION]}${src[t.PRERELEASE]}?${src[t.BUILD]}?`);
+	createToken("FULL", `^${src[t.FULLPLAIN]}$`);
+	createToken("LOOSEPLAIN", `[v=\\s]*${src[t.MAINVERSIONLOOSE]}${src[t.PRERELEASELOOSE]}?${src[t.BUILD]}?`);
+	createToken("LOOSE", `^${src[t.LOOSEPLAIN]}$`);
+	createToken("GTLT", "((?:<|>)?=?)");
+	createToken("XRANGEIDENTIFIERLOOSE", `${src[t.NUMERICIDENTIFIERLOOSE]}|x|X|\\*`);
+	createToken("XRANGEIDENTIFIER", `${src[t.NUMERICIDENTIFIER]}|x|X|\\*`);
+	createToken("XRANGEPLAIN", `[v=\\s]*(${src[t.XRANGEIDENTIFIER]})(?:\\.(${src[t.XRANGEIDENTIFIER]})(?:\\.(${src[t.XRANGEIDENTIFIER]})(?:${src[t.PRERELEASE]})?${src[t.BUILD]}?)?)?`);
+	createToken("XRANGEPLAINLOOSE", `[v=\\s]*(${src[t.XRANGEIDENTIFIERLOOSE]})(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})(?:${src[t.PRERELEASELOOSE]})?${src[t.BUILD]}?)?)?`);
+	createToken("XRANGE", `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAIN]}$`);
+	createToken("XRANGELOOSE", `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAINLOOSE]}$`);
+	createToken("COERCEPLAIN", `(^|[^\\d])(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}})(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?`);
+	createToken("COERCE", `${src[t.COERCEPLAIN]}(?:$|[^\\d])`);
+	createToken("COERCEFULL", src[t.COERCEPLAIN] + `(?:${src[t.PRERELEASE]})?(?:${src[t.BUILD]})?(?:$|[^\\d])`);
+	createToken("COERCERTL", src[t.COERCE], true);
+	createToken("COERCERTLFULL", src[t.COERCEFULL], true);
+	createToken("LONETILDE", "(?:~>?)");
+	createToken("TILDETRIM", `(\\s*)${src[t.LONETILDE]}\\s+`, true);
+	exports.tildeTrimReplace = "$1~";
+	createToken("TILDE", `^${src[t.LONETILDE]}${src[t.XRANGEPLAIN]}$`);
+	createToken("TILDELOOSE", `^${src[t.LONETILDE]}${src[t.XRANGEPLAINLOOSE]}$`);
+	createToken("LONECARET", "(?:\\^)");
+	createToken("CARETTRIM", `(\\s*)${src[t.LONECARET]}\\s+`, true);
+	exports.caretTrimReplace = "$1^";
+	createToken("CARET", `^${src[t.LONECARET]}${src[t.XRANGEPLAIN]}$`);
+	createToken("CARETLOOSE", `^${src[t.LONECARET]}${src[t.XRANGEPLAINLOOSE]}$`);
+	createToken("COMPARATORLOOSE", `^${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]})$|^$`);
+	createToken("COMPARATOR", `^${src[t.GTLT]}\\s*(${src[t.FULLPLAIN]})$|^$`);
+	createToken("COMPARATORTRIM", `(\\s*)${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]}|${src[t.XRANGEPLAIN]})`, true);
+	exports.comparatorTrimReplace = "$1$2$3";
+	createToken("HYPHENRANGE", `^\\s*(${src[t.XRANGEPLAIN]})\\s+-\\s+(${src[t.XRANGEPLAIN]})\\s*$`);
+	createToken("HYPHENRANGELOOSE", `^\\s*(${src[t.XRANGEPLAINLOOSE]})\\s+-\\s+(${src[t.XRANGEPLAINLOOSE]})\\s*$`);
+	createToken("STAR", "(<|>)?=?\\s*\\*");
+	createToken("GTE0", "^\\s*>=\\s*0\\.0\\.0\\s*$");
+	createToken("GTE0PRE", "^\\s*>=\\s*0\\.0\\.0-0\\s*$");
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/parse-options.js
+var require_parse_options = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const looseOption = Object.freeze({ loose: true });
+	const emptyOpts = Object.freeze({});
+	const parseOptions = (options) => {
+		if (!options) return emptyOpts;
+		if (typeof options !== "object") return looseOption;
+		return options;
+	};
+	module.exports = parseOptions;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/identifiers.js
+var require_identifiers = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const numeric = /^[0-9]+$/;
+	const compareIdentifiers = (a, b) => {
+		if (typeof a === "number" && typeof b === "number") return a === b ? 0 : a < b ? -1 : 1;
+		const anum = numeric.test(a);
+		const bnum = numeric.test(b);
+		if (anum && bnum) {
+			a = +a;
+			b = +b;
+		}
+		return a === b ? 0 : anum && !bnum ? -1 : bnum && !anum ? 1 : a < b ? -1 : 1;
+	};
+	const rcompareIdentifiers = (a, b) => compareIdentifiers(b, a);
+	module.exports = {
+		compareIdentifiers,
+		rcompareIdentifiers
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/semver.js
+var require_semver$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const debug = require_debug();
+	const { MAX_LENGTH, MAX_SAFE_INTEGER } = require_constants$1();
+	const { safeRe: re, t } = require_re();
+	const parseOptions = require_parse_options();
+	const { compareIdentifiers } = require_identifiers();
+	module.exports = class SemVer {
+		constructor(version, options) {
+			options = parseOptions(options);
+			if (version instanceof SemVer) if (version.loose === !!options.loose && version.includePrerelease === !!options.includePrerelease) return version;
+			else version = version.version;
+			else if (typeof version !== "string") throw new TypeError(`Invalid version. Must be a string. Got type "${typeof version}".`);
+			if (version.length > MAX_LENGTH) throw new TypeError(`version is longer than ${MAX_LENGTH} characters`);
+			debug("SemVer", version, options);
+			this.options = options;
+			this.loose = !!options.loose;
+			this.includePrerelease = !!options.includePrerelease;
+			const m = version.trim().match(options.loose ? re[t.LOOSE] : re[t.FULL]);
+			if (!m) throw new TypeError(`Invalid Version: ${version}`);
+			this.raw = version;
+			this.major = +m[1];
+			this.minor = +m[2];
+			this.patch = +m[3];
+			if (this.major > MAX_SAFE_INTEGER || this.major < 0) throw new TypeError("Invalid major version");
+			if (this.minor > MAX_SAFE_INTEGER || this.minor < 0) throw new TypeError("Invalid minor version");
+			if (this.patch > MAX_SAFE_INTEGER || this.patch < 0) throw new TypeError("Invalid patch version");
+			if (!m[4]) this.prerelease = [];
+			else this.prerelease = m[4].split(".").map((id) => {
+				if (/^[0-9]+$/.test(id)) {
+					const num = +id;
+					if (num >= 0 && num < MAX_SAFE_INTEGER) return num;
+				}
+				return id;
+			});
+			this.build = m[5] ? m[5].split(".") : [];
+			this.format();
+		}
+		format() {
+			this.version = `${this.major}.${this.minor}.${this.patch}`;
+			if (this.prerelease.length) this.version += `-${this.prerelease.join(".")}`;
+			return this.version;
+		}
+		toString() {
+			return this.version;
+		}
+		compare(other) {
+			debug("SemVer.compare", this.version, this.options, other);
+			if (!(other instanceof SemVer)) {
+				if (typeof other === "string" && other === this.version) return 0;
+				other = new SemVer(other, this.options);
+			}
+			if (other.version === this.version) return 0;
+			return this.compareMain(other) || this.comparePre(other);
+		}
+		compareMain(other) {
+			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
+			if (this.major < other.major) return -1;
+			if (this.major > other.major) return 1;
+			if (this.minor < other.minor) return -1;
+			if (this.minor > other.minor) return 1;
+			if (this.patch < other.patch) return -1;
+			if (this.patch > other.patch) return 1;
+			return 0;
+		}
+		comparePre(other) {
+			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
+			if (this.prerelease.length && !other.prerelease.length) return -1;
+			else if (!this.prerelease.length && other.prerelease.length) return 1;
+			else if (!this.prerelease.length && !other.prerelease.length) return 0;
+			let i = 0;
+			do {
+				const a = this.prerelease[i];
+				const b = other.prerelease[i];
+				debug("prerelease compare", i, a, b);
+				if (a === void 0 && b === void 0) return 0;
+				else if (b === void 0) return 1;
+				else if (a === void 0) return -1;
+				else if (a === b) continue;
+				else return compareIdentifiers(a, b);
+			} while (++i);
+		}
+		compareBuild(other) {
+			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
+			let i = 0;
+			do {
+				const a = this.build[i];
+				const b = other.build[i];
+				debug("build compare", i, a, b);
+				if (a === void 0 && b === void 0) return 0;
+				else if (b === void 0) return 1;
+				else if (a === void 0) return -1;
+				else if (a === b) continue;
+				else return compareIdentifiers(a, b);
+			} while (++i);
+		}
+		inc(release, identifier, identifierBase) {
+			if (release.startsWith("pre")) {
+				if (!identifier && identifierBase === false) throw new Error("invalid increment argument: identifier is empty");
+				if (identifier) {
+					const match = `-${identifier}`.match(this.options.loose ? re[t.PRERELEASELOOSE] : re[t.PRERELEASE]);
+					if (!match || match[1] !== identifier) throw new Error(`invalid identifier: ${identifier}`);
+				}
+			}
+			switch (release) {
+				case "premajor":
+					this.prerelease.length = 0;
+					this.patch = 0;
+					this.minor = 0;
+					this.major++;
+					this.inc("pre", identifier, identifierBase);
+					break;
+				case "preminor":
+					this.prerelease.length = 0;
+					this.patch = 0;
+					this.minor++;
+					this.inc("pre", identifier, identifierBase);
+					break;
+				case "prepatch":
+					this.prerelease.length = 0;
+					this.inc("patch", identifier, identifierBase);
+					this.inc("pre", identifier, identifierBase);
+					break;
+				case "prerelease":
+					if (this.prerelease.length === 0) this.inc("patch", identifier, identifierBase);
+					this.inc("pre", identifier, identifierBase);
+					break;
+				case "release":
+					if (this.prerelease.length === 0) throw new Error(`version ${this.raw} is not a prerelease`);
+					this.prerelease.length = 0;
+					break;
+				case "major":
+					if (this.minor !== 0 || this.patch !== 0 || this.prerelease.length === 0) this.major++;
+					this.minor = 0;
+					this.patch = 0;
+					this.prerelease = [];
+					break;
+				case "minor":
+					if (this.patch !== 0 || this.prerelease.length === 0) this.minor++;
+					this.patch = 0;
+					this.prerelease = [];
+					break;
+				case "patch":
+					if (this.prerelease.length === 0) this.patch++;
+					this.prerelease = [];
+					break;
+				case "pre": {
+					const base = Number(identifierBase) ? 1 : 0;
+					if (this.prerelease.length === 0) this.prerelease = [base];
+					else {
+						let i = this.prerelease.length;
+						while (--i >= 0) if (typeof this.prerelease[i] === "number") {
+							this.prerelease[i]++;
+							i = -2;
+						}
+						if (i === -1) {
+							if (identifier === this.prerelease.join(".") && identifierBase === false) throw new Error("invalid increment argument: identifier already exists");
+							this.prerelease.push(base);
+						}
+					}
+					if (identifier) {
+						let prerelease = [identifier, base];
+						if (identifierBase === false) prerelease = [identifier];
+						if (compareIdentifiers(this.prerelease[0], identifier) === 0) {
+							if (isNaN(this.prerelease[1])) this.prerelease = prerelease;
+						} else this.prerelease = prerelease;
+					}
+					break;
+				}
+				default: throw new Error(`invalid increment argument: ${release}`);
+			}
+			this.raw = this.format();
+			if (this.build.length) this.raw += `+${this.build.join(".")}`;
+			return this;
+		}
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/parse.js
+var require_parse$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const parse = (version, options, throwErrors = false) => {
+		if (version instanceof SemVer) return version;
+		try {
+			return new SemVer(version, options);
+		} catch (er) {
+			if (!throwErrors) return null;
+			throw er;
+		}
+	};
+	module.exports = parse;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/valid.js
+var require_valid$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const parse = require_parse$1();
+	const valid = (version, options) => {
+		const v = parse(version, options);
+		return v ? v.version : null;
+	};
+	module.exports = valid;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/clean.js
+var require_clean = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const parse = require_parse$1();
+	const clean = (version, options) => {
+		const s = parse(version.trim().replace(/^[=v]+/, ""), options);
+		return s ? s.version : null;
+	};
+	module.exports = clean;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/inc.js
+var require_inc = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const inc = (version, release, options, identifier, identifierBase) => {
+		if (typeof options === "string") {
+			identifierBase = identifier;
+			identifier = options;
+			options = void 0;
+		}
+		try {
+			return new SemVer(version instanceof SemVer ? version.version : version, options).inc(release, identifier, identifierBase).version;
+		} catch (er) {
+			return null;
+		}
+	};
+	module.exports = inc;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/diff.js
+var require_diff = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const parse = require_parse$1();
+	const diff = (version1, version2) => {
+		const v1 = parse(version1, null, true);
+		const v2 = parse(version2, null, true);
+		const comparison = v1.compare(v2);
+		if (comparison === 0) return null;
+		const v1Higher = comparison > 0;
+		const highVersion = v1Higher ? v1 : v2;
+		const lowVersion = v1Higher ? v2 : v1;
+		const highHasPre = !!highVersion.prerelease.length;
+		if (!!lowVersion.prerelease.length && !highHasPre) {
+			if (!lowVersion.patch && !lowVersion.minor) return "major";
+			if (lowVersion.compareMain(highVersion) === 0) {
+				if (lowVersion.minor && !lowVersion.patch) return "minor";
+				return "patch";
+			}
+		}
+		const prefix = highHasPre ? "pre" : "";
+		if (v1.major !== v2.major) return prefix + "major";
+		if (v1.minor !== v2.minor) return prefix + "minor";
+		if (v1.patch !== v2.patch) return prefix + "patch";
+		return "prerelease";
+	};
+	module.exports = diff;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/major.js
+var require_major = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const major = (a, loose) => new SemVer(a, loose).major;
+	module.exports = major;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/minor.js
+var require_minor = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const minor = (a, loose) => new SemVer(a, loose).minor;
+	module.exports = minor;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/patch.js
+var require_patch = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const patch = (a, loose) => new SemVer(a, loose).patch;
+	module.exports = patch;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/prerelease.js
+var require_prerelease = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const parse = require_parse$1();
+	const prerelease = (version, options) => {
+		const parsed = parse(version, options);
+		return parsed && parsed.prerelease.length ? parsed.prerelease : null;
+	};
+	module.exports = prerelease;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare.js
+var require_compare = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const compare = (a, b, loose) => new SemVer(a, loose).compare(new SemVer(b, loose));
+	module.exports = compare;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/rcompare.js
+var require_rcompare = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const rcompare = (a, b, loose) => compare(b, a, loose);
+	module.exports = rcompare;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare-loose.js
+var require_compare_loose = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const compareLoose = (a, b) => compare(a, b, true);
+	module.exports = compareLoose;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare-build.js
+var require_compare_build = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const compareBuild = (a, b, loose) => {
+		const versionA = new SemVer(a, loose);
+		const versionB = new SemVer(b, loose);
+		return versionA.compare(versionB) || versionA.compareBuild(versionB);
+	};
+	module.exports = compareBuild;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/sort.js
+var require_sort = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compareBuild = require_compare_build();
+	const sort = (list, loose) => list.sort((a, b) => compareBuild(a, b, loose));
+	module.exports = sort;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/rsort.js
+var require_rsort = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compareBuild = require_compare_build();
+	const rsort = (list, loose) => list.sort((a, b) => compareBuild(b, a, loose));
+	module.exports = rsort;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/gt.js
+var require_gt = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const gt = (a, b, loose) => compare(a, b, loose) > 0;
+	module.exports = gt;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/lt.js
+var require_lt = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const lt = (a, b, loose) => compare(a, b, loose) < 0;
+	module.exports = lt;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/eq.js
+var require_eq = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const eq = (a, b, loose) => compare(a, b, loose) === 0;
+	module.exports = eq;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/neq.js
+var require_neq = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const neq = (a, b, loose) => compare(a, b, loose) !== 0;
+	module.exports = neq;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/gte.js
+var require_gte = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const gte = (a, b, loose) => compare(a, b, loose) >= 0;
+	module.exports = gte;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/lte.js
+var require_lte = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const lte = (a, b, loose) => compare(a, b, loose) <= 0;
+	module.exports = lte;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/cmp.js
+var require_cmp = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const eq = require_eq();
+	const neq = require_neq();
+	const gt = require_gt();
+	const gte = require_gte();
+	const lt = require_lt();
+	const lte = require_lte();
+	const cmp = (a, op, b, loose) => {
+		switch (op) {
+			case "===":
+				if (typeof a === "object") a = a.version;
+				if (typeof b === "object") b = b.version;
+				return a === b;
+			case "!==":
+				if (typeof a === "object") a = a.version;
+				if (typeof b === "object") b = b.version;
+				return a !== b;
+			case "":
+			case "=":
+			case "==": return eq(a, b, loose);
+			case "!=": return neq(a, b, loose);
+			case ">": return gt(a, b, loose);
+			case ">=": return gte(a, b, loose);
+			case "<": return lt(a, b, loose);
+			case "<=": return lte(a, b, loose);
+			default: throw new TypeError(`Invalid operator: ${op}`);
+		}
+	};
+	module.exports = cmp;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/coerce.js
+var require_coerce = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const parse = require_parse$1();
+	const { safeRe: re, t } = require_re();
+	const coerce = (version, options) => {
+		if (version instanceof SemVer) return version;
+		if (typeof version === "number") version = String(version);
+		if (typeof version !== "string") return null;
+		options = options || {};
+		let match = null;
+		if (!options.rtl) match = version.match(options.includePrerelease ? re[t.COERCEFULL] : re[t.COERCE]);
+		else {
+			const coerceRtlRegex = options.includePrerelease ? re[t.COERCERTLFULL] : re[t.COERCERTL];
+			let next;
+			while ((next = coerceRtlRegex.exec(version)) && (!match || match.index + match[0].length !== version.length)) {
+				if (!match || next.index + next[0].length !== match.index + match[0].length) match = next;
+				coerceRtlRegex.lastIndex = next.index + next[1].length + next[2].length;
+			}
+			coerceRtlRegex.lastIndex = -1;
+		}
+		if (match === null) return null;
+		const major = match[2];
+		return parse(`${major}.${match[3] || "0"}.${match[4] || "0"}${options.includePrerelease && match[5] ? `-${match[5]}` : ""}${options.includePrerelease && match[6] ? `+${match[6]}` : ""}`, options);
+	};
+	module.exports = coerce;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/lrucache.js
+var require_lrucache = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	var LRUCache = class {
+		constructor() {
+			this.max = 1e3;
+			this.map = /* @__PURE__ */ new Map();
+		}
+		get(key) {
+			const value = this.map.get(key);
+			if (value === void 0) return;
+			else {
+				this.map.delete(key);
+				this.map.set(key, value);
+				return value;
+			}
+		}
+		delete(key) {
+			return this.map.delete(key);
+		}
+		set(key, value) {
+			if (!this.delete(key) && value !== void 0) {
+				if (this.map.size >= this.max) {
+					const firstKey = this.map.keys().next().value;
+					this.delete(firstKey);
+				}
+				this.map.set(key, value);
+			}
+			return this;
+		}
+	};
+	module.exports = LRUCache;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/range.js
+var require_range = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SPACE_CHARACTERS = /\s+/g;
+	module.exports = class Range {
+		constructor(range, options) {
+			options = parseOptions(options);
+			if (range instanceof Range) if (range.loose === !!options.loose && range.includePrerelease === !!options.includePrerelease) return range;
+			else return new Range(range.raw, options);
+			if (range instanceof Comparator) {
+				this.raw = range.value;
+				this.set = [[range]];
+				this.formatted = void 0;
+				return this;
+			}
+			this.options = options;
+			this.loose = !!options.loose;
+			this.includePrerelease = !!options.includePrerelease;
+			this.raw = range.trim().replace(SPACE_CHARACTERS, " ");
+			this.set = this.raw.split("||").map((r) => this.parseRange(r.trim())).filter((c) => c.length);
+			if (!this.set.length) throw new TypeError(`Invalid SemVer Range: ${this.raw}`);
+			if (this.set.length > 1) {
+				const first = this.set[0];
+				this.set = this.set.filter((c) => !isNullSet(c[0]));
+				if (this.set.length === 0) this.set = [first];
+				else if (this.set.length > 1) {
+					for (const c of this.set) if (c.length === 1 && isAny(c[0])) {
+						this.set = [c];
+						break;
+					}
+				}
+			}
+			this.formatted = void 0;
+		}
+		get range() {
+			if (this.formatted === void 0) {
+				this.formatted = "";
+				for (let i = 0; i < this.set.length; i++) {
+					if (i > 0) this.formatted += "||";
+					const comps = this.set[i];
+					for (let k = 0; k < comps.length; k++) {
+						if (k > 0) this.formatted += " ";
+						this.formatted += comps[k].toString().trim();
+					}
+				}
+			}
+			return this.formatted;
+		}
+		format() {
+			return this.range;
+		}
+		toString() {
+			return this.range;
+		}
+		parseRange(range) {
+			const memoKey = ((this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE)) + ":" + range;
+			const cached = cache.get(memoKey);
+			if (cached) return cached;
+			const loose = this.options.loose;
+			const hr = loose ? re[t.HYPHENRANGELOOSE] : re[t.HYPHENRANGE];
+			range = range.replace(hr, hyphenReplace(this.options.includePrerelease));
+			debug("hyphen replace", range);
+			range = range.replace(re[t.COMPARATORTRIM], comparatorTrimReplace);
+			debug("comparator trim", range);
+			range = range.replace(re[t.TILDETRIM], tildeTrimReplace);
+			debug("tilde trim", range);
+			range = range.replace(re[t.CARETTRIM], caretTrimReplace);
+			debug("caret trim", range);
+			let rangeList = range.split(" ").map((comp) => parseComparator(comp, this.options)).join(" ").split(/\s+/).map((comp) => replaceGTE0(comp, this.options));
+			if (loose) rangeList = rangeList.filter((comp) => {
+				debug("loose invalid filter", comp, this.options);
+				return !!comp.match(re[t.COMPARATORLOOSE]);
+			});
+			debug("range list", rangeList);
+			const rangeMap = /* @__PURE__ */ new Map();
+			const comparators = rangeList.map((comp) => new Comparator(comp, this.options));
+			for (const comp of comparators) {
+				if (isNullSet(comp)) return [comp];
+				rangeMap.set(comp.value, comp);
+			}
+			if (rangeMap.size > 1 && rangeMap.has("")) rangeMap.delete("");
+			const result = [...rangeMap.values()];
+			cache.set(memoKey, result);
+			return result;
+		}
+		intersects(range, options) {
+			if (!(range instanceof Range)) throw new TypeError("a Range is required");
+			return this.set.some((thisComparators) => {
+				return isSatisfiable(thisComparators, options) && range.set.some((rangeComparators) => {
+					return isSatisfiable(rangeComparators, options) && thisComparators.every((thisComparator) => {
+						return rangeComparators.every((rangeComparator) => {
+							return thisComparator.intersects(rangeComparator, options);
+						});
+					});
+				});
+			});
+		}
+		test(version) {
+			if (!version) return false;
+			if (typeof version === "string") try {
+				version = new SemVer(version, this.options);
+			} catch (er) {
+				return false;
+			}
+			for (let i = 0; i < this.set.length; i++) if (testSet(this.set[i], version, this.options)) return true;
+			return false;
+		}
+	};
+	const cache = new (require_lrucache())();
+	const parseOptions = require_parse_options();
+	const Comparator = require_comparator();
+	const debug = require_debug();
+	const SemVer = require_semver$1();
+	const { safeRe: re, t, comparatorTrimReplace, tildeTrimReplace, caretTrimReplace } = require_re();
+	const { FLAG_INCLUDE_PRERELEASE, FLAG_LOOSE } = require_constants$1();
+	const isNullSet = (c) => c.value === "<0.0.0-0";
+	const isAny = (c) => c.value === "";
+	const isSatisfiable = (comparators, options) => {
+		let result = true;
+		const remainingComparators = comparators.slice();
+		let testComparator = remainingComparators.pop();
+		while (result && remainingComparators.length) {
+			result = remainingComparators.every((otherComparator) => {
+				return testComparator.intersects(otherComparator, options);
+			});
+			testComparator = remainingComparators.pop();
+		}
+		return result;
+	};
+	const parseComparator = (comp, options) => {
+		comp = comp.replace(re[t.BUILD], "");
+		debug("comp", comp, options);
+		comp = replaceCarets(comp, options);
+		debug("caret", comp);
+		comp = replaceTildes(comp, options);
+		debug("tildes", comp);
+		comp = replaceXRanges(comp, options);
+		debug("xrange", comp);
+		comp = replaceStars(comp, options);
+		debug("stars", comp);
+		return comp;
+	};
+	const isX = (id) => !id || id.toLowerCase() === "x" || id === "*";
+	const replaceTildes = (comp, options) => {
+		return comp.trim().split(/\s+/).map((c) => replaceTilde(c, options)).join(" ");
+	};
+	const replaceTilde = (comp, options) => {
+		const r = options.loose ? re[t.TILDELOOSE] : re[t.TILDE];
+		return comp.replace(r, (_, M, m, p, pr) => {
+			debug("tilde", comp, _, M, m, p, pr);
+			let ret;
+			if (isX(M)) ret = "";
+			else if (isX(m)) ret = `>=${M}.0.0 <${+M + 1}.0.0-0`;
+			else if (isX(p)) ret = `>=${M}.${m}.0 <${M}.${+m + 1}.0-0`;
+			else if (pr) {
+				debug("replaceTilde pr", pr);
+				ret = `>=${M}.${m}.${p}-${pr} <${M}.${+m + 1}.0-0`;
+			} else ret = `>=${M}.${m}.${p} <${M}.${+m + 1}.0-0`;
+			debug("tilde return", ret);
+			return ret;
+		});
+	};
+	const replaceCarets = (comp, options) => {
+		return comp.trim().split(/\s+/).map((c) => replaceCaret(c, options)).join(" ");
+	};
+	const replaceCaret = (comp, options) => {
+		debug("caret", comp, options);
+		const r = options.loose ? re[t.CARETLOOSE] : re[t.CARET];
+		const z = options.includePrerelease ? "-0" : "";
+		return comp.replace(r, (_, M, m, p, pr) => {
+			debug("caret", comp, _, M, m, p, pr);
+			let ret;
+			if (isX(M)) ret = "";
+			else if (isX(m)) ret = `>=${M}.0.0${z} <${+M + 1}.0.0-0`;
+			else if (isX(p)) if (M === "0") ret = `>=${M}.${m}.0${z} <${M}.${+m + 1}.0-0`;
+			else ret = `>=${M}.${m}.0${z} <${+M + 1}.0.0-0`;
+			else if (pr) {
+				debug("replaceCaret pr", pr);
+				if (M === "0") if (m === "0") ret = `>=${M}.${m}.${p}-${pr} <${M}.${m}.${+p + 1}-0`;
+				else ret = `>=${M}.${m}.${p}-${pr} <${M}.${+m + 1}.0-0`;
+				else ret = `>=${M}.${m}.${p}-${pr} <${+M + 1}.0.0-0`;
+			} else {
+				debug("no pr");
+				if (M === "0") if (m === "0") ret = `>=${M}.${m}.${p}${z} <${M}.${m}.${+p + 1}-0`;
+				else ret = `>=${M}.${m}.${p}${z} <${M}.${+m + 1}.0-0`;
+				else ret = `>=${M}.${m}.${p} <${+M + 1}.0.0-0`;
+			}
+			debug("caret return", ret);
+			return ret;
+		});
+	};
+	const replaceXRanges = (comp, options) => {
+		debug("replaceXRanges", comp, options);
+		return comp.split(/\s+/).map((c) => replaceXRange(c, options)).join(" ");
+	};
+	const replaceXRange = (comp, options) => {
+		comp = comp.trim();
+		const r = options.loose ? re[t.XRANGELOOSE] : re[t.XRANGE];
+		return comp.replace(r, (ret, gtlt, M, m, p, pr) => {
+			debug("xRange", comp, ret, gtlt, M, m, p, pr);
+			const xM = isX(M);
+			const xm = xM || isX(m);
+			const xp = xm || isX(p);
+			const anyX = xp;
+			if (gtlt === "=" && anyX) gtlt = "";
+			pr = options.includePrerelease ? "-0" : "";
+			if (xM) if (gtlt === ">" || gtlt === "<") ret = "<0.0.0-0";
+			else ret = "*";
+			else if (gtlt && anyX) {
+				if (xm) m = 0;
+				p = 0;
+				if (gtlt === ">") {
+					gtlt = ">=";
+					if (xm) {
+						M = +M + 1;
+						m = 0;
+						p = 0;
+					} else {
+						m = +m + 1;
+						p = 0;
+					}
+				} else if (gtlt === "<=") {
+					gtlt = "<";
+					if (xm) M = +M + 1;
+					else m = +m + 1;
+				}
+				if (gtlt === "<") pr = "-0";
+				ret = `${gtlt + M}.${m}.${p}${pr}`;
+			} else if (xm) ret = `>=${M}.0.0${pr} <${+M + 1}.0.0-0`;
+			else if (xp) ret = `>=${M}.${m}.0${pr} <${M}.${+m + 1}.0-0`;
+			debug("xRange return", ret);
+			return ret;
+		});
+	};
+	const replaceStars = (comp, options) => {
+		debug("replaceStars", comp, options);
+		return comp.trim().replace(re[t.STAR], "");
+	};
+	const replaceGTE0 = (comp, options) => {
+		debug("replaceGTE0", comp, options);
+		return comp.trim().replace(re[options.includePrerelease ? t.GTE0PRE : t.GTE0], "");
+	};
+	const hyphenReplace = (incPr) => ($0, from, fM, fm, fp, fpr, fb, to, tM, tm, tp, tpr) => {
+		if (isX(fM)) from = "";
+		else if (isX(fm)) from = `>=${fM}.0.0${incPr ? "-0" : ""}`;
+		else if (isX(fp)) from = `>=${fM}.${fm}.0${incPr ? "-0" : ""}`;
+		else if (fpr) from = `>=${from}`;
+		else from = `>=${from}${incPr ? "-0" : ""}`;
+		if (isX(tM)) to = "";
+		else if (isX(tm)) to = `<${+tM + 1}.0.0-0`;
+		else if (isX(tp)) to = `<${tM}.${+tm + 1}.0-0`;
+		else if (tpr) to = `<=${tM}.${tm}.${tp}-${tpr}`;
+		else if (incPr) to = `<${tM}.${tm}.${+tp + 1}-0`;
+		else to = `<=${to}`;
+		return `${from} ${to}`.trim();
+	};
+	const testSet = (set, version, options) => {
+		for (let i = 0; i < set.length; i++) if (!set[i].test(version)) return false;
+		if (version.prerelease.length && !options.includePrerelease) {
+			for (let i = 0; i < set.length; i++) {
+				debug(set[i].semver);
+				if (set[i].semver === Comparator.ANY) continue;
+				if (set[i].semver.prerelease.length > 0) {
+					const allowed = set[i].semver;
+					if (allowed.major === version.major && allowed.minor === version.minor && allowed.patch === version.patch) return true;
+				}
+			}
+			return false;
+		}
+		return true;
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/comparator.js
+var require_comparator = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const ANY = Symbol("SemVer ANY");
+	module.exports = class Comparator {
+		static get ANY() {
+			return ANY;
+		}
+		constructor(comp, options) {
+			options = parseOptions(options);
+			if (comp instanceof Comparator) if (comp.loose === !!options.loose) return comp;
+			else comp = comp.value;
+			comp = comp.trim().split(/\s+/).join(" ");
+			debug("comparator", comp, options);
+			this.options = options;
+			this.loose = !!options.loose;
+			this.parse(comp);
+			if (this.semver === ANY) this.value = "";
+			else this.value = this.operator + this.semver.version;
+			debug("comp", this);
+		}
+		parse(comp) {
+			const r = this.options.loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR];
+			const m = comp.match(r);
+			if (!m) throw new TypeError(`Invalid comparator: ${comp}`);
+			this.operator = m[1] !== void 0 ? m[1] : "";
+			if (this.operator === "=") this.operator = "";
+			if (!m[2]) this.semver = ANY;
+			else this.semver = new SemVer(m[2], this.options.loose);
+		}
+		toString() {
+			return this.value;
+		}
+		test(version) {
+			debug("Comparator.test", version, this.options.loose);
+			if (this.semver === ANY || version === ANY) return true;
+			if (typeof version === "string") try {
+				version = new SemVer(version, this.options);
+			} catch (er) {
+				return false;
+			}
+			return cmp(version, this.operator, this.semver, this.options);
+		}
+		intersects(comp, options) {
+			if (!(comp instanceof Comparator)) throw new TypeError("a Comparator is required");
+			if (this.operator === "") {
+				if (this.value === "") return true;
+				return new Range(comp.value, options).test(this.value);
+			} else if (comp.operator === "") {
+				if (comp.value === "") return true;
+				return new Range(this.value, options).test(comp.semver);
+			}
+			options = parseOptions(options);
+			if (options.includePrerelease && (this.value === "<0.0.0-0" || comp.value === "<0.0.0-0")) return false;
+			if (!options.includePrerelease && (this.value.startsWith("<0.0.0") || comp.value.startsWith("<0.0.0"))) return false;
+			if (this.operator.startsWith(">") && comp.operator.startsWith(">")) return true;
+			if (this.operator.startsWith("<") && comp.operator.startsWith("<")) return true;
+			if (this.semver.version === comp.semver.version && this.operator.includes("=") && comp.operator.includes("=")) return true;
+			if (cmp(this.semver, "<", comp.semver, options) && this.operator.startsWith(">") && comp.operator.startsWith("<")) return true;
+			if (cmp(this.semver, ">", comp.semver, options) && this.operator.startsWith("<") && comp.operator.startsWith(">")) return true;
+			return false;
+		}
+	};
+	const parseOptions = require_parse_options();
+	const { safeRe: re, t } = require_re();
+	const cmp = require_cmp();
+	const debug = require_debug();
+	const SemVer = require_semver$1();
+	const Range = require_range();
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/satisfies.js
+var require_satisfies = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const Range = require_range();
+	const satisfies = (version, range, options) => {
+		try {
+			range = new Range(range, options);
+		} catch (er) {
+			return false;
+		}
+		return range.test(version);
+	};
+	module.exports = satisfies;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/to-comparators.js
+var require_to_comparators = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const Range = require_range();
+	const toComparators = (range, options) => new Range(range, options).set.map((comp) => comp.map((c) => c.value).join(" ").trim().split(" "));
+	module.exports = toComparators;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/max-satisfying.js
+var require_max_satisfying = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const Range = require_range();
+	const maxSatisfying = (versions, range, options) => {
+		let max = null;
+		let maxSV = null;
+		let rangeObj = null;
+		try {
+			rangeObj = new Range(range, options);
+		} catch (er) {
+			return null;
+		}
+		versions.forEach((v) => {
+			if (rangeObj.test(v)) {
+				if (!max || maxSV.compare(v) === -1) {
+					max = v;
+					maxSV = new SemVer(max, options);
+				}
+			}
+		});
+		return max;
+	};
+	module.exports = maxSatisfying;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/min-satisfying.js
+var require_min_satisfying = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const Range = require_range();
+	const minSatisfying = (versions, range, options) => {
+		let min = null;
+		let minSV = null;
+		let rangeObj = null;
+		try {
+			rangeObj = new Range(range, options);
+		} catch (er) {
+			return null;
+		}
+		versions.forEach((v) => {
+			if (rangeObj.test(v)) {
+				if (!min || minSV.compare(v) === 1) {
+					min = v;
+					minSV = new SemVer(min, options);
+				}
+			}
+		});
+		return min;
+	};
+	module.exports = minSatisfying;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/min-version.js
+var require_min_version = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const Range = require_range();
+	const gt = require_gt();
+	const minVersion = (range, loose) => {
+		range = new Range(range, loose);
+		let minver = new SemVer("0.0.0");
+		if (range.test(minver)) return minver;
+		minver = new SemVer("0.0.0-0");
+		if (range.test(minver)) return minver;
+		minver = null;
+		for (let i = 0; i < range.set.length; ++i) {
+			const comparators = range.set[i];
+			let setMin = null;
+			comparators.forEach((comparator) => {
+				const compver = new SemVer(comparator.semver.version);
+				switch (comparator.operator) {
+					case ">":
+						if (compver.prerelease.length === 0) compver.patch++;
+						else compver.prerelease.push(0);
+						compver.raw = compver.format();
+					case "":
+					case ">=":
+						if (!setMin || gt(compver, setMin)) setMin = compver;
+						break;
+					case "<":
+					case "<=": break;
+					/* istanbul ignore next */
+					default: throw new Error(`Unexpected operation: ${comparator.operator}`);
+				}
+			});
+			if (setMin && (!minver || gt(minver, setMin))) minver = setMin;
+		}
+		if (minver && range.test(minver)) return minver;
+		return null;
+	};
+	module.exports = minVersion;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/valid.js
+var require_valid = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const Range = require_range();
+	const validRange = (range, options) => {
+		try {
+			return new Range(range, options).range || "*";
+		} catch (er) {
+			return null;
+		}
+	};
+	module.exports = validRange;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/outside.js
+var require_outside = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const Comparator = require_comparator();
+	const { ANY } = Comparator;
+	const Range = require_range();
+	const satisfies = require_satisfies();
+	const gt = require_gt();
+	const lt = require_lt();
+	const lte = require_lte();
+	const gte = require_gte();
+	const outside = (version, range, hilo, options) => {
+		version = new SemVer(version, options);
+		range = new Range(range, options);
+		let gtfn, ltefn, ltfn, comp, ecomp;
+		switch (hilo) {
+			case ">":
+				gtfn = gt;
+				ltefn = lte;
+				ltfn = lt;
+				comp = ">";
+				ecomp = ">=";
+				break;
+			case "<":
+				gtfn = lt;
+				ltefn = gte;
+				ltfn = gt;
+				comp = "<";
+				ecomp = "<=";
+				break;
+			default: throw new TypeError("Must provide a hilo val of \"<\" or \">\"");
+		}
+		if (satisfies(version, range, options)) return false;
+		for (let i = 0; i < range.set.length; ++i) {
+			const comparators = range.set[i];
+			let high = null;
+			let low = null;
+			comparators.forEach((comparator) => {
+				if (comparator.semver === ANY) comparator = new Comparator(">=0.0.0");
+				high = high || comparator;
+				low = low || comparator;
+				if (gtfn(comparator.semver, high.semver, options)) high = comparator;
+				else if (ltfn(comparator.semver, low.semver, options)) low = comparator;
+			});
+			if (high.operator === comp || high.operator === ecomp) return false;
+			if ((!low.operator || low.operator === comp) && ltefn(version, low.semver)) return false;
+			else if (low.operator === ecomp && ltfn(version, low.semver)) return false;
+		}
+		return true;
+	};
+	module.exports = outside;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/gtr.js
+var require_gtr = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const outside = require_outside();
+	const gtr = (version, range, options) => outside(version, range, ">", options);
+	module.exports = gtr;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/ltr.js
+var require_ltr = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const outside = require_outside();
+	const ltr = (version, range, options) => outside(version, range, "<", options);
+	module.exports = ltr;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/intersects.js
+var require_intersects = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const Range = require_range();
+	const intersects = (r1, r2, options) => {
+		r1 = new Range(r1, options);
+		r2 = new Range(r2, options);
+		return r1.intersects(r2, options);
+	};
+	module.exports = intersects;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/simplify.js
+var require_simplify = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const satisfies = require_satisfies();
+	const compare = require_compare();
+	module.exports = (versions, range, options) => {
+		const set = [];
+		let first = null;
+		let prev = null;
+		const v = versions.sort((a, b) => compare(a, b, options));
+		for (const version of v) if (satisfies(version, range, options)) {
+			prev = version;
+			if (!first) first = version;
+		} else {
+			if (prev) set.push([first, prev]);
+			prev = null;
+			first = null;
+		}
+		if (first) set.push([first, null]);
+		const ranges = [];
+		for (const [min, max] of set) if (min === max) ranges.push(min);
+		else if (!max && min === v[0]) ranges.push("*");
+		else if (!max) ranges.push(`>=${min}`);
+		else if (min === v[0]) ranges.push(`<=${max}`);
+		else ranges.push(`${min} - ${max}`);
+		const simplified = ranges.join(" || ");
+		const original = typeof range.raw === "string" ? range.raw : String(range);
+		return simplified.length < original.length ? simplified : range;
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/subset.js
+var require_subset = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const Range = require_range();
+	const Comparator = require_comparator();
+	const { ANY } = Comparator;
+	const satisfies = require_satisfies();
+	const compare = require_compare();
+	const subset = (sub, dom, options = {}) => {
+		if (sub === dom) return true;
+		sub = new Range(sub, options);
+		dom = new Range(dom, options);
+		let sawNonNull = false;
+		OUTER: for (const simpleSub of sub.set) {
+			for (const simpleDom of dom.set) {
+				const isSub = simpleSubset(simpleSub, simpleDom, options);
+				sawNonNull = sawNonNull || isSub !== null;
+				if (isSub) continue OUTER;
+			}
+			if (sawNonNull) return false;
+		}
+		return true;
+	};
+	const minimumVersionWithPreRelease = [new Comparator(">=0.0.0-0")];
+	const minimumVersion = [new Comparator(">=0.0.0")];
+	const simpleSubset = (sub, dom, options) => {
+		if (sub === dom) return true;
+		if (sub.length === 1 && sub[0].semver === ANY) if (dom.length === 1 && dom[0].semver === ANY) return true;
+		else if (options.includePrerelease) sub = minimumVersionWithPreRelease;
+		else sub = minimumVersion;
+		if (dom.length === 1 && dom[0].semver === ANY) if (options.includePrerelease) return true;
+		else dom = minimumVersion;
+		const eqSet = /* @__PURE__ */ new Set();
+		let gt, lt;
+		for (const c of sub) if (c.operator === ">" || c.operator === ">=") gt = higherGT(gt, c, options);
+		else if (c.operator === "<" || c.operator === "<=") lt = lowerLT(lt, c, options);
+		else eqSet.add(c.semver);
+		if (eqSet.size > 1) return null;
+		let gtltComp;
+		if (gt && lt) {
+			gtltComp = compare(gt.semver, lt.semver, options);
+			if (gtltComp > 0) return null;
+			else if (gtltComp === 0 && (gt.operator !== ">=" || lt.operator !== "<=")) return null;
+		}
+		for (const eq of eqSet) {
+			if (gt && !satisfies(eq, String(gt), options)) return null;
+			if (lt && !satisfies(eq, String(lt), options)) return null;
+			for (const c of dom) if (!satisfies(eq, String(c), options)) return false;
+			return true;
+		}
+		let higher, lower;
+		let hasDomLT, hasDomGT;
+		let needDomLTPre = lt && !options.includePrerelease && lt.semver.prerelease.length ? lt.semver : false;
+		let needDomGTPre = gt && !options.includePrerelease && gt.semver.prerelease.length ? gt.semver : false;
+		if (needDomLTPre && needDomLTPre.prerelease.length === 1 && lt.operator === "<" && needDomLTPre.prerelease[0] === 0) needDomLTPre = false;
+		for (const c of dom) {
+			hasDomGT = hasDomGT || c.operator === ">" || c.operator === ">=";
+			hasDomLT = hasDomLT || c.operator === "<" || c.operator === "<=";
+			if (gt) {
+				if (needDomGTPre) {
+					if (c.semver.prerelease && c.semver.prerelease.length && c.semver.major === needDomGTPre.major && c.semver.minor === needDomGTPre.minor && c.semver.patch === needDomGTPre.patch) needDomGTPre = false;
+				}
+				if (c.operator === ">" || c.operator === ">=") {
+					higher = higherGT(gt, c, options);
+					if (higher === c && higher !== gt) return false;
+				} else if (gt.operator === ">=" && !satisfies(gt.semver, String(c), options)) return false;
+			}
+			if (lt) {
+				if (needDomLTPre) {
+					if (c.semver.prerelease && c.semver.prerelease.length && c.semver.major === needDomLTPre.major && c.semver.minor === needDomLTPre.minor && c.semver.patch === needDomLTPre.patch) needDomLTPre = false;
+				}
+				if (c.operator === "<" || c.operator === "<=") {
+					lower = lowerLT(lt, c, options);
+					if (lower === c && lower !== lt) return false;
+				} else if (lt.operator === "<=" && !satisfies(lt.semver, String(c), options)) return false;
+			}
+			if (!c.operator && (lt || gt) && gtltComp !== 0) return false;
+		}
+		if (gt && hasDomLT && !lt && gtltComp !== 0) return false;
+		if (lt && hasDomGT && !gt && gtltComp !== 0) return false;
+		if (needDomGTPre || needDomLTPre) return false;
+		return true;
+	};
+	const higherGT = (a, b, options) => {
+		if (!a) return b;
+		const comp = compare(a.semver, b.semver, options);
+		return comp > 0 ? a : comp < 0 ? b : b.operator === ">" && a.operator === ">=" ? b : a;
+	};
+	const lowerLT = (a, b, options) => {
+		if (!a) return b;
+		const comp = compare(a.semver, b.semver, options);
+		return comp < 0 ? a : comp > 0 ? b : b.operator === "<" && a.operator === "<=" ? b : a;
+	};
+	module.exports = subset;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/index.js
+var require_semver = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const internalRe = require_re();
+	const constants = require_constants$1();
+	const SemVer = require_semver$1();
+	const identifiers = require_identifiers();
+	module.exports = {
+		parse: require_parse$1(),
+		valid: require_valid$1(),
+		clean: require_clean(),
+		inc: require_inc(),
+		diff: require_diff(),
+		major: require_major(),
+		minor: require_minor(),
+		patch: require_patch(),
+		prerelease: require_prerelease(),
+		compare: require_compare(),
+		rcompare: require_rcompare(),
+		compareLoose: require_compare_loose(),
+		compareBuild: require_compare_build(),
+		sort: require_sort(),
+		rsort: require_rsort(),
+		gt: require_gt(),
+		lt: require_lt(),
+		eq: require_eq(),
+		neq: require_neq(),
+		gte: require_gte(),
+		lte: require_lte(),
+		cmp: require_cmp(),
+		coerce: require_coerce(),
+		Comparator: require_comparator(),
+		Range: require_range(),
+		satisfies: require_satisfies(),
+		toComparators: require_to_comparators(),
+		maxSatisfying: require_max_satisfying(),
+		minSatisfying: require_min_satisfying(),
+		minVersion: require_min_version(),
+		validRange: require_valid(),
+		outside: require_outside(),
+		gtr: require_gtr(),
+		ltr: require_ltr(),
+		intersects: require_intersects(),
+		simplifyRange: require_simplify(),
+		subset: require_subset(),
+		SemVer,
+		re: internalRe.re,
+		src: internalRe.src,
+		tokens: internalRe.t,
+		SEMVER_SPEC_VERSION: constants.SEMVER_SPEC_VERSION,
+		RELEASE_TYPES: constants.RELEASE_TYPES,
+		compareIdentifiers: identifiers.compareIdentifiers,
+		rcompareIdentifiers: identifiers.rcompareIdentifiers
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/constants.js
+var require_constants = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
 	const WIN_SLASH = "\\\\/";
 	const WIN_NO_SLASH = `[^${WIN_SLASH}]`;
 	const DEFAULT_MAX_EXTGLOB_RECURSION = 0;
@@ -19554,7 +20943,7 @@ var require_constants$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => 
 //#endregion
 //#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/utils.js
 var require_utils = /* @__PURE__ */ __commonJSMin$1(((exports) => {
-	const { REGEX_BACKSLASH, REGEX_REMOVE_BACKSLASH, REGEX_SPECIAL_CHARS, REGEX_SPECIAL_CHARS_GLOBAL } = require_constants$1();
+	const { REGEX_BACKSLASH, REGEX_REMOVE_BACKSLASH, REGEX_SPECIAL_CHARS, REGEX_SPECIAL_CHARS_GLOBAL } = require_constants();
 	exports.isObject = (val) => val !== null && typeof val === "object" && !Array.isArray(val);
 	exports.hasRegexChars = (str) => REGEX_SPECIAL_CHARS.test(str);
 	exports.isRegexChar = (str) => str.length === 1 && exports.hasRegexChars(str);
@@ -19603,7 +20992,7 @@ var require_utils = /* @__PURE__ */ __commonJSMin$1(((exports) => {
 //#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/scan.js
 var require_scan = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
 	const utils = require_utils();
-	const { CHAR_ASTERISK, CHAR_AT, CHAR_BACKWARD_SLASH, CHAR_COMMA, CHAR_DOT, CHAR_EXCLAMATION_MARK, CHAR_FORWARD_SLASH, CHAR_LEFT_CURLY_BRACE, CHAR_LEFT_PARENTHESES, CHAR_LEFT_SQUARE_BRACKET, CHAR_PLUS, CHAR_QUESTION_MARK, CHAR_RIGHT_CURLY_BRACE, CHAR_RIGHT_PARENTHESES, CHAR_RIGHT_SQUARE_BRACKET } = require_constants$1();
+	const { CHAR_ASTERISK, CHAR_AT, CHAR_BACKWARD_SLASH, CHAR_COMMA, CHAR_DOT, CHAR_EXCLAMATION_MARK, CHAR_FORWARD_SLASH, CHAR_LEFT_CURLY_BRACE, CHAR_LEFT_PARENTHESES, CHAR_LEFT_SQUARE_BRACKET, CHAR_PLUS, CHAR_QUESTION_MARK, CHAR_RIGHT_CURLY_BRACE, CHAR_RIGHT_PARENTHESES, CHAR_RIGHT_SQUARE_BRACKET } = require_constants();
 	const isPathSeparator = (code) => {
 		return code === CHAR_FORWARD_SLASH || code === CHAR_BACKWARD_SLASH;
 	};
@@ -19888,8 +21277,8 @@ var require_scan = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
 }));
 //#endregion
 //#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/parse.js
-var require_parse$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const constants = require_constants$1();
+var require_parse = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const constants = require_constants();
 	const utils = require_utils();
 	/**
 	* Constants
@@ -20945,9 +22334,9 @@ var require_parse$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
 //#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/picomatch.js
 var require_picomatch$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
 	const scan = require_scan();
-	const parse = require_parse$1();
+	const parse = require_parse();
 	const utils = require_utils();
-	const constants = require_constants$1();
+	const constants = require_constants();
 	const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 	/**
 	* Creates a matcher function from one or more glob patterns. The
@@ -21242,8 +22631,8 @@ var require_picomatch$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => 
 	module.exports = picomatch;
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/effect@4.0.0-beta.70/node_modules/effect/dist/Brand.js
-var import_picomatch = /* @__PURE__ */ __toESM$1((/* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+//#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/index.js
+var require_picomatch = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
 	const pico = require_picomatch$1();
 	const utils = require_utils();
 	function picomatch(glob, options, returnState = false) {
@@ -21255,7 +22644,11 @@ var import_picomatch = /* @__PURE__ */ __toESM$1((/* @__PURE__ */ __commonJSMin$
 	}
 	Object.assign(picomatch, pico);
 	module.exports = picomatch;
-})))(), 1);
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/effect@4.0.0-beta.70/node_modules/effect/dist/Brand.js
+var import_semver = /* @__PURE__ */ __toESM$1(require_semver(), 1);
+var import_picomatch = /* @__PURE__ */ __toESM$1(require_picomatch(), 1);
 /**
 * Returns a `Constructor` that **does not apply any runtime checks** and just
 * returns the provided value.
@@ -23860,6 +25253,14 @@ const runWith = (self, f, onHalt) => suspend$2(() => {
 	return catchDone(flatMap$2(toTransform(self)(done$1(), scope), f), onHalt ? onHalt : succeed$2).pipe(onExit$1((exit) => close(scope, exit)));
 });
 /**
+* Provides a concrete service for a context key, removing that service
+* requirement from the returned channel.
+*
+* @category services
+* @since 2.0.0
+*/
+const provideService$1 = /* @__PURE__ */ dual(3, (self, key, service) => fromTransform$1((upstream, scope) => map$3(provideService$2(toTransform(self)(upstream, scope), key, service), provideService$2(key, service))));
+/**
 * Runs a channel and applies an effect to each output element.
 *
 * **Example** (Running effects for each output)
@@ -25247,6 +26648,44 @@ const splitLines = (self) => self.channel.pipe(pipeTo(splitLines$1()), fromChann
 * @since 2.0.0
 */
 const ensuring = /* @__PURE__ */ dual(2, (self, finalizer) => fromChannel(ensuring$1(self.channel, finalizer)));
+/**
+* Provides the stream with a single required service, eliminating that
+* requirement from its environment.
+*
+* **Example** (Providing a stream service)
+*
+* ```ts
+* import { Console, Context, Effect, Stream } from "effect"
+*
+* class Greeter extends Context.Service<Greeter, {
+*   greet: (name: string) => string
+* }>()("Greeter") {}
+*
+* const stream = Stream.fromEffect(
+*   Effect.service(Greeter).pipe(
+*     Effect.map((greeter) => greeter.greet("Ada"))
+*   )
+* )
+*
+* const program = Effect.gen(function*() {
+*   const collected = yield* Stream.runCollect(
+*     stream.pipe(
+*       Stream.provideService(Greeter, {
+*         greet: (name) => `Hello, ${name}`
+*       })
+*     )
+*   )
+*   yield* Console.log(collected)
+* })
+*
+* Effect.runPromise(program)
+* //=> ["Hello, Ada"]
+* ```
+*
+* @category services
+* @since 2.0.0
+*/
+const provideService = /* @__PURE__ */ dual(3, (self, key, service) => fromChannel(provideService$1(self.channel, key, service)));
 /**
 * Runs a stream with a sink and returns the sink result.
 *
@@ -28677,7 +30116,7 @@ const make$8 = /* @__PURE__ */ fnUntraced(function* (options) {
 	const runFork = runForkWith(services);
 	const exportInterval = max(fromInputUnsafe(options.exportInterval), zero);
 	let disabledUntil = void 0;
-	const client = filterStatusOk(get$4(services, HttpClient)).pipe(transformResponse(provideService(TracerPropagationEnabled, false)), retryTransient({
+	const client = filterStatusOk(get$4(services, HttpClient)).pipe(transformResponse(provideService$2(TracerPropagationEnabled, false)), retryTransient({
 		schedule: policy,
 		times: 3
 	}));
@@ -29721,1343 +31160,7 @@ const warn$1 = (...args) => consoleWith((console) => sync$2(() => {
 	console.warn(...args);
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/constants.js
-var require_constants = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SEMVER_SPEC_VERSION = "2.0.0";
-	const MAX_LENGTH = 256;
-	const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER || 9007199254740991;
-	module.exports = {
-		MAX_LENGTH,
-		MAX_SAFE_COMPONENT_LENGTH: 16,
-		MAX_SAFE_BUILD_LENGTH: MAX_LENGTH - 6,
-		MAX_SAFE_INTEGER,
-		RELEASE_TYPES: [
-			"major",
-			"premajor",
-			"minor",
-			"preminor",
-			"patch",
-			"prepatch",
-			"prerelease"
-		],
-		SEMVER_SPEC_VERSION,
-		FLAG_INCLUDE_PRERELEASE: 1,
-		FLAG_LOOSE: 2
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/debug.js
-var require_debug = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	module.exports = typeof process === "object" && process.env && process.env.NODE_DEBUG && /\bsemver\b/i.test(process.env.NODE_DEBUG) ? (...args) => console.error("SEMVER", ...args) : () => {};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/re.js
-var require_re = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const { MAX_SAFE_COMPONENT_LENGTH, MAX_SAFE_BUILD_LENGTH, MAX_LENGTH } = require_constants();
-	const debug = require_debug();
-	exports = module.exports = {};
-	const re = exports.re = [];
-	const safeRe = exports.safeRe = [];
-	const src = exports.src = [];
-	const safeSrc = exports.safeSrc = [];
-	const t = exports.t = {};
-	let R = 0;
-	const LETTERDASHNUMBER = "[a-zA-Z0-9-]";
-	const safeRegexReplacements = [
-		["\\s", 1],
-		["\\d", MAX_LENGTH],
-		[LETTERDASHNUMBER, MAX_SAFE_BUILD_LENGTH]
-	];
-	const makeSafeRegex = (value) => {
-		for (const [token, max] of safeRegexReplacements) value = value.split(`${token}*`).join(`${token}{0,${max}}`).split(`${token}+`).join(`${token}{1,${max}}`);
-		return value;
-	};
-	const createToken = (name, value, isGlobal) => {
-		const safe = makeSafeRegex(value);
-		const index = R++;
-		debug(name, index, value);
-		t[name] = index;
-		src[index] = value;
-		safeSrc[index] = safe;
-		re[index] = new RegExp(value, isGlobal ? "g" : void 0);
-		safeRe[index] = new RegExp(safe, isGlobal ? "g" : void 0);
-	};
-	createToken("NUMERICIDENTIFIER", "0|[1-9]\\d*");
-	createToken("NUMERICIDENTIFIERLOOSE", "\\d+");
-	createToken("NONNUMERICIDENTIFIER", `\\d*[a-zA-Z-]${LETTERDASHNUMBER}*`);
-	createToken("MAINVERSION", `(${src[t.NUMERICIDENTIFIER]})\\.(${src[t.NUMERICIDENTIFIER]})\\.(${src[t.NUMERICIDENTIFIER]})`);
-	createToken("MAINVERSIONLOOSE", `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.(${src[t.NUMERICIDENTIFIERLOOSE]})\\.(${src[t.NUMERICIDENTIFIERLOOSE]})`);
-	createToken("PRERELEASEIDENTIFIER", `(?:${src[t.NONNUMERICIDENTIFIER]}|${src[t.NUMERICIDENTIFIER]})`);
-	createToken("PRERELEASEIDENTIFIERLOOSE", `(?:${src[t.NONNUMERICIDENTIFIER]}|${src[t.NUMERICIDENTIFIERLOOSE]})`);
-	createToken("PRERELEASE", `(?:-(${src[t.PRERELEASEIDENTIFIER]}(?:\\.${src[t.PRERELEASEIDENTIFIER]})*))`);
-	createToken("PRERELEASELOOSE", `(?:-?(${src[t.PRERELEASEIDENTIFIERLOOSE]}(?:\\.${src[t.PRERELEASEIDENTIFIERLOOSE]})*))`);
-	createToken("BUILDIDENTIFIER", `${LETTERDASHNUMBER}+`);
-	createToken("BUILD", `(?:\\+(${src[t.BUILDIDENTIFIER]}(?:\\.${src[t.BUILDIDENTIFIER]})*))`);
-	createToken("FULLPLAIN", `v?${src[t.MAINVERSION]}${src[t.PRERELEASE]}?${src[t.BUILD]}?`);
-	createToken("FULL", `^${src[t.FULLPLAIN]}$`);
-	createToken("LOOSEPLAIN", `[v=\\s]*${src[t.MAINVERSIONLOOSE]}${src[t.PRERELEASELOOSE]}?${src[t.BUILD]}?`);
-	createToken("LOOSE", `^${src[t.LOOSEPLAIN]}$`);
-	createToken("GTLT", "((?:<|>)?=?)");
-	createToken("XRANGEIDENTIFIERLOOSE", `${src[t.NUMERICIDENTIFIERLOOSE]}|x|X|\\*`);
-	createToken("XRANGEIDENTIFIER", `${src[t.NUMERICIDENTIFIER]}|x|X|\\*`);
-	createToken("XRANGEPLAIN", `[v=\\s]*(${src[t.XRANGEIDENTIFIER]})(?:\\.(${src[t.XRANGEIDENTIFIER]})(?:\\.(${src[t.XRANGEIDENTIFIER]})(?:${src[t.PRERELEASE]})?${src[t.BUILD]}?)?)?`);
-	createToken("XRANGEPLAINLOOSE", `[v=\\s]*(${src[t.XRANGEIDENTIFIERLOOSE]})(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})(?:${src[t.PRERELEASELOOSE]})?${src[t.BUILD]}?)?)?`);
-	createToken("XRANGE", `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAIN]}$`);
-	createToken("XRANGELOOSE", `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAINLOOSE]}$`);
-	createToken("COERCEPLAIN", `(^|[^\\d])(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}})(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?`);
-	createToken("COERCE", `${src[t.COERCEPLAIN]}(?:$|[^\\d])`);
-	createToken("COERCEFULL", src[t.COERCEPLAIN] + `(?:${src[t.PRERELEASE]})?(?:${src[t.BUILD]})?(?:$|[^\\d])`);
-	createToken("COERCERTL", src[t.COERCE], true);
-	createToken("COERCERTLFULL", src[t.COERCEFULL], true);
-	createToken("LONETILDE", "(?:~>?)");
-	createToken("TILDETRIM", `(\\s*)${src[t.LONETILDE]}\\s+`, true);
-	exports.tildeTrimReplace = "$1~";
-	createToken("TILDE", `^${src[t.LONETILDE]}${src[t.XRANGEPLAIN]}$`);
-	createToken("TILDELOOSE", `^${src[t.LONETILDE]}${src[t.XRANGEPLAINLOOSE]}$`);
-	createToken("LONECARET", "(?:\\^)");
-	createToken("CARETTRIM", `(\\s*)${src[t.LONECARET]}\\s+`, true);
-	exports.caretTrimReplace = "$1^";
-	createToken("CARET", `^${src[t.LONECARET]}${src[t.XRANGEPLAIN]}$`);
-	createToken("CARETLOOSE", `^${src[t.LONECARET]}${src[t.XRANGEPLAINLOOSE]}$`);
-	createToken("COMPARATORLOOSE", `^${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]})$|^$`);
-	createToken("COMPARATOR", `^${src[t.GTLT]}\\s*(${src[t.FULLPLAIN]})$|^$`);
-	createToken("COMPARATORTRIM", `(\\s*)${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]}|${src[t.XRANGEPLAIN]})`, true);
-	exports.comparatorTrimReplace = "$1$2$3";
-	createToken("HYPHENRANGE", `^\\s*(${src[t.XRANGEPLAIN]})\\s+-\\s+(${src[t.XRANGEPLAIN]})\\s*$`);
-	createToken("HYPHENRANGELOOSE", `^\\s*(${src[t.XRANGEPLAINLOOSE]})\\s+-\\s+(${src[t.XRANGEPLAINLOOSE]})\\s*$`);
-	createToken("STAR", "(<|>)?=?\\s*\\*");
-	createToken("GTE0", "^\\s*>=\\s*0\\.0\\.0\\s*$");
-	createToken("GTE0PRE", "^\\s*>=\\s*0\\.0\\.0-0\\s*$");
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/parse-options.js
-var require_parse_options = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const looseOption = Object.freeze({ loose: true });
-	const emptyOpts = Object.freeze({});
-	const parseOptions = (options) => {
-		if (!options) return emptyOpts;
-		if (typeof options !== "object") return looseOption;
-		return options;
-	};
-	module.exports = parseOptions;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/identifiers.js
-var require_identifiers = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const numeric = /^[0-9]+$/;
-	const compareIdentifiers = (a, b) => {
-		if (typeof a === "number" && typeof b === "number") return a === b ? 0 : a < b ? -1 : 1;
-		const anum = numeric.test(a);
-		const bnum = numeric.test(b);
-		if (anum && bnum) {
-			a = +a;
-			b = +b;
-		}
-		return a === b ? 0 : anum && !bnum ? -1 : bnum && !anum ? 1 : a < b ? -1 : 1;
-	};
-	const rcompareIdentifiers = (a, b) => compareIdentifiers(b, a);
-	module.exports = {
-		compareIdentifiers,
-		rcompareIdentifiers
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/semver.js
-var require_semver$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const debug = require_debug();
-	const { MAX_LENGTH, MAX_SAFE_INTEGER } = require_constants();
-	const { safeRe: re, t } = require_re();
-	const parseOptions = require_parse_options();
-	const { compareIdentifiers } = require_identifiers();
-	module.exports = class SemVer {
-		constructor(version, options) {
-			options = parseOptions(options);
-			if (version instanceof SemVer) if (version.loose === !!options.loose && version.includePrerelease === !!options.includePrerelease) return version;
-			else version = version.version;
-			else if (typeof version !== "string") throw new TypeError(`Invalid version. Must be a string. Got type "${typeof version}".`);
-			if (version.length > MAX_LENGTH) throw new TypeError(`version is longer than ${MAX_LENGTH} characters`);
-			debug("SemVer", version, options);
-			this.options = options;
-			this.loose = !!options.loose;
-			this.includePrerelease = !!options.includePrerelease;
-			const m = version.trim().match(options.loose ? re[t.LOOSE] : re[t.FULL]);
-			if (!m) throw new TypeError(`Invalid Version: ${version}`);
-			this.raw = version;
-			this.major = +m[1];
-			this.minor = +m[2];
-			this.patch = +m[3];
-			if (this.major > MAX_SAFE_INTEGER || this.major < 0) throw new TypeError("Invalid major version");
-			if (this.minor > MAX_SAFE_INTEGER || this.minor < 0) throw new TypeError("Invalid minor version");
-			if (this.patch > MAX_SAFE_INTEGER || this.patch < 0) throw new TypeError("Invalid patch version");
-			if (!m[4]) this.prerelease = [];
-			else this.prerelease = m[4].split(".").map((id) => {
-				if (/^[0-9]+$/.test(id)) {
-					const num = +id;
-					if (num >= 0 && num < MAX_SAFE_INTEGER) return num;
-				}
-				return id;
-			});
-			this.build = m[5] ? m[5].split(".") : [];
-			this.format();
-		}
-		format() {
-			this.version = `${this.major}.${this.minor}.${this.patch}`;
-			if (this.prerelease.length) this.version += `-${this.prerelease.join(".")}`;
-			return this.version;
-		}
-		toString() {
-			return this.version;
-		}
-		compare(other) {
-			debug("SemVer.compare", this.version, this.options, other);
-			if (!(other instanceof SemVer)) {
-				if (typeof other === "string" && other === this.version) return 0;
-				other = new SemVer(other, this.options);
-			}
-			if (other.version === this.version) return 0;
-			return this.compareMain(other) || this.comparePre(other);
-		}
-		compareMain(other) {
-			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
-			if (this.major < other.major) return -1;
-			if (this.major > other.major) return 1;
-			if (this.minor < other.minor) return -1;
-			if (this.minor > other.minor) return 1;
-			if (this.patch < other.patch) return -1;
-			if (this.patch > other.patch) return 1;
-			return 0;
-		}
-		comparePre(other) {
-			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
-			if (this.prerelease.length && !other.prerelease.length) return -1;
-			else if (!this.prerelease.length && other.prerelease.length) return 1;
-			else if (!this.prerelease.length && !other.prerelease.length) return 0;
-			let i = 0;
-			do {
-				const a = this.prerelease[i];
-				const b = other.prerelease[i];
-				debug("prerelease compare", i, a, b);
-				if (a === void 0 && b === void 0) return 0;
-				else if (b === void 0) return 1;
-				else if (a === void 0) return -1;
-				else if (a === b) continue;
-				else return compareIdentifiers(a, b);
-			} while (++i);
-		}
-		compareBuild(other) {
-			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
-			let i = 0;
-			do {
-				const a = this.build[i];
-				const b = other.build[i];
-				debug("build compare", i, a, b);
-				if (a === void 0 && b === void 0) return 0;
-				else if (b === void 0) return 1;
-				else if (a === void 0) return -1;
-				else if (a === b) continue;
-				else return compareIdentifiers(a, b);
-			} while (++i);
-		}
-		inc(release, identifier, identifierBase) {
-			if (release.startsWith("pre")) {
-				if (!identifier && identifierBase === false) throw new Error("invalid increment argument: identifier is empty");
-				if (identifier) {
-					const match = `-${identifier}`.match(this.options.loose ? re[t.PRERELEASELOOSE] : re[t.PRERELEASE]);
-					if (!match || match[1] !== identifier) throw new Error(`invalid identifier: ${identifier}`);
-				}
-			}
-			switch (release) {
-				case "premajor":
-					this.prerelease.length = 0;
-					this.patch = 0;
-					this.minor = 0;
-					this.major++;
-					this.inc("pre", identifier, identifierBase);
-					break;
-				case "preminor":
-					this.prerelease.length = 0;
-					this.patch = 0;
-					this.minor++;
-					this.inc("pre", identifier, identifierBase);
-					break;
-				case "prepatch":
-					this.prerelease.length = 0;
-					this.inc("patch", identifier, identifierBase);
-					this.inc("pre", identifier, identifierBase);
-					break;
-				case "prerelease":
-					if (this.prerelease.length === 0) this.inc("patch", identifier, identifierBase);
-					this.inc("pre", identifier, identifierBase);
-					break;
-				case "release":
-					if (this.prerelease.length === 0) throw new Error(`version ${this.raw} is not a prerelease`);
-					this.prerelease.length = 0;
-					break;
-				case "major":
-					if (this.minor !== 0 || this.patch !== 0 || this.prerelease.length === 0) this.major++;
-					this.minor = 0;
-					this.patch = 0;
-					this.prerelease = [];
-					break;
-				case "minor":
-					if (this.patch !== 0 || this.prerelease.length === 0) this.minor++;
-					this.patch = 0;
-					this.prerelease = [];
-					break;
-				case "patch":
-					if (this.prerelease.length === 0) this.patch++;
-					this.prerelease = [];
-					break;
-				case "pre": {
-					const base = Number(identifierBase) ? 1 : 0;
-					if (this.prerelease.length === 0) this.prerelease = [base];
-					else {
-						let i = this.prerelease.length;
-						while (--i >= 0) if (typeof this.prerelease[i] === "number") {
-							this.prerelease[i]++;
-							i = -2;
-						}
-						if (i === -1) {
-							if (identifier === this.prerelease.join(".") && identifierBase === false) throw new Error("invalid increment argument: identifier already exists");
-							this.prerelease.push(base);
-						}
-					}
-					if (identifier) {
-						let prerelease = [identifier, base];
-						if (identifierBase === false) prerelease = [identifier];
-						if (compareIdentifiers(this.prerelease[0], identifier) === 0) {
-							if (isNaN(this.prerelease[1])) this.prerelease = prerelease;
-						} else this.prerelease = prerelease;
-					}
-					break;
-				}
-				default: throw new Error(`invalid increment argument: ${release}`);
-			}
-			this.raw = this.format();
-			if (this.build.length) this.raw += `+${this.build.join(".")}`;
-			return this;
-		}
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/parse.js
-var require_parse = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const parse = (version, options, throwErrors = false) => {
-		if (version instanceof SemVer) return version;
-		try {
-			return new SemVer(version, options);
-		} catch (er) {
-			if (!throwErrors) return null;
-			throw er;
-		}
-	};
-	module.exports = parse;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/valid.js
-var require_valid$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const parse = require_parse();
-	const valid = (version, options) => {
-		const v = parse(version, options);
-		return v ? v.version : null;
-	};
-	module.exports = valid;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/clean.js
-var require_clean = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const parse = require_parse();
-	const clean = (version, options) => {
-		const s = parse(version.trim().replace(/^[=v]+/, ""), options);
-		return s ? s.version : null;
-	};
-	module.exports = clean;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/inc.js
-var require_inc = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const inc = (version, release, options, identifier, identifierBase) => {
-		if (typeof options === "string") {
-			identifierBase = identifier;
-			identifier = options;
-			options = void 0;
-		}
-		try {
-			return new SemVer(version instanceof SemVer ? version.version : version, options).inc(release, identifier, identifierBase).version;
-		} catch (er) {
-			return null;
-		}
-	};
-	module.exports = inc;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/diff.js
-var require_diff = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const parse = require_parse();
-	const diff = (version1, version2) => {
-		const v1 = parse(version1, null, true);
-		const v2 = parse(version2, null, true);
-		const comparison = v1.compare(v2);
-		if (comparison === 0) return null;
-		const v1Higher = comparison > 0;
-		const highVersion = v1Higher ? v1 : v2;
-		const lowVersion = v1Higher ? v2 : v1;
-		const highHasPre = !!highVersion.prerelease.length;
-		if (!!lowVersion.prerelease.length && !highHasPre) {
-			if (!lowVersion.patch && !lowVersion.minor) return "major";
-			if (lowVersion.compareMain(highVersion) === 0) {
-				if (lowVersion.minor && !lowVersion.patch) return "minor";
-				return "patch";
-			}
-		}
-		const prefix = highHasPre ? "pre" : "";
-		if (v1.major !== v2.major) return prefix + "major";
-		if (v1.minor !== v2.minor) return prefix + "minor";
-		if (v1.patch !== v2.patch) return prefix + "patch";
-		return "prerelease";
-	};
-	module.exports = diff;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/major.js
-var require_major = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const major = (a, loose) => new SemVer(a, loose).major;
-	module.exports = major;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/minor.js
-var require_minor = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const minor = (a, loose) => new SemVer(a, loose).minor;
-	module.exports = minor;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/patch.js
-var require_patch = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const patch = (a, loose) => new SemVer(a, loose).patch;
-	module.exports = patch;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/prerelease.js
-var require_prerelease = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const parse = require_parse();
-	const prerelease = (version, options) => {
-		const parsed = parse(version, options);
-		return parsed && parsed.prerelease.length ? parsed.prerelease : null;
-	};
-	module.exports = prerelease;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare.js
-var require_compare = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const compare = (a, b, loose) => new SemVer(a, loose).compare(new SemVer(b, loose));
-	module.exports = compare;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/rcompare.js
-var require_rcompare = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const rcompare = (a, b, loose) => compare(b, a, loose);
-	module.exports = rcompare;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare-loose.js
-var require_compare_loose = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const compareLoose = (a, b) => compare(a, b, true);
-	module.exports = compareLoose;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare-build.js
-var require_compare_build = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const compareBuild = (a, b, loose) => {
-		const versionA = new SemVer(a, loose);
-		const versionB = new SemVer(b, loose);
-		return versionA.compare(versionB) || versionA.compareBuild(versionB);
-	};
-	module.exports = compareBuild;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/sort.js
-var require_sort = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compareBuild = require_compare_build();
-	const sort = (list, loose) => list.sort((a, b) => compareBuild(a, b, loose));
-	module.exports = sort;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/rsort.js
-var require_rsort = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compareBuild = require_compare_build();
-	const rsort = (list, loose) => list.sort((a, b) => compareBuild(b, a, loose));
-	module.exports = rsort;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/gt.js
-var require_gt = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const gt = (a, b, loose) => compare(a, b, loose) > 0;
-	module.exports = gt;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/lt.js
-var require_lt = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const lt = (a, b, loose) => compare(a, b, loose) < 0;
-	module.exports = lt;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/eq.js
-var require_eq = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const eq = (a, b, loose) => compare(a, b, loose) === 0;
-	module.exports = eq;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/neq.js
-var require_neq = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const neq = (a, b, loose) => compare(a, b, loose) !== 0;
-	module.exports = neq;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/gte.js
-var require_gte = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const gte = (a, b, loose) => compare(a, b, loose) >= 0;
-	module.exports = gte;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/lte.js
-var require_lte = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const lte = (a, b, loose) => compare(a, b, loose) <= 0;
-	module.exports = lte;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/cmp.js
-var require_cmp = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const eq = require_eq();
-	const neq = require_neq();
-	const gt = require_gt();
-	const gte = require_gte();
-	const lt = require_lt();
-	const lte = require_lte();
-	const cmp = (a, op, b, loose) => {
-		switch (op) {
-			case "===":
-				if (typeof a === "object") a = a.version;
-				if (typeof b === "object") b = b.version;
-				return a === b;
-			case "!==":
-				if (typeof a === "object") a = a.version;
-				if (typeof b === "object") b = b.version;
-				return a !== b;
-			case "":
-			case "=":
-			case "==": return eq(a, b, loose);
-			case "!=": return neq(a, b, loose);
-			case ">": return gt(a, b, loose);
-			case ">=": return gte(a, b, loose);
-			case "<": return lt(a, b, loose);
-			case "<=": return lte(a, b, loose);
-			default: throw new TypeError(`Invalid operator: ${op}`);
-		}
-	};
-	module.exports = cmp;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/coerce.js
-var require_coerce = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const parse = require_parse();
-	const { safeRe: re, t } = require_re();
-	const coerce = (version, options) => {
-		if (version instanceof SemVer) return version;
-		if (typeof version === "number") version = String(version);
-		if (typeof version !== "string") return null;
-		options = options || {};
-		let match = null;
-		if (!options.rtl) match = version.match(options.includePrerelease ? re[t.COERCEFULL] : re[t.COERCE]);
-		else {
-			const coerceRtlRegex = options.includePrerelease ? re[t.COERCERTLFULL] : re[t.COERCERTL];
-			let next;
-			while ((next = coerceRtlRegex.exec(version)) && (!match || match.index + match[0].length !== version.length)) {
-				if (!match || next.index + next[0].length !== match.index + match[0].length) match = next;
-				coerceRtlRegex.lastIndex = next.index + next[1].length + next[2].length;
-			}
-			coerceRtlRegex.lastIndex = -1;
-		}
-		if (match === null) return null;
-		const major = match[2];
-		return parse(`${major}.${match[3] || "0"}.${match[4] || "0"}${options.includePrerelease && match[5] ? `-${match[5]}` : ""}${options.includePrerelease && match[6] ? `+${match[6]}` : ""}`, options);
-	};
-	module.exports = coerce;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/lrucache.js
-var require_lrucache = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	var LRUCache = class {
-		constructor() {
-			this.max = 1e3;
-			this.map = /* @__PURE__ */ new Map();
-		}
-		get(key) {
-			const value = this.map.get(key);
-			if (value === void 0) return;
-			else {
-				this.map.delete(key);
-				this.map.set(key, value);
-				return value;
-			}
-		}
-		delete(key) {
-			return this.map.delete(key);
-		}
-		set(key, value) {
-			if (!this.delete(key) && value !== void 0) {
-				if (this.map.size >= this.max) {
-					const firstKey = this.map.keys().next().value;
-					this.delete(firstKey);
-				}
-				this.map.set(key, value);
-			}
-			return this;
-		}
-	};
-	module.exports = LRUCache;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/range.js
-var require_range = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SPACE_CHARACTERS = /\s+/g;
-	module.exports = class Range {
-		constructor(range, options) {
-			options = parseOptions(options);
-			if (range instanceof Range) if (range.loose === !!options.loose && range.includePrerelease === !!options.includePrerelease) return range;
-			else return new Range(range.raw, options);
-			if (range instanceof Comparator) {
-				this.raw = range.value;
-				this.set = [[range]];
-				this.formatted = void 0;
-				return this;
-			}
-			this.options = options;
-			this.loose = !!options.loose;
-			this.includePrerelease = !!options.includePrerelease;
-			this.raw = range.trim().replace(SPACE_CHARACTERS, " ");
-			this.set = this.raw.split("||").map((r) => this.parseRange(r.trim())).filter((c) => c.length);
-			if (!this.set.length) throw new TypeError(`Invalid SemVer Range: ${this.raw}`);
-			if (this.set.length > 1) {
-				const first = this.set[0];
-				this.set = this.set.filter((c) => !isNullSet(c[0]));
-				if (this.set.length === 0) this.set = [first];
-				else if (this.set.length > 1) {
-					for (const c of this.set) if (c.length === 1 && isAny(c[0])) {
-						this.set = [c];
-						break;
-					}
-				}
-			}
-			this.formatted = void 0;
-		}
-		get range() {
-			if (this.formatted === void 0) {
-				this.formatted = "";
-				for (let i = 0; i < this.set.length; i++) {
-					if (i > 0) this.formatted += "||";
-					const comps = this.set[i];
-					for (let k = 0; k < comps.length; k++) {
-						if (k > 0) this.formatted += " ";
-						this.formatted += comps[k].toString().trim();
-					}
-				}
-			}
-			return this.formatted;
-		}
-		format() {
-			return this.range;
-		}
-		toString() {
-			return this.range;
-		}
-		parseRange(range) {
-			const memoKey = ((this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE)) + ":" + range;
-			const cached = cache.get(memoKey);
-			if (cached) return cached;
-			const loose = this.options.loose;
-			const hr = loose ? re[t.HYPHENRANGELOOSE] : re[t.HYPHENRANGE];
-			range = range.replace(hr, hyphenReplace(this.options.includePrerelease));
-			debug("hyphen replace", range);
-			range = range.replace(re[t.COMPARATORTRIM], comparatorTrimReplace);
-			debug("comparator trim", range);
-			range = range.replace(re[t.TILDETRIM], tildeTrimReplace);
-			debug("tilde trim", range);
-			range = range.replace(re[t.CARETTRIM], caretTrimReplace);
-			debug("caret trim", range);
-			let rangeList = range.split(" ").map((comp) => parseComparator(comp, this.options)).join(" ").split(/\s+/).map((comp) => replaceGTE0(comp, this.options));
-			if (loose) rangeList = rangeList.filter((comp) => {
-				debug("loose invalid filter", comp, this.options);
-				return !!comp.match(re[t.COMPARATORLOOSE]);
-			});
-			debug("range list", rangeList);
-			const rangeMap = /* @__PURE__ */ new Map();
-			const comparators = rangeList.map((comp) => new Comparator(comp, this.options));
-			for (const comp of comparators) {
-				if (isNullSet(comp)) return [comp];
-				rangeMap.set(comp.value, comp);
-			}
-			if (rangeMap.size > 1 && rangeMap.has("")) rangeMap.delete("");
-			const result = [...rangeMap.values()];
-			cache.set(memoKey, result);
-			return result;
-		}
-		intersects(range, options) {
-			if (!(range instanceof Range)) throw new TypeError("a Range is required");
-			return this.set.some((thisComparators) => {
-				return isSatisfiable(thisComparators, options) && range.set.some((rangeComparators) => {
-					return isSatisfiable(rangeComparators, options) && thisComparators.every((thisComparator) => {
-						return rangeComparators.every((rangeComparator) => {
-							return thisComparator.intersects(rangeComparator, options);
-						});
-					});
-				});
-			});
-		}
-		test(version) {
-			if (!version) return false;
-			if (typeof version === "string") try {
-				version = new SemVer(version, this.options);
-			} catch (er) {
-				return false;
-			}
-			for (let i = 0; i < this.set.length; i++) if (testSet(this.set[i], version, this.options)) return true;
-			return false;
-		}
-	};
-	const cache = new (require_lrucache())();
-	const parseOptions = require_parse_options();
-	const Comparator = require_comparator();
-	const debug = require_debug();
-	const SemVer = require_semver$1();
-	const { safeRe: re, t, comparatorTrimReplace, tildeTrimReplace, caretTrimReplace } = require_re();
-	const { FLAG_INCLUDE_PRERELEASE, FLAG_LOOSE } = require_constants();
-	const isNullSet = (c) => c.value === "<0.0.0-0";
-	const isAny = (c) => c.value === "";
-	const isSatisfiable = (comparators, options) => {
-		let result = true;
-		const remainingComparators = comparators.slice();
-		let testComparator = remainingComparators.pop();
-		while (result && remainingComparators.length) {
-			result = remainingComparators.every((otherComparator) => {
-				return testComparator.intersects(otherComparator, options);
-			});
-			testComparator = remainingComparators.pop();
-		}
-		return result;
-	};
-	const parseComparator = (comp, options) => {
-		comp = comp.replace(re[t.BUILD], "");
-		debug("comp", comp, options);
-		comp = replaceCarets(comp, options);
-		debug("caret", comp);
-		comp = replaceTildes(comp, options);
-		debug("tildes", comp);
-		comp = replaceXRanges(comp, options);
-		debug("xrange", comp);
-		comp = replaceStars(comp, options);
-		debug("stars", comp);
-		return comp;
-	};
-	const isX = (id) => !id || id.toLowerCase() === "x" || id === "*";
-	const replaceTildes = (comp, options) => {
-		return comp.trim().split(/\s+/).map((c) => replaceTilde(c, options)).join(" ");
-	};
-	const replaceTilde = (comp, options) => {
-		const r = options.loose ? re[t.TILDELOOSE] : re[t.TILDE];
-		return comp.replace(r, (_, M, m, p, pr) => {
-			debug("tilde", comp, _, M, m, p, pr);
-			let ret;
-			if (isX(M)) ret = "";
-			else if (isX(m)) ret = `>=${M}.0.0 <${+M + 1}.0.0-0`;
-			else if (isX(p)) ret = `>=${M}.${m}.0 <${M}.${+m + 1}.0-0`;
-			else if (pr) {
-				debug("replaceTilde pr", pr);
-				ret = `>=${M}.${m}.${p}-${pr} <${M}.${+m + 1}.0-0`;
-			} else ret = `>=${M}.${m}.${p} <${M}.${+m + 1}.0-0`;
-			debug("tilde return", ret);
-			return ret;
-		});
-	};
-	const replaceCarets = (comp, options) => {
-		return comp.trim().split(/\s+/).map((c) => replaceCaret(c, options)).join(" ");
-	};
-	const replaceCaret = (comp, options) => {
-		debug("caret", comp, options);
-		const r = options.loose ? re[t.CARETLOOSE] : re[t.CARET];
-		const z = options.includePrerelease ? "-0" : "";
-		return comp.replace(r, (_, M, m, p, pr) => {
-			debug("caret", comp, _, M, m, p, pr);
-			let ret;
-			if (isX(M)) ret = "";
-			else if (isX(m)) ret = `>=${M}.0.0${z} <${+M + 1}.0.0-0`;
-			else if (isX(p)) if (M === "0") ret = `>=${M}.${m}.0${z} <${M}.${+m + 1}.0-0`;
-			else ret = `>=${M}.${m}.0${z} <${+M + 1}.0.0-0`;
-			else if (pr) {
-				debug("replaceCaret pr", pr);
-				if (M === "0") if (m === "0") ret = `>=${M}.${m}.${p}-${pr} <${M}.${m}.${+p + 1}-0`;
-				else ret = `>=${M}.${m}.${p}-${pr} <${M}.${+m + 1}.0-0`;
-				else ret = `>=${M}.${m}.${p}-${pr} <${+M + 1}.0.0-0`;
-			} else {
-				debug("no pr");
-				if (M === "0") if (m === "0") ret = `>=${M}.${m}.${p}${z} <${M}.${m}.${+p + 1}-0`;
-				else ret = `>=${M}.${m}.${p}${z} <${M}.${+m + 1}.0-0`;
-				else ret = `>=${M}.${m}.${p} <${+M + 1}.0.0-0`;
-			}
-			debug("caret return", ret);
-			return ret;
-		});
-	};
-	const replaceXRanges = (comp, options) => {
-		debug("replaceXRanges", comp, options);
-		return comp.split(/\s+/).map((c) => replaceXRange(c, options)).join(" ");
-	};
-	const replaceXRange = (comp, options) => {
-		comp = comp.trim();
-		const r = options.loose ? re[t.XRANGELOOSE] : re[t.XRANGE];
-		return comp.replace(r, (ret, gtlt, M, m, p, pr) => {
-			debug("xRange", comp, ret, gtlt, M, m, p, pr);
-			const xM = isX(M);
-			const xm = xM || isX(m);
-			const xp = xm || isX(p);
-			const anyX = xp;
-			if (gtlt === "=" && anyX) gtlt = "";
-			pr = options.includePrerelease ? "-0" : "";
-			if (xM) if (gtlt === ">" || gtlt === "<") ret = "<0.0.0-0";
-			else ret = "*";
-			else if (gtlt && anyX) {
-				if (xm) m = 0;
-				p = 0;
-				if (gtlt === ">") {
-					gtlt = ">=";
-					if (xm) {
-						M = +M + 1;
-						m = 0;
-						p = 0;
-					} else {
-						m = +m + 1;
-						p = 0;
-					}
-				} else if (gtlt === "<=") {
-					gtlt = "<";
-					if (xm) M = +M + 1;
-					else m = +m + 1;
-				}
-				if (gtlt === "<") pr = "-0";
-				ret = `${gtlt + M}.${m}.${p}${pr}`;
-			} else if (xm) ret = `>=${M}.0.0${pr} <${+M + 1}.0.0-0`;
-			else if (xp) ret = `>=${M}.${m}.0${pr} <${M}.${+m + 1}.0-0`;
-			debug("xRange return", ret);
-			return ret;
-		});
-	};
-	const replaceStars = (comp, options) => {
-		debug("replaceStars", comp, options);
-		return comp.trim().replace(re[t.STAR], "");
-	};
-	const replaceGTE0 = (comp, options) => {
-		debug("replaceGTE0", comp, options);
-		return comp.trim().replace(re[options.includePrerelease ? t.GTE0PRE : t.GTE0], "");
-	};
-	const hyphenReplace = (incPr) => ($0, from, fM, fm, fp, fpr, fb, to, tM, tm, tp, tpr) => {
-		if (isX(fM)) from = "";
-		else if (isX(fm)) from = `>=${fM}.0.0${incPr ? "-0" : ""}`;
-		else if (isX(fp)) from = `>=${fM}.${fm}.0${incPr ? "-0" : ""}`;
-		else if (fpr) from = `>=${from}`;
-		else from = `>=${from}${incPr ? "-0" : ""}`;
-		if (isX(tM)) to = "";
-		else if (isX(tm)) to = `<${+tM + 1}.0.0-0`;
-		else if (isX(tp)) to = `<${tM}.${+tm + 1}.0-0`;
-		else if (tpr) to = `<=${tM}.${tm}.${tp}-${tpr}`;
-		else if (incPr) to = `<${tM}.${tm}.${+tp + 1}-0`;
-		else to = `<=${to}`;
-		return `${from} ${to}`.trim();
-	};
-	const testSet = (set, version, options) => {
-		for (let i = 0; i < set.length; i++) if (!set[i].test(version)) return false;
-		if (version.prerelease.length && !options.includePrerelease) {
-			for (let i = 0; i < set.length; i++) {
-				debug(set[i].semver);
-				if (set[i].semver === Comparator.ANY) continue;
-				if (set[i].semver.prerelease.length > 0) {
-					const allowed = set[i].semver;
-					if (allowed.major === version.major && allowed.minor === version.minor && allowed.patch === version.patch) return true;
-				}
-			}
-			return false;
-		}
-		return true;
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/comparator.js
-var require_comparator = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const ANY = Symbol("SemVer ANY");
-	module.exports = class Comparator {
-		static get ANY() {
-			return ANY;
-		}
-		constructor(comp, options) {
-			options = parseOptions(options);
-			if (comp instanceof Comparator) if (comp.loose === !!options.loose) return comp;
-			else comp = comp.value;
-			comp = comp.trim().split(/\s+/).join(" ");
-			debug("comparator", comp, options);
-			this.options = options;
-			this.loose = !!options.loose;
-			this.parse(comp);
-			if (this.semver === ANY) this.value = "";
-			else this.value = this.operator + this.semver.version;
-			debug("comp", this);
-		}
-		parse(comp) {
-			const r = this.options.loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR];
-			const m = comp.match(r);
-			if (!m) throw new TypeError(`Invalid comparator: ${comp}`);
-			this.operator = m[1] !== void 0 ? m[1] : "";
-			if (this.operator === "=") this.operator = "";
-			if (!m[2]) this.semver = ANY;
-			else this.semver = new SemVer(m[2], this.options.loose);
-		}
-		toString() {
-			return this.value;
-		}
-		test(version) {
-			debug("Comparator.test", version, this.options.loose);
-			if (this.semver === ANY || version === ANY) return true;
-			if (typeof version === "string") try {
-				version = new SemVer(version, this.options);
-			} catch (er) {
-				return false;
-			}
-			return cmp(version, this.operator, this.semver, this.options);
-		}
-		intersects(comp, options) {
-			if (!(comp instanceof Comparator)) throw new TypeError("a Comparator is required");
-			if (this.operator === "") {
-				if (this.value === "") return true;
-				return new Range(comp.value, options).test(this.value);
-			} else if (comp.operator === "") {
-				if (comp.value === "") return true;
-				return new Range(this.value, options).test(comp.semver);
-			}
-			options = parseOptions(options);
-			if (options.includePrerelease && (this.value === "<0.0.0-0" || comp.value === "<0.0.0-0")) return false;
-			if (!options.includePrerelease && (this.value.startsWith("<0.0.0") || comp.value.startsWith("<0.0.0"))) return false;
-			if (this.operator.startsWith(">") && comp.operator.startsWith(">")) return true;
-			if (this.operator.startsWith("<") && comp.operator.startsWith("<")) return true;
-			if (this.semver.version === comp.semver.version && this.operator.includes("=") && comp.operator.includes("=")) return true;
-			if (cmp(this.semver, "<", comp.semver, options) && this.operator.startsWith(">") && comp.operator.startsWith("<")) return true;
-			if (cmp(this.semver, ">", comp.semver, options) && this.operator.startsWith("<") && comp.operator.startsWith(">")) return true;
-			return false;
-		}
-	};
-	const parseOptions = require_parse_options();
-	const { safeRe: re, t } = require_re();
-	const cmp = require_cmp();
-	const debug = require_debug();
-	const SemVer = require_semver$1();
-	const Range = require_range();
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/satisfies.js
-var require_satisfies = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const Range = require_range();
-	const satisfies = (version, range, options) => {
-		try {
-			range = new Range(range, options);
-		} catch (er) {
-			return false;
-		}
-		return range.test(version);
-	};
-	module.exports = satisfies;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/to-comparators.js
-var require_to_comparators = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const Range = require_range();
-	const toComparators = (range, options) => new Range(range, options).set.map((comp) => comp.map((c) => c.value).join(" ").trim().split(" "));
-	module.exports = toComparators;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/max-satisfying.js
-var require_max_satisfying = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const Range = require_range();
-	const maxSatisfying = (versions, range, options) => {
-		let max = null;
-		let maxSV = null;
-		let rangeObj = null;
-		try {
-			rangeObj = new Range(range, options);
-		} catch (er) {
-			return null;
-		}
-		versions.forEach((v) => {
-			if (rangeObj.test(v)) {
-				if (!max || maxSV.compare(v) === -1) {
-					max = v;
-					maxSV = new SemVer(max, options);
-				}
-			}
-		});
-		return max;
-	};
-	module.exports = maxSatisfying;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/min-satisfying.js
-var require_min_satisfying = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const Range = require_range();
-	const minSatisfying = (versions, range, options) => {
-		let min = null;
-		let minSV = null;
-		let rangeObj = null;
-		try {
-			rangeObj = new Range(range, options);
-		} catch (er) {
-			return null;
-		}
-		versions.forEach((v) => {
-			if (rangeObj.test(v)) {
-				if (!min || minSV.compare(v) === 1) {
-					min = v;
-					minSV = new SemVer(min, options);
-				}
-			}
-		});
-		return min;
-	};
-	module.exports = minSatisfying;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/min-version.js
-var require_min_version = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const Range = require_range();
-	const gt = require_gt();
-	const minVersion = (range, loose) => {
-		range = new Range(range, loose);
-		let minver = new SemVer("0.0.0");
-		if (range.test(minver)) return minver;
-		minver = new SemVer("0.0.0-0");
-		if (range.test(minver)) return minver;
-		minver = null;
-		for (let i = 0; i < range.set.length; ++i) {
-			const comparators = range.set[i];
-			let setMin = null;
-			comparators.forEach((comparator) => {
-				const compver = new SemVer(comparator.semver.version);
-				switch (comparator.operator) {
-					case ">":
-						if (compver.prerelease.length === 0) compver.patch++;
-						else compver.prerelease.push(0);
-						compver.raw = compver.format();
-					case "":
-					case ">=":
-						if (!setMin || gt(compver, setMin)) setMin = compver;
-						break;
-					case "<":
-					case "<=": break;
-					/* istanbul ignore next */
-					default: throw new Error(`Unexpected operation: ${comparator.operator}`);
-				}
-			});
-			if (setMin && (!minver || gt(minver, setMin))) minver = setMin;
-		}
-		if (minver && range.test(minver)) return minver;
-		return null;
-	};
-	module.exports = minVersion;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/valid.js
-var require_valid = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const Range = require_range();
-	const validRange = (range, options) => {
-		try {
-			return new Range(range, options).range || "*";
-		} catch (er) {
-			return null;
-		}
-	};
-	module.exports = validRange;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/outside.js
-var require_outside = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const Comparator = require_comparator();
-	const { ANY } = Comparator;
-	const Range = require_range();
-	const satisfies = require_satisfies();
-	const gt = require_gt();
-	const lt = require_lt();
-	const lte = require_lte();
-	const gte = require_gte();
-	const outside = (version, range, hilo, options) => {
-		version = new SemVer(version, options);
-		range = new Range(range, options);
-		let gtfn, ltefn, ltfn, comp, ecomp;
-		switch (hilo) {
-			case ">":
-				gtfn = gt;
-				ltefn = lte;
-				ltfn = lt;
-				comp = ">";
-				ecomp = ">=";
-				break;
-			case "<":
-				gtfn = lt;
-				ltefn = gte;
-				ltfn = gt;
-				comp = "<";
-				ecomp = "<=";
-				break;
-			default: throw new TypeError("Must provide a hilo val of \"<\" or \">\"");
-		}
-		if (satisfies(version, range, options)) return false;
-		for (let i = 0; i < range.set.length; ++i) {
-			const comparators = range.set[i];
-			let high = null;
-			let low = null;
-			comparators.forEach((comparator) => {
-				if (comparator.semver === ANY) comparator = new Comparator(">=0.0.0");
-				high = high || comparator;
-				low = low || comparator;
-				if (gtfn(comparator.semver, high.semver, options)) high = comparator;
-				else if (ltfn(comparator.semver, low.semver, options)) low = comparator;
-			});
-			if (high.operator === comp || high.operator === ecomp) return false;
-			if ((!low.operator || low.operator === comp) && ltefn(version, low.semver)) return false;
-			else if (low.operator === ecomp && ltfn(version, low.semver)) return false;
-		}
-		return true;
-	};
-	module.exports = outside;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/gtr.js
-var require_gtr = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const outside = require_outside();
-	const gtr = (version, range, options) => outside(version, range, ">", options);
-	module.exports = gtr;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/ltr.js
-var require_ltr = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const outside = require_outside();
-	const ltr = (version, range, options) => outside(version, range, "<", options);
-	module.exports = ltr;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/intersects.js
-var require_intersects = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const Range = require_range();
-	const intersects = (r1, r2, options) => {
-		r1 = new Range(r1, options);
-		r2 = new Range(r2, options);
-		return r1.intersects(r2, options);
-	};
-	module.exports = intersects;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/simplify.js
-var require_simplify = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const satisfies = require_satisfies();
-	const compare = require_compare();
-	module.exports = (versions, range, options) => {
-		const set = [];
-		let first = null;
-		let prev = null;
-		const v = versions.sort((a, b) => compare(a, b, options));
-		for (const version of v) if (satisfies(version, range, options)) {
-			prev = version;
-			if (!first) first = version;
-		} else {
-			if (prev) set.push([first, prev]);
-			prev = null;
-			first = null;
-		}
-		if (first) set.push([first, null]);
-		const ranges = [];
-		for (const [min, max] of set) if (min === max) ranges.push(min);
-		else if (!max && min === v[0]) ranges.push("*");
-		else if (!max) ranges.push(`>=${min}`);
-		else if (min === v[0]) ranges.push(`<=${max}`);
-		else ranges.push(`${min} - ${max}`);
-		const simplified = ranges.join(" || ");
-		const original = typeof range.raw === "string" ? range.raw : String(range);
-		return simplified.length < original.length ? simplified : range;
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/subset.js
-var require_subset = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const Range = require_range();
-	const Comparator = require_comparator();
-	const { ANY } = Comparator;
-	const satisfies = require_satisfies();
-	const compare = require_compare();
-	const subset = (sub, dom, options = {}) => {
-		if (sub === dom) return true;
-		sub = new Range(sub, options);
-		dom = new Range(dom, options);
-		let sawNonNull = false;
-		OUTER: for (const simpleSub of sub.set) {
-			for (const simpleDom of dom.set) {
-				const isSub = simpleSubset(simpleSub, simpleDom, options);
-				sawNonNull = sawNonNull || isSub !== null;
-				if (isSub) continue OUTER;
-			}
-			if (sawNonNull) return false;
-		}
-		return true;
-	};
-	const minimumVersionWithPreRelease = [new Comparator(">=0.0.0-0")];
-	const minimumVersion = [new Comparator(">=0.0.0")];
-	const simpleSubset = (sub, dom, options) => {
-		if (sub === dom) return true;
-		if (sub.length === 1 && sub[0].semver === ANY) if (dom.length === 1 && dom[0].semver === ANY) return true;
-		else if (options.includePrerelease) sub = minimumVersionWithPreRelease;
-		else sub = minimumVersion;
-		if (dom.length === 1 && dom[0].semver === ANY) if (options.includePrerelease) return true;
-		else dom = minimumVersion;
-		const eqSet = /* @__PURE__ */ new Set();
-		let gt, lt;
-		for (const c of sub) if (c.operator === ">" || c.operator === ">=") gt = higherGT(gt, c, options);
-		else if (c.operator === "<" || c.operator === "<=") lt = lowerLT(lt, c, options);
-		else eqSet.add(c.semver);
-		if (eqSet.size > 1) return null;
-		let gtltComp;
-		if (gt && lt) {
-			gtltComp = compare(gt.semver, lt.semver, options);
-			if (gtltComp > 0) return null;
-			else if (gtltComp === 0 && (gt.operator !== ">=" || lt.operator !== "<=")) return null;
-		}
-		for (const eq of eqSet) {
-			if (gt && !satisfies(eq, String(gt), options)) return null;
-			if (lt && !satisfies(eq, String(lt), options)) return null;
-			for (const c of dom) if (!satisfies(eq, String(c), options)) return false;
-			return true;
-		}
-		let higher, lower;
-		let hasDomLT, hasDomGT;
-		let needDomLTPre = lt && !options.includePrerelease && lt.semver.prerelease.length ? lt.semver : false;
-		let needDomGTPre = gt && !options.includePrerelease && gt.semver.prerelease.length ? gt.semver : false;
-		if (needDomLTPre && needDomLTPre.prerelease.length === 1 && lt.operator === "<" && needDomLTPre.prerelease[0] === 0) needDomLTPre = false;
-		for (const c of dom) {
-			hasDomGT = hasDomGT || c.operator === ">" || c.operator === ">=";
-			hasDomLT = hasDomLT || c.operator === "<" || c.operator === "<=";
-			if (gt) {
-				if (needDomGTPre) {
-					if (c.semver.prerelease && c.semver.prerelease.length && c.semver.major === needDomGTPre.major && c.semver.minor === needDomGTPre.minor && c.semver.patch === needDomGTPre.patch) needDomGTPre = false;
-				}
-				if (c.operator === ">" || c.operator === ">=") {
-					higher = higherGT(gt, c, options);
-					if (higher === c && higher !== gt) return false;
-				} else if (gt.operator === ">=" && !satisfies(gt.semver, String(c), options)) return false;
-			}
-			if (lt) {
-				if (needDomLTPre) {
-					if (c.semver.prerelease && c.semver.prerelease.length && c.semver.major === needDomLTPre.major && c.semver.minor === needDomLTPre.minor && c.semver.patch === needDomLTPre.patch) needDomLTPre = false;
-				}
-				if (c.operator === "<" || c.operator === "<=") {
-					lower = lowerLT(lt, c, options);
-					if (lower === c && lower !== lt) return false;
-				} else if (lt.operator === "<=" && !satisfies(lt.semver, String(c), options)) return false;
-			}
-			if (!c.operator && (lt || gt) && gtltComp !== 0) return false;
-		}
-		if (gt && hasDomLT && !lt && gtltComp !== 0) return false;
-		if (lt && hasDomGT && !gt && gtltComp !== 0) return false;
-		if (needDomGTPre || needDomLTPre) return false;
-		return true;
-	};
-	const higherGT = (a, b, options) => {
-		if (!a) return b;
-		const comp = compare(a.semver, b.semver, options);
-		return comp > 0 ? a : comp < 0 ? b : b.operator === ">" && a.operator === ">=" ? b : a;
-	};
-	const lowerLT = (a, b, options) => {
-		if (!a) return b;
-		const comp = compare(a.semver, b.semver, options);
-		return comp < 0 ? a : comp > 0 ? b : b.operator === "<" && a.operator === "<=" ? b : a;
-	};
-	module.exports = subset;
-}));
-//#endregion
 //#region ../../node_modules/.pnpm/effect@4.0.0-beta.70/node_modules/effect/dist/Cache.js
-var import_semver = /* @__PURE__ */ __toESM$1((/* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const internalRe = require_re();
-	const constants = require_constants();
-	const SemVer = require_semver$1();
-	const identifiers = require_identifiers();
-	module.exports = {
-		parse: require_parse(),
-		valid: require_valid$1(),
-		clean: require_clean(),
-		inc: require_inc(),
-		diff: require_diff(),
-		major: require_major(),
-		minor: require_minor(),
-		patch: require_patch(),
-		prerelease: require_prerelease(),
-		compare: require_compare(),
-		rcompare: require_rcompare(),
-		compareLoose: require_compare_loose(),
-		compareBuild: require_compare_build(),
-		sort: require_sort(),
-		rsort: require_rsort(),
-		gt: require_gt(),
-		lt: require_lt(),
-		eq: require_eq(),
-		neq: require_neq(),
-		gte: require_gte(),
-		lte: require_lte(),
-		cmp: require_cmp(),
-		coerce: require_coerce(),
-		Comparator: require_comparator(),
-		Range: require_range(),
-		satisfies: require_satisfies(),
-		toComparators: require_to_comparators(),
-		maxSatisfying: require_max_satisfying(),
-		minSatisfying: require_min_satisfying(),
-		minVersion: require_min_version(),
-		validRange: require_valid(),
-		outside: require_outside(),
-		gtr: require_gtr(),
-		ltr: require_ltr(),
-		intersects: require_intersects(),
-		simplifyRange: require_simplify(),
-		subset: require_subset(),
-		SemVer,
-		re: internalRe.re,
-		src: internalRe.src,
-		tokens: internalRe.t,
-		SEMVER_SPEC_VERSION: constants.SEMVER_SPEC_VERSION,
-		RELEASE_TYPES: constants.RELEASE_TYPES,
-		compareIdentifiers: identifiers.compareIdentifiers,
-		rcompareIdentifiers: identifiers.rcompareIdentifiers
-	};
-})))(), 1);
 /**
 * The `Cache` module provides an effectful, mutable key-value cache for values
 * that are computed by a lookup function. A `Cache<Key, A, E, R>` stores lookup
@@ -32743,16 +32846,26 @@ const isMinifiedSource = (absolutePath) => {
 		if (fileDescriptor !== void 0) NFS.closeSync(fileDescriptor);
 	}
 };
-const isLargeMinifiedFile = (absolutePath) => {
-	let sizeBytes;
-	try {
-		sizeBytes = NFS.statSync(absolutePath).size;
-	} catch {
-		return false;
-	}
-	if (sizeBytes < 2e4) return false;
-	return isMinifiedSource(absolutePath);
+const cachedIsLargeMinifiedByPath = /* @__PURE__ */ new Map();
+const clearMinifiedFileCache = () => {
+	cachedIsLargeMinifiedByPath.clear();
 };
+const statSourceFileSize = (absolutePath) => {
+	try {
+		return NFS.statSync(absolutePath).size;
+	} catch {
+		return null;
+	}
+};
+const isLargeMinifiedFile = (absolutePath, knownSizeBytes) => {
+	const cached = cachedIsLargeMinifiedByPath.get(absolutePath);
+	if (cached !== void 0) return cached;
+	const sizeBytes = knownSizeBytes === void 0 ? statSourceFileSize(absolutePath) : knownSizeBytes;
+	const result = sizeBytes !== null && sizeBytes >= 2e4 && isMinifiedSource(absolutePath);
+	cachedIsLargeMinifiedByPath.set(absolutePath, result);
+	return result;
+};
+const isErrnoException = (error) => error instanceof Error && "code" in error;
 const IGNORABLE_READDIR_ERROR_CODES = new Set([
 	"EACCES",
 	"EPERM",
@@ -32762,11 +32875,7 @@ const IGNORABLE_READDIR_ERROR_CODES = new Set([
 	"ELOOP",
 	"ENAMETOOLONG"
 ]);
-const isIgnorableReaddirError = (error) => {
-	if (typeof error !== "object" || error === null) return false;
-	const errorCode = error.code;
-	return typeof errorCode === "string" && IGNORABLE_READDIR_ERROR_CODES.has(errorCode);
-};
+const isIgnorableReaddirError = (error) => isErrnoException(error) && typeof error.code === "string" && IGNORABLE_READDIR_ERROR_CODES.has(error.code);
 const readDirectoryEntries = (directoryPath) => {
 	try {
 		return NFS.readdirSync(directoryPath, { withFileTypes: true });
@@ -32816,7 +32925,7 @@ const readPackageJsonUncached = (packageJsonPath) => {
 		return JSON.parse(NFS.readFileSync(packageJsonPath, "utf-8"));
 	} catch (error) {
 		if (error instanceof SyntaxError) return {};
-		if (error instanceof Error && "code" in error) {
+		if (isErrnoException(error)) {
 			const { code } = error;
 			if (code === "EISDIR" || code === "EACCES" || code === "EPERM" || code === "ENOENT") return {};
 		}
@@ -33541,17 +33650,13 @@ const isPackageJsonReactNativeAware = (packageJson) => {
 	return false;
 };
 const hasReactNativeWorkspaceAnywhere = (rootDirectory, rootPackageJson) => someWorkspacePackageJson(rootDirectory, rootPackageJson, isPackageJsonReactNativeAware);
-const getExpoDependencySpec = (packageJson) => {
-	const spec = packageJson.dependencies?.expo ?? packageJson.devDependencies?.expo ?? packageJson.peerDependencies?.expo ?? packageJson.optionalDependencies?.expo;
+const getDependencySpec = (packageJson, packageName) => {
+	const spec = packageJson.dependencies?.[packageName] ?? packageJson.devDependencies?.[packageName] ?? packageJson.peerDependencies?.[packageName] ?? packageJson.optionalDependencies?.[packageName];
 	return typeof spec === "string" ? spec : null;
 };
-const findExpoVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, getExpoDependencySpec);
+const findExpoVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, (packageJson) => getDependencySpec(packageJson, "expo"));
 const SHOPIFY_FLASH_LIST_PACKAGE_NAME = "@shopify/flash-list";
-const getShopifyFlashListDependencySpec = (packageJson) => {
-	const spec = packageJson.dependencies?.["@shopify/flash-list"] ?? packageJson.devDependencies?.["@shopify/flash-list"] ?? packageJson.peerDependencies?.["@shopify/flash-list"] ?? packageJson.optionalDependencies?.["@shopify/flash-list"];
-	return typeof spec === "string" ? spec : null;
-};
-const findShopifyFlashListVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, getShopifyFlashListDependencySpec);
+const findShopifyFlashListVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, (packageJson) => getDependencySpec(packageJson, SHOPIFY_FLASH_LIST_PACKAGE_NAME));
 const resolveCatalogBackedDependencyVersion = ({ rootDirectory, rootPackageJson, packageName, version }) => {
 	if (version === null || !isCatalogReference(version)) return version;
 	const catalogName = extractCatalogName(version);
@@ -33563,11 +33668,7 @@ const resolveCatalogBackedDependencyVersion = ({ rootDirectory, rootPackageJson,
 	if (!isFile(monorepoPackageJsonPath)) return version;
 	return resolveCatalogVersion(readPackageJson(monorepoPackageJsonPath), packageName, monorepoRoot, catalogName) ?? version;
 };
-const getNextjsDependencySpec = (packageJson) => {
-	const spec = packageJson.dependencies?.next ?? packageJson.devDependencies?.next ?? packageJson.peerDependencies?.next ?? packageJson.optionalDependencies?.next;
-	return typeof spec === "string" ? spec : null;
-};
-const findNextjsVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, getNextjsDependencySpec);
+const findNextjsVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, (packageJson) => getDependencySpec(packageJson, "next"));
 const getPreactVersion = (packageJson) => {
 	return {
 		...packageJson.peerDependencies,
@@ -33637,6 +33738,7 @@ const FORK_RAW_BASE_URL = `https://raw.githubusercontent.com/${FORK_OWNER}/${FOR
 `${FORK_RAW_BASE_URL}`;
 const FETCH_TIMEOUT_MS = 1e4;
 const GITHUB_VIEWER_PERMISSION_TIMEOUT_MS = 2e3;
+const PER_WORKER_MEM_BUDGET_BYTES = 1024 * 1024 * 1024;
 const DEFAULT_BRANCH_CANDIDATES = ["main", "master"];
 const ADOPTABLE_LINT_CONFIG_FILENAMES = [".oxlintrc.json", ".eslintrc.json"];
 const GIT_SHOW_MAX_BUFFER_BYTES = 10 * 1024 * 1024;
@@ -33657,6 +33759,11 @@ const ES_TARGET_YEAR_BY_NAME = {
 	es2025: 2025,
 	esnext: 9999
 };
+/**
+* tsconfig filenames probed when resolving a project's TypeScript
+* compiler options — the root config first, then a monorepo base config.
+*/
+const TSCONFIG_FILENAMES = ["tsconfig.json", "tsconfig.base.json"];
 /**
 * Project-config files that `StagedFiles.materialize` copies into
 * the temp directory alongside staged sources so oxlint resolves
@@ -33705,7 +33812,16 @@ const CONFIG_FINGERPRINT_FILENAMES = [
 `${FORK_REPO_URL}`;
 const OXLINT_OUTPUT_MAX_BYTES = 50 * 1024 * 1024;
 const OXLINT_SPAWN_TIMEOUT_MS = 6e4;
+const NODE_COMPILE_CACHE_DIR_NAME = "node-compile-cache";
+const DEAD_CODE_WORKER_TIMEOUT_MS = 12e4;
+const OXLINT_SPLIT_TOTAL_BUDGET_MS = 18e4;
+const DEAD_CODE_PHASE_TIMEOUT_MS = 15e4;
+const LINT_PHASE_TIMEOUT_MS = 3e5;
+const SCAN_TOTAL_DEADLINE_MS = 9e5;
 const DEAD_CODE_WORKER_MAX_OLD_SPACE_MB = 8192;
+const DEAD_CODE_TIMEOUT_CEILING_MS = 6e5;
+const DEAD_CODE_PHASE_TIMEOUT_OVER_WORKER_MS = 3e4;
+const DEAD_CODE_OVERLAP_PARSE_SHARE = .4;
 const RECOMMENDED_PNPM_MINIMUM_RELEASE_AGE_MINUTES = 10080;
 const REACT_SERVER_DOM_PACKAGES = [
 	"react-server-dom-webpack",
@@ -33728,14 +33844,24 @@ const APP_ONLY_RULE_KEYS = new Set([
 ]);
 const COMPILER_CLEANUP_BUCKET = "compiler-cleanup";
 const COMPILER_CLEANUP_RULE_KEYS = new Set(["react-doctor/react-compiler-no-manual-memoization"]);
+const ROOT_CAUSE_GROUPABLE_RULE_KEYS = new Set([
+	"react-doctor/no-derived-state",
+	"react-doctor/no-derived-state-effect",
+	"react-doctor/no-derived-useState",
+	"react-doctor/no-adjust-state-on-prop-change",
+	"react-doctor/no-reset-all-state-on-prop-change"
+]);
 const MAX_GLOB_PATTERN_LENGTH_CHARS = 1024;
 const CONFIG_CACHE_TTL_MS = 300 * 1e3;
 const SOCKET_FREE_PURL_API_BASE = "https://firewall-api.socket.dev/purl";
 const SOCKET_PACKAGE_PAGE_BASE = "https://socket.dev/npm/package";
 const SOCKET_FREE_USER_AGENT = "react-doctor-supply-chain";
+const FILE_LINT_CACHE_FILENAME = "file-lint-cache.json";
+const FILE_LINT_CACHE_MAX_FILE_COUNT = 5e4;
 const SUPPLY_CHAIN_PLUGIN = "socket";
 const SUPPLY_CHAIN_RULE = "low-supply-chain-score";
 const SUPPLY_CHAIN_CATEGORY = "Security";
+const SUPPLY_CHAIN_OVERLAP_TIMEOUT_MS = 9e4;
 const SUPPLY_CHAIN_IGNORED_PACKAGES = new Set(["next"]);
 const TSCONFIG_FILENAME = "tsconfig.json";
 const isRelativeExtendsValue = (extendsValue) => extendsValue.startsWith("./") || extendsValue.startsWith("../") || Path.isAbsolute(extendsValue);
@@ -34163,28 +34289,16 @@ const isReactAtLeast = (detected, required) => {
 	if (detected.major !== required.major) return detected.major > required.major;
 	return detected.minor >= required.minor;
 };
+const parseLowerBoundVersion = (versionSpec) => import_semver.validRange(versionSpec) !== null ? import_semver.minVersion(versionSpec) : import_semver.coerce(versionSpec);
 const parseTailwindMajorMinor = (tailwindVersion) => {
 	if (typeof tailwindVersion !== "string") return null;
 	const trimmed = tailwindVersion.trim();
 	if (trimmed.length === 0) return null;
-	const majorMinorMatch = trimmed.match(/(\d+)\.(\d+)/);
-	if (majorMinorMatch) {
-		const major = Number.parseInt(majorMinorMatch[1], 10);
-		const minor = Number.parseInt(majorMinorMatch[2], 10);
-		if (!Number.isFinite(major) || major <= 0) return null;
-		if (!Number.isFinite(minor) || minor < 0) return null;
-		return {
-			major,
-			minor
-		};
-	}
-	const majorOnlyMatch = trimmed.match(/(\d+)/);
-	if (!majorOnlyMatch) return null;
-	const major = Number.parseInt(majorOnlyMatch[1], 10);
-	if (!Number.isFinite(major) || major <= 0) return null;
+	const lowerBound = parseLowerBoundVersion(trimmed);
+	if (lowerBound === null || lowerBound.major <= 0) return null;
 	return {
-		major,
-		minor: 0
+		major: lowerBound.major,
+		minor: lowerBound.minor
 	};
 };
 const isTailwindAtLeast = (detected, required) => {
@@ -34192,6 +34306,7 @@ const isTailwindAtLeast = (detected, required) => {
 	if (detected.major !== required.major) return detected.major > required.major;
 	return detected.minor >= required.minor;
 };
+const messageFromUnknown = (error) => error instanceof Error ? error.message : String(error);
 var InvalidGlobPatternError = class extends Error {
 	pattern;
 	reason;
@@ -34220,7 +34335,7 @@ const compileGlobPattern = (rawPattern) => {
 	try {
 		return import_picomatch.default.makeRe(normalizeGlobPattern(rawPattern), PICOMATCH_OPTIONS);
 	} catch (caughtError) {
-		throw new InvalidGlobPatternError(rawPattern, caughtError instanceof Error ? caughtError.message : String(caughtError));
+		throw new InvalidGlobPatternError(rawPattern, messageFromUnknown(caughtError));
 	}
 };
 const compileGlobPatternsLenient = (patterns, onInvalid) => {
@@ -34315,115 +34430,6 @@ const buildRuleSeverityControls = (config) => {
 		...config.categories !== void 0 ? { categories: config.categories } : {},
 		...config.buckets !== void 0 ? { buckets: config.buckets } : {}
 	};
-};
-const JSX_OPENER_TAG_PATTERN = /<[A-Za-z][\w.]*/g;
-const JSX_TAG_NAME_FOLLOW = /[A-Za-z]/;
-const isOpenerMatchInsideLineComment = (line, openerCharIndex) => {
-	let stringDelimiter = null;
-	for (let charIndex = 0; charIndex < openerCharIndex; charIndex++) {
-		const character = line[charIndex];
-		if (stringDelimiter !== null) {
-			if (character === "\\") {
-				charIndex++;
-				continue;
-			}
-			if (character === stringDelimiter) stringDelimiter = null;
-			continue;
-		}
-		if (character === "\"" || character === "'" || character === "`") {
-			stringDelimiter = character;
-			continue;
-		}
-		if (character === "/" && line[charIndex + 1] === "/") return true;
-	}
-	return false;
-};
-const findOpenerTagOnLine = (line) => {
-	for (const match of line.matchAll(JSX_OPENER_TAG_PATTERN)) {
-		if (match.index === void 0) continue;
-		if (!isOpenerMatchInsideLineComment(line, match.index)) return { startCharIndex: match.index + match[0].length };
-	}
-	return null;
-};
-const findJsxOpenerSpan = (lines, openerLineIndex) => {
-	const openerLine = lines[openerLineIndex];
-	if (openerLine === void 0) return null;
-	const opener = findOpenerTagOnLine(openerLine);
-	if (!opener) return null;
-	const lookaheadLimit = Math.min(lines.length, openerLineIndex + 32);
-	let braceDepth = 0;
-	let innerAngleDepth = 0;
-	let stringDelimiter = null;
-	for (let lineIndex = openerLineIndex; lineIndex < lookaheadLimit; lineIndex++) {
-		const currentLine = lines[lineIndex];
-		const startCharForLine = lineIndex === openerLineIndex ? opener.startCharIndex : 0;
-		for (let charIndex = startCharForLine; charIndex < currentLine.length; charIndex++) {
-			const character = currentLine[charIndex];
-			if (stringDelimiter !== null) {
-				if (character === "\\") {
-					charIndex++;
-					continue;
-				}
-				if (character === stringDelimiter) stringDelimiter = null;
-				continue;
-			}
-			if (character === "\"" || character === "'" || character === "`") {
-				stringDelimiter = character;
-				continue;
-			}
-			if (character === "{") {
-				braceDepth++;
-				continue;
-			}
-			if (character === "}") {
-				braceDepth--;
-				continue;
-			}
-			if (braceDepth !== 0) continue;
-			if (character === "<") {
-				const followCharacter = currentLine[charIndex + 1];
-				if (followCharacter !== void 0 && JSX_TAG_NAME_FOLLOW.test(followCharacter)) innerAngleDepth++;
-				continue;
-			}
-			if (character !== ">") continue;
-			const previousCharacter = currentLine[charIndex - 1];
-			const nextCharacter = currentLine[charIndex + 1];
-			if (previousCharacter === "=" || nextCharacter === "=") continue;
-			if (innerAngleDepth > 0) {
-				innerAngleDepth--;
-				continue;
-			}
-			return lineIndex;
-		}
-	}
-	return null;
-};
-const findEnclosingMultilineJsxOpenerStart = (lines, diagnosticLineIndex) => {
-	for (let candidateIndex = diagnosticLineIndex - 1; candidateIndex >= 0 && diagnosticLineIndex - candidateIndex <= 32; candidateIndex--) {
-		const openerCloseIndex = findJsxOpenerSpan(lines, candidateIndex);
-		if (openerCloseIndex !== null && openerCloseIndex >= diagnosticLineIndex) return candidateIndex;
-	}
-	return null;
-};
-const DISABLE_NEXT_LINE_PATTERN = /(?:\/\/|\/\*)\s*react-doctor-disable-next-line\b(?:\s+([^\r\n]*?))?\s*(?:\*\/)?\s*\}?\s*$/;
-const findStackedDisableCommentsAbove = (lines, anchorIndex) => {
-	const collected = [];
-	let isStillInChain = true;
-	for (let candidateIndex = anchorIndex - 1; candidateIndex >= 0 && anchorIndex - candidateIndex <= 10; candidateIndex--) {
-		const candidateLine = lines[candidateIndex];
-		if (candidateLine === void 0) break;
-		const match = candidateLine.match(DISABLE_NEXT_LINE_PATTERN);
-		if (match) {
-			collected.push({
-				commentLineIndex: candidateIndex,
-				ruleList: match[1],
-				isInChain: isStillInChain
-			});
-			continue;
-		}
-		isStillInChain = false;
-	}
-	return collected;
 };
 const LEGACY_RULE_KEY_TO_NATIVE_RULE_KEY = {
 	"effect/no-adjust-state-on-prop-change": "react-doctor/no-adjust-state-on-prop-change",
@@ -34549,7 +34555,13 @@ for (const [legacyRuleKey, nativeRuleKey] of Object.entries(LEGACY_RULE_KEY_TO_N
 }
 const getLegacyRuleKeysForNative = (ruleKey) => NATIVE_RULE_KEY_TO_LEGACY_RULE_KEYS.get(ruleKey) ?? [];
 const canonicalizeRuleKey = (ruleKey) => LEGACY_RULE_KEY_TO_NATIVE_RULE_KEY[ruleKey] ?? ruleKey;
-const isSameRuleKey = (candidateRuleKey, targetRuleKey) => canonicalizeRuleKey(candidateRuleKey) === canonicalizeRuleKey(targetRuleKey);
+const isReactDoctorShortIdOf = (bareRuleKey, qualifiedRuleKey) => !bareRuleKey.includes("/") && qualifiedRuleKey === `react-doctor/${bareRuleKey}`;
+const isSameRuleKey = (candidateRuleKey, targetRuleKey) => {
+	const canonicalCandidate = canonicalizeRuleKey(candidateRuleKey);
+	const canonicalTarget = canonicalizeRuleKey(targetRuleKey);
+	if (canonicalCandidate === canonicalTarget) return true;
+	return isReactDoctorShortIdOf(canonicalCandidate, canonicalTarget) || isReactDoctorShortIdOf(canonicalTarget, canonicalCandidate);
+};
 const getEquivalentRuleKeys = (ruleKey) => {
 	const nativeRuleKey = canonicalizeRuleKey(ruleKey);
 	return [nativeRuleKey, ...getLegacyRuleKeysForNative(nativeRuleKey)];
@@ -34559,12 +34571,182 @@ const stripDescriptionTail = (ruleList) => {
 	if (!descriptionMatch || descriptionMatch.index === void 0) return ruleList;
 	return ruleList.slice(0, descriptionMatch.index);
 };
-const isRuleListedInComment = (ruleList, ruleId) => {
+const tokenizeRuleList = (ruleList) => {
 	const trimmed = ruleList?.trim();
-	if (!trimmed) return true;
+	if (!trimmed) return [];
 	const ruleSection = stripDescriptionTail(trimmed).trim();
-	if (!ruleSection) return true;
-	return ruleSection.split(/[,\s]+/).some((token) => isSameRuleKey(token.trim(), ruleId));
+	if (!ruleSection) return [];
+	return ruleSection.split(/[,\s]+/).map((token) => token.trim()).filter(Boolean);
+};
+const FOREIGN_INLINE_DISABLE_PATTERN = /(?:\/\/|\/\*)[ \t]*(eslint|oxlint)-disable-(next-line|line)(?![\w-])([^\r\n]*)/;
+const FOREIGN_BLOCK_DISABLE_PATTERN = /\/\*[ \t]*(eslint|oxlint)-disable(?![\w-])([^*\r\n]*)/;
+const FOREIGN_BLOCK_ENABLE_PATTERN = /\/\*[ \t]*(?:eslint|oxlint)-enable(?![\w-])([^*\r\n]*)/;
+const buildHint = (tool, token, ruleId) => `oxlint matches plugin rules only by their full name, so \`${token}\` in your ${tool}-disable comment does not silence \`${ruleId}\` — change it to \`${ruleId}\`.`;
+const tokenMisnamesRule = (token, ruleId) => token !== ruleId && isSameRuleKey(token, ruleId);
+const detectInlineNearMiss = (lines, diagnosticLineIndex, ruleId) => {
+	const candidates = [{
+		line: lines[diagnosticLineIndex],
+		requiredScope: "line"
+	}, {
+		line: lines[diagnosticLineIndex - 1],
+		requiredScope: "next-line"
+	}];
+	for (const { line, requiredScope } of candidates) {
+		const match = line?.match(FOREIGN_INLINE_DISABLE_PATTERN);
+		if (!match) continue;
+		const [, tool, scope, ruleList] = match;
+		if (scope !== requiredScope) continue;
+		const tokens = tokenizeRuleList(ruleList);
+		if (tokens.includes(ruleId)) continue;
+		for (const token of tokens) if (tokenMisnamesRule(token, ruleId)) return buildHint(tool, token, ruleId);
+	}
+	return null;
+};
+const detectBlockNearMiss = (lines, diagnosticLineIndex, ruleId) => {
+	let openMisname = null;
+	const lastLineIndex = Math.min(diagnosticLineIndex, lines.length - 1);
+	for (let lineIndex = 0; lineIndex <= lastLineIndex; lineIndex++) {
+		const line = lines[lineIndex];
+		if (line === void 0 || !line.includes("-disable") && !line.includes("-enable")) continue;
+		const disableMatch = line.match(FOREIGN_BLOCK_DISABLE_PATTERN);
+		if (disableMatch) {
+			const [, tool, ruleList] = disableMatch;
+			const tokens = tokenizeRuleList(ruleList);
+			if (tokens.includes(ruleId)) openMisname = null;
+			else {
+				const misnamed = tokens.find((token) => tokenMisnamesRule(token, ruleId));
+				if (misnamed) openMisname = {
+					tool,
+					token: misnamed
+				};
+			}
+			continue;
+		}
+		const enableMatch = line.match(FOREIGN_BLOCK_ENABLE_PATTERN);
+		if (enableMatch) {
+			const enabledRules = tokenizeRuleList(enableMatch[1]);
+			if (enabledRules.length === 0 || enabledRules.some((rule) => isSameRuleKey(rule, ruleId))) openMisname = null;
+		}
+	}
+	return openMisname ? buildHint(openMisname.tool, openMisname.token, ruleId) : null;
+};
+const detectForeignDisableNearMiss = (lines, diagnosticLineIndex, ruleId) => {
+	if (!ruleId.startsWith("react-doctor/")) return null;
+	return detectInlineNearMiss(lines, diagnosticLineIndex, ruleId) ?? detectBlockNearMiss(lines, diagnosticLineIndex, ruleId);
+};
+const JSX_OPENER_TAG_PATTERN = /<[A-Za-z][\w.]*/g;
+const JSX_TAG_NAME_FOLLOW = /[A-Za-z]/;
+const isOpenerMatchInsideLineComment = (line, openerCharIndex) => {
+	let stringDelimiter = null;
+	for (let charIndex = 0; charIndex < openerCharIndex; charIndex++) {
+		const character = line[charIndex];
+		if (stringDelimiter !== null) {
+			if (character === "\\") {
+				charIndex++;
+				continue;
+			}
+			if (character === stringDelimiter) stringDelimiter = null;
+			continue;
+		}
+		if (character === "\"" || character === "'" || character === "`") {
+			stringDelimiter = character;
+			continue;
+		}
+		if (character === "/" && line[charIndex + 1] === "/") return true;
+	}
+	return false;
+};
+const findOpenerTagOnLine = (line) => {
+	for (const match of line.matchAll(JSX_OPENER_TAG_PATTERN)) {
+		if (match.index === void 0) continue;
+		if (!isOpenerMatchInsideLineComment(line, match.index)) return { startCharIndex: match.index + match[0].length };
+	}
+	return null;
+};
+const findJsxOpenerSpan = (lines, openerLineIndex) => {
+	const openerLine = lines[openerLineIndex];
+	if (openerLine === void 0) return null;
+	const opener = findOpenerTagOnLine(openerLine);
+	if (!opener) return null;
+	const lookaheadLimit = Math.min(lines.length, openerLineIndex + 32);
+	let braceDepth = 0;
+	let innerAngleDepth = 0;
+	let stringDelimiter = null;
+	for (let lineIndex = openerLineIndex; lineIndex < lookaheadLimit; lineIndex++) {
+		const currentLine = lines[lineIndex];
+		const startCharForLine = lineIndex === openerLineIndex ? opener.startCharIndex : 0;
+		for (let charIndex = startCharForLine; charIndex < currentLine.length; charIndex++) {
+			const character = currentLine[charIndex];
+			if (stringDelimiter !== null) {
+				if (character === "\\") {
+					charIndex++;
+					continue;
+				}
+				if (character === stringDelimiter) stringDelimiter = null;
+				continue;
+			}
+			if (character === "\"" || character === "'" || character === "`") {
+				stringDelimiter = character;
+				continue;
+			}
+			if (character === "{") {
+				braceDepth++;
+				continue;
+			}
+			if (character === "}") {
+				braceDepth--;
+				continue;
+			}
+			if (braceDepth !== 0) continue;
+			if (character === "<") {
+				const followCharacter = currentLine[charIndex + 1];
+				if (followCharacter !== void 0 && JSX_TAG_NAME_FOLLOW.test(followCharacter)) innerAngleDepth++;
+				continue;
+			}
+			if (character !== ">") continue;
+			const previousCharacter = currentLine[charIndex - 1];
+			const nextCharacter = currentLine[charIndex + 1];
+			if (previousCharacter === "=" || nextCharacter === "=") continue;
+			if (innerAngleDepth > 0) {
+				innerAngleDepth--;
+				continue;
+			}
+			return lineIndex;
+		}
+	}
+	return null;
+};
+const findEnclosingMultilineJsxOpenerStart = (lines, diagnosticLineIndex) => {
+	for (let candidateIndex = diagnosticLineIndex - 1; candidateIndex >= 0 && diagnosticLineIndex - candidateIndex <= 32; candidateIndex--) {
+		const openerCloseIndex = findJsxOpenerSpan(lines, candidateIndex);
+		if (openerCloseIndex !== null && openerCloseIndex >= diagnosticLineIndex) return candidateIndex;
+	}
+	return null;
+};
+const DISABLE_NEXT_LINE_PATTERN = /(?:\/\/|\/\*)\s*react-doctor-disable-next-line\b(?:\s+([^\r\n]*?))?\s*(?:\*\/)?\s*\}?\s*$/;
+const findStackedDisableCommentsAbove = (lines, anchorIndex) => {
+	const collected = [];
+	let isStillInChain = true;
+	for (let candidateIndex = anchorIndex - 1; candidateIndex >= 0 && anchorIndex - candidateIndex <= 10; candidateIndex--) {
+		const candidateLine = lines[candidateIndex];
+		if (candidateLine === void 0) break;
+		const match = candidateLine.match(DISABLE_NEXT_LINE_PATTERN);
+		if (match) {
+			collected.push({
+				commentLineIndex: candidateIndex,
+				ruleList: match[1],
+				isInChain: isStillInChain
+			});
+			continue;
+		}
+		isStillInChain = false;
+	}
+	return collected;
+};
+const isRuleListedInComment = (ruleList, ruleId) => {
+	const tokens = tokenizeRuleList(ruleList);
+	if (tokens.length === 0) return true;
+	return tokens.some((token) => isSameRuleKey(token, ruleId));
 };
 const DISABLE_LINE_PATTERN = /(?:\/\/|\/\*)\s*react-doctor-disable-line\b(?:\s+([^\r\n]*?))?\s*(?:\*\/)?\s*\}?\s*$/;
 const formatLineGap = (gapLineCount) => `${gapLineCount} line${gapLineCount === 1 ? "" : "s"}`;
@@ -34608,7 +34790,7 @@ const evaluateSuppression = (lines, diagnosticLineIndex, ruleId) => {
 	};
 	return {
 		isSuppressed: false,
-		nearMissHint: classifyFromComments([directComments, openerComments], diagnosticLineIndex, ruleId)
+		nearMissHint: classifyFromComments([directComments, openerComments], diagnosticLineIndex, ruleId) ?? detectForeignDisableNearMiss(lines, diagnosticLineIndex, ruleId)
 	};
 };
 /**
@@ -34640,8 +34822,10 @@ const isFileIgnoredByPatterns = (filePath, rootDirectory, patterns) => {
 	const relativePath = toRelativePath(filePath, rootDirectory);
 	return patterns.some((pattern) => pattern.test(relativePath));
 };
+const SCRIPT_EXTENSION_FRAGMENT = "[cm]?[jt]sx?";
+const STORY_FILE_SUFFIX_PATTERN = new RegExp(`\\.(?:stories|story)\\.(?:${SCRIPT_EXTENSION_FRAGMENT})$`);
+const TEST_FILE_SUFFIX_PATTERN = new RegExp(`\\.(?:test|spec|fixture|fixtures)\\.(?:${SCRIPT_EXTENSION_FRAGMENT})$`);
 const TEST_FILE_DIRECTORY_PATTERN = /(?:^|\/)(?:__tests__|__test__|tests|test|__mocks__|cypress|e2e|playwright)\//;
-const TEST_FILE_SUFFIX_PATTERN = /\.(?:test|spec|stories|story|fixture|fixtures)\.(?:[cm]?[jt]sx?)$/;
 const FIXTURE_PROJECT_PATTERN = /\/(?:fixtures|__fixtures__)\//;
 const SOURCE_ROOT_PATTERN = /\/(?:src|app|lib|components|pages|features|modules|packages|apps|frontend|client)\//g;
 const stripAboveSourceRoot = (relativePath) => {
@@ -34652,12 +34836,23 @@ const stripAboveSourceRoot = (relativePath) => {
 	if (lastIdx >= 0) return relativePath.slice(lastIdx);
 	return relativePath.slice(fixtureMatch.index + fixtureMatch[0].length - 1);
 };
-const isTestFilePath = (relativePath) => {
-	if (relativePath.length === 0) return false;
+/**
+* Classifies where a file sits relative to shipped code. A finding in a
+* `.stories.tsx` or `.spec.ts` file never runs in front of users, so
+* renderers label those sites instead of framing them as production
+* impact (`rn-no-raw-text` in a spec doesn't say users crash).
+*
+* `"story"` is the `.stories.*` / `.story.*` suffix; `"test"` is the
+* test/spec/fixture suffixes and test directories; `"production"` is
+* the default.
+*/
+const classifyFileContext = (relativePath) => {
+	if (relativePath.length === 0) return "production";
 	const forwardSlashed = relativePath.replaceAll("\\", "/");
-	if (TEST_FILE_SUFFIX_PATTERN.test(forwardSlashed)) return true;
+	if (STORY_FILE_SUFFIX_PATTERN.test(forwardSlashed)) return "story";
+	if (TEST_FILE_SUFFIX_PATTERN.test(forwardSlashed)) return "test";
 	const scoped = stripAboveSourceRoot(forwardSlashed);
-	return TEST_FILE_DIRECTORY_PATTERN.test(scoped);
+	return TEST_FILE_DIRECTORY_PATTERN.test(scoped) ? "test" : "production";
 };
 /**
 * Resolves the user-configured severity override for a rule.
@@ -34877,6 +35072,8 @@ const collectStringSet = (values) => {
 * 5. `rn-no-raw-text` suppression via configured `textComponents` and
 *    `rawTextWrapperComponents` (config-driven JSX enclosure checks)
 * 6. inline suppressions (`// react-doctor-disable-next-line ...`)
+* 7. file-context stamping (`fileContext: "test" | "story"` on
+*    survivors in non-production files, so renderers can label them)
 *
 * Returns `null` when the diagnostic is dropped, the (possibly
 * severity-restamped) diagnostic otherwise.
@@ -34896,7 +35093,7 @@ const buildDiagnosticPipeline = (input) => {
 	const hasTextComponents = textComponentNames.size > 0;
 	const hasRawTextWrappers = rawTextWrapperComponentNames.size > 0;
 	const fileLinesCache = /* @__PURE__ */ new Map();
-	const testFileCache = /* @__PURE__ */ new Map();
+	const fileContextCache = /* @__PURE__ */ new Map();
 	const libraryFileCache = /* @__PURE__ */ new Map();
 	const isLibraryFile = (filePath) => {
 		let cached = libraryFileCache.get(filePath);
@@ -34913,11 +35110,11 @@ const buildDiagnosticPipeline = (input) => {
 		fileLinesCache.set(filePath, lines);
 		return lines;
 	};
-	const isTest = (filePath) => {
-		let cached = testFileCache.get(filePath);
+	const getFileContext = (filePath) => {
+		let cached = fileContextCache.get(filePath);
 		if (cached === void 0) {
-			cached = isTestFilePath(filePath);
-			testFileCache.set(filePath, cached);
+			cached = classifyFileContext(filePath);
+			fileContextCache.set(filePath, cached);
 		}
 		return cached;
 	};
@@ -34926,7 +35123,7 @@ const buildDiagnosticPipeline = (input) => {
 		const rule = reactDoctorPlugin.rules[diagnostic.rule];
 		if (!rule?.tags?.includes("test-noise")) return false;
 		if (rule.tags.includes("migration-hint")) return false;
-		return isTest(diagnostic.filePath);
+		return getFileContext(diagnostic.filePath) !== "production";
 	};
 	const isRuleIgnored = (ruleIdentifier) => {
 		for (const ignored of ignoredRules) if (isSameRuleKey(ignored, ruleIdentifier)) return true;
@@ -34983,6 +35180,11 @@ const buildDiagnosticPipeline = (input) => {
 				};
 			}
 		}
+		const fileContext = getFileContext(current.filePath);
+		if (fileContext !== "production") current = {
+			...current,
+			fileContext
+		};
 		return current;
 	} };
 };
@@ -35012,6 +35214,11 @@ var OxlintBatchExceeded = class extends TaggedErrorClass()("OxlintBatchExceeded"
 			case "oom": return `oxlint batch ran out of memory: ${this.detail}`;
 			case "killed": return `oxlint batch was killed: ${this.detail}`;
 		}
+	}
+};
+var ScanDeadlineExceeded = class extends TaggedErrorClass()("ScanDeadlineExceeded", { detail: String$1 }) {
+	get message() {
+		return `Scan exceeded its overall time budget: ${this.detail}`;
 	}
 };
 var OxlintSpawnFailed = class extends TaggedErrorClass()("OxlintSpawnFailed", { cause: Unknown }) {
@@ -35077,6 +35284,7 @@ var GitBaseBranchInvalid = class extends TaggedErrorClass()("GitBaseBranchInvali
 const ReactDoctorErrorReason = Union([
 	OxlintUnavailable,
 	OxlintBatchExceeded,
+	ScanDeadlineExceeded,
 	OxlintSpawnFailed,
 	OxlintOutputUnparseable,
 	ConfigParseFailed,
@@ -35127,15 +35335,105 @@ const layerOtlp = unwrap$3(gen(function* () {
 	}).pipe(provide$2(layer$8));
 }).pipe(orDie));
 /**
-* Resolves a requested lint worker count to a clamped integer within
-* `[MIN_SCAN_CONCURRENCY, MAX_SCAN_CONCURRENCY]`. `"auto"` uses the
-* machine's CPU cores; out-of-range or non-finite requests degrade to
+* Read a positive-millisecond timeout from an env var, falling back to
+* `defaultMs` when the var is unset, non-finite, or not strictly positive.
+*/
+const readPositiveEnvMs = (envVarName, defaultMs) => {
+	const rawValue = process.env[envVarName];
+	if (rawValue === void 0) return defaultMs;
+	const parsedValue = Number(rawValue);
+	if (!Number.isFinite(parsedValue) || parsedValue <= 0) return defaultMs;
+	return parsedValue;
+};
+const CGROUP_V2_MEMORY_MAX_PATH = "/sys/fs/cgroup/memory.max";
+const CGROUP_V1_MEMORY_LIMIT_PATH = "/sys/fs/cgroup/memory/memory.limit_in_bytes";
+const CGROUP_UNLIMITED_SENTINEL_BYTES = Number.MAX_SAFE_INTEGER;
+/**
+* Parses one raw cgroup memory-limit file value into a positive byte count, or
+* `undefined` when it represents "no limit" (the v2 `"max"` literal, an empty
+* read, a non-positive / non-finite value, or v1's near-2^63 unlimited
+* sentinel). Pure and exported so the classification is unit-testable without
+* touching the filesystem.
+*/
+const parseCgroupMemoryLimitBytes = (raw) => {
+	if (raw === void 0) return void 0;
+	const trimmed = raw.trim();
+	if (trimmed === "" || trimmed === "max") return void 0;
+	const parsed = Number(trimmed);
+	if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= CGROUP_UNLIMITED_SENTINEL_BYTES) return;
+	return parsed;
+};
+const CGROUP_MEMORY_LIMIT_PATHS = [CGROUP_V2_MEMORY_MAX_PATH, CGROUP_V1_MEMORY_LIMIT_PATH];
+/**
+* Reads this process's cgroup memory limit in bytes from the first candidate
+* path that yields a real limit, or `undefined` when none does — no cgroup, no
+* limit, or the files are unreadable (e.g. macOS / Windows dev machines).
+* `os.totalmem()` reports the HOST total and ignores cgroup memory limits, so a
+* memory-constrained container over-reports total memory; `resolveAutoScan-
+* Concurrency` takes `min(totalmem, this)` to honor the limit.
+*
+* The cgroup v2 read is the mount-root `memory.max`, which IS the container's
+* limit under the standard cgroup-namespace setup CI runners use (the
+* container's own cgroup is the root of its namespaced view). A process in a
+* non-namespaced nested/delegated cgroup whose root reads `"max"` is not
+* detected here and falls back to the host total; the EAGAIN/ENOMEM serial
+* replay in `spawnLintBatches` remains the runtime backstop for that case.
+*
+* `candidatePaths` is injectable so tests exercise the v2-wins-over-v1
+* precedence, the skip-unreadable fallback, and the all-missing case without a
+* real `/sys/fs/cgroup`.
+*/
+const readCgroupMemoryLimitBytes = (candidatePaths = CGROUP_MEMORY_LIMIT_PATHS) => {
+	for (const limitPath of candidatePaths) {
+		let raw;
+		try {
+			raw = fs.readFileSync(limitPath, "utf8");
+		} catch {
+			continue;
+		}
+		const limitBytes = parseCgroupMemoryLimitBytes(raw);
+		if (limitBytes !== void 0) return limitBytes;
+	}
+};
+/**
+* Clamps a requested lint worker count to `[MIN_SCAN_CONCURRENCY,
+* HARD_MAX_SCAN_CONCURRENCY]` as a finite integer. This is the explicit-pin and
+* spawn-boundary clamp — the memory-and-core-budgeted auto count comes from
+* `resolveAutoScanConcurrency`. Out-of-range or non-finite requests degrade to
 * `MIN_SCAN_CONCURRENCY` rather than oversubscribing or running zero workers.
 */
 const resolveScanConcurrency = (requested) => {
-	const desired = requested === "auto" ? os.availableParallelism() : requested;
-	if (!Number.isFinite(desired) || desired < 1) return 1;
-	return Math.max(1, Math.min(Math.floor(desired), 16));
+	if (!Number.isFinite(requested) || requested < 1) return 1;
+	return Math.min(Math.floor(requested), 32);
+};
+const readSystemFacts = () => ({
+	availableCores: os.availableParallelism(),
+	totalMemoryBytes: os.totalmem(),
+	cgroupMemoryLimitBytes: readCgroupMemoryLimitBytes()
+});
+/**
+* Auto lint-worker count: the smaller of the (cgroup-CPU-aware) core count and
+* the number of `PER_WORKER_MEM_BUDGET_BYTES` workers that fit in available
+* memory, then clamped to `[MIN, HARD_MAX]` by `resolveScanConcurrency`.
+*
+* `os.availableParallelism()` already respects cgroup CPU quotas, so the core
+* term needs no help. Available memory is `os.totalmem()` floored by the cgroup
+* memory limit — `os.freemem()` is deliberately NOT used: it excludes
+* reclaimable page cache and reads near-zero on macOS / cache-heavy Linux, which
+* would collapse the auto path to a single worker. `os.totalmem()` reports the
+* host total even inside a container, so the cgroup limit (read directly,
+* because Node doesn't fold it into `totalmem()`) is the real ceiling there.
+*
+* `facts` is injectable so tests exercise core-bound, memory-bound, cgroup-
+* limited, and ceiling cases without mocking `os` or the filesystem.
+*/
+const resolveAutoScanConcurrency = (facts = readSystemFacts()) => {
+	const availableMemoryBytes = Math.min(facts.totalMemoryBytes, facts.cgroupMemoryLimitBytes ?? Number.POSITIVE_INFINITY);
+	const memoryBoundedWorkers = Math.floor(availableMemoryBytes / PER_WORKER_MEM_BUDGET_BYTES);
+	return resolveScanConcurrency(Math.min(facts.availableCores, memoryBoundedWorkers));
+};
+const resolveLintBatchOrdering = () => {
+	return process.env["REACT_DOCTOR_LINT_BATCH_ORDERING"]?.trim().toLowerCase() === "cost" ? "cost" : "arrival";
 };
 /**
 * Per-batch oxlint wall-clock budget. Reads from the env var on
@@ -35143,11 +35441,38 @@ const resolveScanConcurrency = (requested) => {
 * microVMs without recompiling react-doctor. Tests override via
 * `Layer.succeed(OxlintSpawnTimeoutMs, ...)`.
 */
-var OxlintSpawnTimeoutMs = class extends Reference("react-doctor/OxlintSpawnTimeoutMs", { defaultValue: () => {
-	const raw = process.env["REACT_DOCTOR_OXLINT_SPAWN_TIMEOUT_MS"];
-	if (raw === void 0) return OXLINT_SPAWN_TIMEOUT_MS;
+var OxlintSpawnTimeoutMs = class extends Reference("react-doctor/OxlintSpawnTimeoutMs", { defaultValue: () => readPositiveEnvMs("REACT_DOCTOR_OXLINT_SPAWN_TIMEOUT_MS", OXLINT_SPAWN_TIMEOUT_MS) }) {};
+/**
+* Effect-side cap on the lint phase. The env var lets CI / eval runners
+* raise the phase budget for slow large repos without recompiling.
+* Tests override via `Layer.succeed(LintPhaseTimeoutMs, ...)`.
+*/
+var LintPhaseTimeoutMs = class extends Reference("react-doctor/LintPhaseTimeoutMs", { defaultValue: () => readPositiveEnvMs("REACT_DOCTOR_LINT_PHASE_TIMEOUT_MS", LINT_PHASE_TIMEOUT_MS) }) {};
+/**
+* Effect-side cap on the dead-code phase, sitting above the in-worker
+* timeout as a runtime-independent backstop. The env var raises it for
+* type-heavy projects; tests override via
+* `Layer.succeed(DeadCodePhaseTimeoutMs, ...)`.
+*/
+var DeadCodePhaseTimeoutMs = class extends Reference("react-doctor/DeadCodePhaseTimeoutMs", { defaultValue: () => readPositiveEnvMs("REACT_DOCTOR_DEAD_CODE_PHASE_TIMEOUT_MS", DEAD_CODE_PHASE_TIMEOUT_MS) }) {};
+/**
+* Overall scan deadline backstop, bounding everything the per-phase
+* timeouts don't (wedged git / IO). The env var raises it for very
+* large repos; tests override via `Layer.succeed(ScanDeadlineMs, ...)`.
+*/
+var ScanDeadlineMs = class extends Reference("react-doctor/ScanDeadlineMs", { defaultValue: () => readPositiveEnvMs("REACT_DOCTOR_SCAN_DEADLINE_MS", SCAN_TOTAL_DEADLINE_MS) }) {};
+/**
+* Wall-clock budget for the supply-chain check when it runs on a background
+* fiber overlapping the lint pass. Reads from the env var on startup so the
+* eval harness can raise the budget under sandbox microVMs (slower network)
+* without recompiling react-doctor. Tests override via
+* `Layer.succeed(SupplyChainOverlapTimeoutMs, ...)`.
+*/
+var SupplyChainOverlapTimeoutMs = class extends Reference("react-doctor/SupplyChainOverlapTimeoutMs", { defaultValue: () => {
+	const raw = process.env["REACT_DOCTOR_SUPPLY_CHAIN_TIMEOUT_MS"];
+	if (raw === void 0) return SUPPLY_CHAIN_OVERLAP_TIMEOUT_MS;
 	const parsed = Number(raw);
-	if (!Number.isFinite(parsed) || parsed <= 0) return OXLINT_SPAWN_TIMEOUT_MS;
+	if (!Number.isFinite(parsed) || parsed <= 0) return SUPPLY_CHAIN_OVERLAP_TIMEOUT_MS;
 	return parsed;
 } }) {};
 /**
@@ -35158,31 +35483,93 @@ var OxlintSpawnTimeoutMs = class extends Reference("react-doctor/OxlintSpawnTime
 */
 var OxlintOutputMaxBytes = class extends Reference("react-doctor/OxlintOutputMaxBytes", { defaultValue: () => OXLINT_OUTPUT_MAX_BYTES }) {};
 /**
-* Number of oxlint subprocesses the lint pass runs in parallel. Defaults
-* to auto-detected CPU cores (parallel) so large repos scan fast out of
-* the box; `spawnLintBatches` transparently falls back to a single worker
-* if a parallel run exhausts system resources. The CLI's `--no-parallel`
-* flag forces serial via `Layer.succeed`; the `REACT_DOCTOR_PARALLEL` env
-* var seeds the default for programmatic / CI callers that never touch the
-* flag — parallelism is opt-OUT, so only the explicit serial values pin
-* one worker:
+* Number of oxlint subprocesses the lint pass runs in parallel. Defaults to a
+* memory-and-core-budgeted auto count (`resolveAutoScanConcurrency`) so large
+* repos scan fast out of the box without OOMing the native binding on a
+* high-core / low-memory box; `spawnLintBatches` transparently falls back to a
+* single worker if a parallel run still exhausts system resources. The CLI's
+* `--no-parallel` flag forces serial via `Layer.succeed`; the
+* `REACT_DOCTOR_PARALLEL` env var seeds the default for programmatic / CI
+* callers that never touch the flag — parallelism is opt-OUT, so only the
+* explicit serial values pin one worker:
 *
-*   - unset / `auto` / `true` / `on`  → available CPU cores (clamped)
+*   - unset / `auto` / `true` / `on`  → memory-and-core-budgeted auto count
 *   - `0` / `false` / `off`           → `1` (serial)
 *   - a positive integer              → that many workers (clamped)
-*   - any other value                 → available CPU cores (clamped)
+*   - any other value                 → memory-and-core-budgeted auto count
 *
 * The resolved value is always within
-* `[MIN_SCAN_CONCURRENCY, MAX_SCAN_CONCURRENCY]`.
+* `[MIN_SCAN_CONCURRENCY, HARD_MAX_SCAN_CONCURRENCY]`.
 */
 var OxlintConcurrency = class extends Reference("react-doctor/OxlintConcurrency", { defaultValue: () => {
 	const raw = process.env["REACT_DOCTOR_PARALLEL"];
-	if (raw === void 0) return resolveScanConcurrency("auto");
+	if (raw === void 0) return resolveAutoScanConcurrency();
 	const normalized = raw.trim().toLowerCase();
 	if (normalized === "0" || normalized === "false" || normalized === "off") return 1;
 	const parsed = Number.parseInt(normalized, 10);
 	if (Number.isInteger(parsed) && parsed > 0) return resolveScanConcurrency(parsed);
-	return resolveScanConcurrency("auto");
+	return resolveAutoScanConcurrency();
+} }) {};
+/**
+* Three-state control for overlapping the dead-code pass with the lint pass —
+* forking dead-code as a child fiber that runs DURING lint instead of strictly
+* after it.
+*
+*   - `"auto"` (default) / `"off"` → strictly SEQUENTIAL: dead-code runs after
+*     lint with the full core budget. Both deslop's parse pool and the oxlint
+*     pool are CPU-bound and each size themselves to all cores, so overlapping
+*     them only oversubscribes (~2x the cores) and starves the parse pass past
+*     its timeout — for no wall-clock win, since there are no spare cores to
+*     absorb the second pass. Sequential is both faster per-phase and safe.
+*   - `"on"` → force the overlap anyway. The orchestrator then SPLITS the core
+*     budget (`DEAD_CODE_OVERLAP_PARSE_SHARE`): deslop's parse pool is capped
+*     and lint shrinks to the remainder, so the two sum to the cores instead of
+*     doubling them, and the dead-code timeout scales up for the reduced share.
+*
+* Seeded from `REACT_DOCTOR_DEAD_CODE_OVERLAP` so operators get a redeploy-free
+* switch; tests pin it via `Layer.succeed(DeadCodeOverlap, ...)`.
+*/
+var DeadCodeOverlap = class extends Reference("react-doctor/DeadCodeOverlap", { defaultValue: () => {
+	const raw = process.env["REACT_DOCTOR_DEAD_CODE_OVERLAP"]?.trim().toLowerCase();
+	if (raw === "on" || raw === "true" || raw === "1") return "on";
+	if (raw === "off" || raw === "false" || raw === "0") return "off";
+	return "auto";
+} }) {};
+/**
+* How the full-scan lint pass orders its file batches. `"arrival"` (the
+* default) keeps `git ls-files` discovery order. `"cost"` opts into LPT (feed
+* the largest files first); set `REACT_DOCTOR_LINT_BATCH_ORDERING=cost`. NOTE:
+* `cost` is OFF by default because the current sort-desc-then-chunk-100 packs
+* the heaviest files into one wave-1 batch — on size-skewed repos that mega-
+* batch is a straggler (and can trip the per-batch timeout + split), measurably
+* regressing the common full-scan case. LPT needs the heavy files SPREAD across
+* batches before `cost` earns the default. Tests override via
+* `Layer.succeed(LintBatchOrdering, ...)`. Diff / staged scans never reach this
+* — they pass user-scoped `includePaths` that skip discovery and stay in
+* arrival order; only the full-scan branch reads it.
+*/
+var LintBatchOrdering = class extends Reference("react-doctor/LintBatchOrdering", { defaultValue: resolveLintBatchOrdering }) {};
+const CACHE_DISABLED_VALUES = new Set(["1", "true"]);
+/**
+* Whether the per-file lint cache (`runners/oxlint/file-lint-cache.ts`) is
+* active. Defaults ON — repeat scans re-lint only the files whose content
+* changed, and correctness is guaranteed byte-identical to a cold scan by the
+* always-fresh cross-file sidecar. Opt-OUT, two knobs (matching the whole-repo
+* scan cache's `REACT_DOCTOR_NO_CACHE`):
+*
+*   - `REACT_DOCTOR_NO_CACHE` — the global off-switch; disables BOTH the
+*     whole-repo scan cache and this per-file cache.
+*   - `REACT_DOCTOR_NO_FILE_CACHE` — granular: bust only the per-file cache
+*     while keeping the whole-repo short-circuit.
+*
+* Tests override via `Layer.succeed(PerFileLintCacheEnabled, false)`.
+*/
+var PerFileLintCacheEnabled = class extends Reference("react-doctor/PerFileLintCacheEnabled", { defaultValue: () => {
+	const noCache = process.env["REACT_DOCTOR_NO_CACHE"]?.toLowerCase() ?? "";
+	const noFileCache = process.env["REACT_DOCTOR_NO_FILE_CACHE"]?.toLowerCase() ?? "";
+	if (CACHE_DISABLED_VALUES.has(noCache)) return false;
+	if (CACHE_DISABLED_VALUES.has(noFileCache)) return false;
+	return true;
 } }) {};
 const DIAGNOSTIC_SURFACES = [
 	"cli",
@@ -35356,10 +35743,40 @@ const PACKAGE_JSON_FILENAME = "package.json";
 const PACKAGE_JSON_CONFIG_KEY = "reactDoctor";
 const LEGACY_CONFIG_FILENAME = "react-doctor.config.json";
 const jiti = createJiti(import.meta.url);
-const formatError = (error) => error instanceof Error ? error.message : String(error);
-const loadModuleConfig = async (filePath) => {
-	const imported = await jiti.import(filePath);
+const importDefaultExport = async (jitiInstance, filePath) => {
+	const imported = await jitiInstance.import(filePath);
 	return imported?.default ?? imported;
+};
+const SELF_PACKAGE_IMPORT_SPECIFIER = "react-doctor/api";
+const SELF_PACKAGE_RESOLVE_TARGETS = ["react-doctor/api", "@react-doctor/core"];
+const MODULE_NOT_FOUND_ERROR_CODES = new Set(["MODULE_NOT_FOUND", "ERR_MODULE_NOT_FOUND"]);
+let selfAliasJiti;
+const getSelfAliasJiti = () => {
+	if (selfAliasJiti !== void 0) return selfAliasJiti;
+	for (const resolveTarget of SELF_PACKAGE_RESOLVE_TARGETS) try {
+		const aliasTargetPath = fileURLToPath(jiti.esmResolve(resolveTarget));
+		selfAliasJiti = createJiti(import.meta.url, { alias: { [SELF_PACKAGE_IMPORT_SPECIFIER]: aliasTargetPath } });
+		return selfAliasJiti;
+	} catch {
+		continue;
+	}
+	selfAliasJiti = null;
+	return selfAliasJiti;
+};
+const isSelfPackageResolutionError = (error) => error instanceof Error && "code" in error && typeof error.code === "string" && MODULE_NOT_FOUND_ERROR_CODES.has(error.code) && error.message.includes(SELF_PACKAGE_IMPORT_SPECIFIER);
+const loadModuleConfig = async (filePath) => {
+	try {
+		return await importDefaultExport(jiti, filePath);
+	} catch (error) {
+		if (!isSelfPackageResolutionError(error)) throw error;
+		const aliasJiti = getSelfAliasJiti();
+		if (!aliasJiti) throw error;
+		try {
+			return await importDefaultExport(aliasJiti, filePath);
+		} catch (retryError) {
+			throw new Error(`${messageFromUnknown(error)} (retry with ${SELF_PACKAGE_IMPORT_SPECIFIER} aliased to the running react-doctor package also failed: ${messageFromUnknown(retryError)})`, { cause: retryError });
+		}
+	}
 };
 const readDataConfig = (filePath) => parseJSON5(NFS.readFileSync(filePath, "utf-8"));
 const readEmbeddedPackageJsonConfig = (directory) => {
@@ -35406,7 +35823,7 @@ const loadLegacyConfig = (directory) => {
 		}
 		warn(`${LEGACY_CONFIG_FILENAME} must contain an object, ignoring.`);
 	} catch (error) {
-		warn(`Failed to load ${LEGACY_CONFIG_FILENAME}: ${formatError(error)}`);
+		warn(`Failed to load ${LEGACY_CONFIG_FILENAME}: ${messageFromUnknown(error)}`);
 	}
 	return {
 		status: "invalid",
@@ -35433,7 +35850,7 @@ const loadConfigFromDirectory = async (directory) => {
 			warn(`${CONFIG_BASENAME}.${extension} must export an object, ignoring.`);
 			sawBrokenConfigFile = true;
 		} catch (error) {
-			warn(`Failed to load ${CONFIG_BASENAME}.${extension}: ${formatError(error)}`);
+			warn(`Failed to load ${CONFIG_BASENAME}.${extension}: ${messageFromUnknown(error)}`);
 			sawBrokenConfigFile = true;
 		}
 	}
@@ -35487,6 +35904,31 @@ const resolveConfigRootDir = (config, configSourceDirectory) => {
 	}
 	return resolvedRootDir;
 };
+const buildFixGroupId = (diagnostic) => createHash("sha1").update(JSON.stringify([
+	diagnostic.filePath,
+	`${diagnostic.plugin}/${diagnostic.rule}`,
+	diagnostic.message
+])).digest("hex").slice(0, 16);
+const isGroupableRule = (diagnostic) => ROOT_CAUSE_GROUPABLE_RULE_KEYS.has(`${diagnostic.plugin}/${diagnostic.rule}`);
+const assignFixGroups = (diagnostics) => {
+	const siteCountByGroupId = /* @__PURE__ */ new Map();
+	for (const diagnostic of diagnostics) {
+		if (!isGroupableRule(diagnostic)) continue;
+		const groupId = buildFixGroupId(diagnostic);
+		siteCountByGroupId.set(groupId, (siteCountByGroupId.get(groupId) ?? 0) + 1);
+	}
+	return diagnostics.map((diagnostic) => {
+		if (!isGroupableRule(diagnostic)) return diagnostic;
+		const groupId = buildFixGroupId(diagnostic);
+		if ((siteCountByGroupId.get(groupId) ?? 0) < 2) return diagnostic;
+		return {
+			...diagnostic,
+			fixGroupId: groupId
+		};
+	});
+};
+const compareStrings = (left, right) => left < right ? -1 : left > right ? 1 : 0;
+const sortDiagnosticsStable = (diagnostics) => [...diagnostics].sort((left, right) => compareStrings(left.filePath, right.filePath) || left.line - right.line || left.column - right.column || compareStrings(left.plugin, right.plugin) || compareStrings(left.rule, right.rule) || compareStrings(left.severity, right.severity) || compareStrings(left.message, right.message));
 const getDirectDependencyNames = (packageJson) => new Set([...Object.keys(packageJson.dependencies ?? {}), ...Object.keys(packageJson.devDependencies ?? {})]);
 const buildExpoCheckContext = (rootDirectory, expoVersion) => {
 	const packageJson = readPackageJson(Path.join(rootDirectory, "package.json"));
@@ -35993,10 +36435,15 @@ const buildHardeningDiagnostic = (input) => ({
 	column: input.column ?? 0,
 	category: "Security"
 });
-const checkPnpmHardening = (rootDirectory) => {
-	if (!isPnpmManagedProject(rootDirectory)) return [];
-	const workspacePath = Path.join(rootDirectory, PNPM_WORKSPACE_FILE);
-	const settings = parseHardeningSettings(isFile(workspacePath) ? NFS.readFileSync(workspacePath, "utf-8") : "");
+const checkPnpmHardening = (scanDirectory) => {
+	if (!isPnpmManagedProject(scanDirectory)) return [];
+	const workspacePath = Path.join(scanDirectory, PNPM_WORKSPACE_FILE);
+	const hasWorkspaceFile = isFile(workspacePath);
+	if (!hasWorkspaceFile) {
+		const monorepoRoot = findMonorepoRoot(scanDirectory);
+		if (monorepoRoot !== null && isFile(Path.join(monorepoRoot, PNPM_WORKSPACE_FILE))) return [];
+	}
+	const settings = parseHardeningSettings(hasWorkspaceFile ? NFS.readFileSync(workspacePath, "utf-8") : "");
 	const diagnostics = [];
 	if (settings.minimumReleaseAge === null) diagnostics.push(buildHardeningDiagnostic({
 		message: "pnpm-workspace.yaml is missing `minimumReleaseAge` — newly published versions can ship malware that gets caught and unpublished within hours",
@@ -36020,6 +36467,17 @@ const checkPnpmHardening = (rootDirectory) => {
 	}));
 	return diagnostics;
 };
+const buildReactNativeDiagnostic = (input) => ({
+	filePath: input.filePath,
+	plugin: "react-doctor",
+	rule: input.rule,
+	severity: input.severity ?? "warning",
+	message: input.message,
+	help: input.help,
+	line: input.line ?? 0,
+	column: input.column ?? 0,
+	category: input.category ?? "Correctness"
+});
 const BUILDER_BOB_PACKAGE = "react-native-builder-bob";
 const isBuilderBobLibrary = (packageJson) => {
 	const bobConfig = packageJson[BUILDER_BOB_PACKAGE];
@@ -36031,17 +36489,12 @@ const checkReactNativeLibraryDependencies = (rootDirectory) => {
 	const misplaced = ["react", "react-native"].filter((name) => packageJson.dependencies?.[name] !== void 0);
 	if (misplaced.length === 0) return [];
 	const quoted = misplaced.map((name) => `"${name}"`).join(" and ");
-	return [{
+	return [buildReactNativeDiagnostic({
 		filePath: "package.json",
-		plugin: "react-doctor",
 		rule: "rn-library-react-in-dependencies",
-		severity: "warning",
 		message: `This react-native-builder-bob library lists ${quoted} in \`dependencies\` — that ships a second copy into consumer apps, causing "Invalid hook call" (duplicate React) and duplicate-native-module crashes.`,
-		help: `Move ${quoted} to \`peerDependencies\` (keep ${misplaced.length === 1 ? "it" : "them"} in \`devDependencies\` for local development).`,
-		line: 0,
-		column: 0,
-		category: "Correctness"
-	}];
+		help: `Move ${quoted} to \`peerDependencies\` (keep ${misplaced.length === 1 ? "it" : "them"} in \`devDependencies\` for local development).`
+	})];
 };
 const BABEL_CONFIG_FILE_NAMES = [
 	"babel.config.js",
@@ -36053,6 +36506,8 @@ const BABEL_CONFIG_FILE_NAMES = [
 	".babelrc.json"
 ];
 const LEGACY_PRESET_SPEC = "module:metro-react-native-babel-preset";
+const MODERN_PRESET_REFERENCE = new RegExp(`['"]module:@react-native/babel-preset['"]`);
+const ENABLE_BABEL_RUNTIME_VERSION = /enableBabelRuntime["']?\s*:\s*['"]/;
 const checkReactNativeMetroBabelPreset = (rootDirectory) => {
 	for (const fileName of BABEL_CONFIG_FILE_NAMES) {
 		const filePath = Path.join(rootDirectory, fileName);
@@ -36063,18 +36518,20 @@ const checkReactNativeMetroBabelPreset = (rootDirectory) => {
 		} catch {
 			continue;
 		}
-		if (!contents.includes(LEGACY_PRESET_SPEC)) continue;
-		return [{
+		if (contents.includes(LEGACY_PRESET_SPEC)) return [buildReactNativeDiagnostic({
 			filePath: fileName,
-			plugin: "react-doctor",
 			rule: "rn-no-metro-babel-preset",
 			severity: "error",
 			message: "`module:metro-react-native-babel-preset` was renamed to `@react-native/babel-preset` and is no longer installed by React Native 0.73+ — this preset reference fails to resolve and breaks the Metro/Babel transform.",
-			help: "Replace the preset with `module:@react-native/babel-preset` (or `babel-preset-expo` on Expo) and remove the old `metro-react-native-babel-preset` dependency.",
-			line: 0,
-			column: 0,
-			category: "Correctness"
-		}];
+			help: "Replace the preset with `module:@react-native/babel-preset` (or `babel-preset-expo` on Expo) and remove the old `metro-react-native-babel-preset` dependency."
+		})];
+		if (MODERN_PRESET_REFERENCE.test(contents) && !ENABLE_BABEL_RUNTIME_VERSION.test(contents)) return [buildReactNativeDiagnostic({
+			filePath: fileName,
+			rule: "rn-no-metro-babel-runtime-version",
+			severity: "warning",
+			message: "`module:@react-native/babel-preset` has no `enableBabelRuntime` version, so Babel runtime helpers can be duplicated across files instead of imported once from @babel/runtime, increasing the JS bundle size.",
+			help: "Set `enableBabelRuntime` to the @babel/runtime version from package.json, e.g. `['module:@react-native/babel-preset', { enableBabelRuntime: '^7.26.0' }]`."
+		})];
 	}
 	return [];
 };
@@ -36300,6 +36757,191 @@ const checkReducedMotion = (rootDirectory) => {
 	if (result.status === 0) return [];
 	return [MISSING_REDUCED_MOTION_DIAGNOSTIC];
 };
+const buildSecurityScanDiagnostic = (finding, entry, relativePath) => ({
+	filePath: relativePath,
+	plugin: "react-doctor",
+	rule: entry.id,
+	severity: (finding.severity ?? entry.rule.severity) === "warn" ? "warning" : "error",
+	title: finding.title ?? entry.rule.title ?? entry.id,
+	message: finding.message,
+	help: finding.help ?? entry.rule.recommendation ?? "",
+	line: finding.line,
+	column: finding.column,
+	category: "Security"
+});
+const SECURITY_SCAN_MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
+const SECURITY_SCAN_MAX_BUNDLE_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const SKIPPED_DIRECTORY_NAMES = new Set([
+	".git",
+	".turbo",
+	".vercel",
+	"coverage",
+	"node_modules",
+	"tmp"
+]);
+const readScannedFile = (candidate) => {
+	let stat;
+	try {
+		stat = NFS.statSync(candidate.absolutePath);
+	} catch {
+		return null;
+	}
+	if (!stat.isFile()) return null;
+	const isGeneratedBundle = candidate.isGeneratedBundleByName || isLargeMinifiedFile(candidate.absolutePath);
+	const maxSizeBytes = isGeneratedBundle ? SECURITY_SCAN_MAX_BUNDLE_FILE_SIZE_BYTES : SECURITY_SCAN_MAX_FILE_SIZE_BYTES;
+	if (stat.size > maxSizeBytes) return null;
+	if (!shouldReadSecurityScanContent(candidate.relativePath, isGeneratedBundle)) return null;
+	try {
+		return {
+			absolutePath: candidate.absolutePath,
+			relativePath: candidate.relativePath,
+			content: NFS.readFileSync(candidate.absolutePath, "utf-8"),
+			isGeneratedBundle
+		};
+	} catch {
+		return null;
+	}
+};
+function* collectSecurityScanFiles(rootDirectory) {
+	const priorityCandidates = [];
+	const artifactCandidates = [];
+	const otherCandidates = [];
+	const stack = [{
+		absolutePath: rootDirectory,
+		depth: 0
+	}];
+	while (stack.length > 0) {
+		const current = stack.pop();
+		if (current === void 0) continue;
+		if (current.depth > 8) continue;
+		for (const entry of readDirectoryEntries(current.absolutePath)) {
+			const absolutePath = Path.join(current.absolutePath, entry.name);
+			if (entry.isDirectory()) {
+				if (!SKIPPED_DIRECTORY_NAMES.has(entry.name)) stack.push({
+					absolutePath,
+					depth: current.depth + 1
+				});
+				continue;
+			}
+			const relativePath = Path.relative(rootDirectory, absolutePath).replaceAll("\\", "/");
+			const classification = classifySecurityScanFile(relativePath);
+			if (classification === null) continue;
+			(classification.bucket === "priority" ? priorityCandidates : classification.bucket === "artifact" ? artifactCandidates : otherCandidates).push({
+				absolutePath,
+				relativePath,
+				isGeneratedBundleByName: classification.isGeneratedBundleByName
+			});
+		}
+	}
+	for (const candidates of [
+		priorityCandidates,
+		artifactCandidates,
+		otherCandidates
+	]) {
+		let yieldedCount = 0;
+		for (const candidate of candidates) {
+			if (yieldedCount >= 2500) break;
+			const scannedFile = readScannedFile(candidate);
+			if (scannedFile === null) continue;
+			yieldedCount += 1;
+			yield scannedFile;
+		}
+	}
+}
+const buildCapabilities = (project) => {
+	const capabilities = /* @__PURE__ */ new Set();
+	capabilities.add(project.framework);
+	if (project.reactVersion !== null || project.preactVersion !== null) capabilities.add("react");
+	if (project.framework === "expo" || project.framework === "react-native" || project.hasReactNativeWorkspace) capabilities.add("react-native");
+	if (project.expoVersion !== null) capabilities.add("expo");
+	if (project.nextjsMajorVersion !== null && project.nextjsMajorVersion >= 15) capabilities.add("nextjs:15");
+	const reactMajor = project.reactMajorVersion;
+	if (reactMajor !== null) {
+		const cappedReactMajor = Math.min(reactMajor, 30);
+		for (let major = 17; major <= cappedReactMajor; major++) capabilities.add(`react:${major}`);
+		if (reactMajor >= 19) {
+			if (isReactAtLeast(parseReactMajorMinor(project.reactVersion), {
+				major: 19,
+				minor: 2
+			})) capabilities.add("react:19.2");
+		}
+	}
+	if (project.tailwindVersion !== null) {
+		capabilities.add("tailwind");
+		if (isTailwindAtLeast(parseTailwindMajorMinor(project.tailwindVersion), {
+			major: 3,
+			minor: 4
+		})) capabilities.add("tailwind:3.4");
+	}
+	if (project.zodVersion !== null) {
+		capabilities.add("zod");
+		if (project.zodMajorVersion !== null && project.zodMajorVersion >= 4) capabilities.add("zod:4");
+	}
+	if (project.isPreES2023Target) capabilities.add("pre-es2023");
+	if (project.hasReactCompiler) capabilities.add("react-compiler");
+	if (project.hasTanStackQuery) capabilities.add("tanstack-query");
+	if (project.hasTypeScript) capabilities.add("typescript");
+	if (project.preactVersion !== null) {
+		capabilities.add("preact");
+		const preactMajor = project.preactMajorVersion;
+		if (preactMajor !== null) {
+			const cappedPreactMajor = Math.min(preactMajor, 20);
+			for (let major = 10; major <= cappedPreactMajor; major++) capabilities.add(`preact:${major}`);
+		}
+		if (project.reactVersion === null) capabilities.add("pure-preact");
+	}
+	return capabilities;
+};
+const shouldEnableRule = (requires, tags, capabilities, ignoredTags, disabledBy) => {
+	if (requires) {
+		for (const capability of requires) if (!capabilities.has(capability)) return false;
+	}
+	if (tags?.includes("react-jsx-only") && !capabilities.has("react")) return false;
+	if (disabledBy) {
+		for (const capability of disabledBy) if (capabilities.has(capability)) return false;
+	}
+	if (tags) {
+		for (const tag of tags) if (ignoredTags.has(tag)) return false;
+	}
+	return true;
+};
+const checkSecurityScan = (rootDirectory, options = {}) => {
+	const capabilities = options.project ? buildCapabilities(options.project) : /* @__PURE__ */ new Set();
+	const ignoredTags = options.ignoredTags ?? /* @__PURE__ */ new Set();
+	const enabledScanRules = REACT_DOCTOR_RULES.flatMap((entry) => {
+		const rule = entry.rule;
+		const scan = rule.scan;
+		if (typeof scan !== "function") return [];
+		if (rule.defaultEnabled === false) return [];
+		if (!shouldEnableRule(rule.requires, rule.tags, capabilities, ignoredTags, rule.disabledBy)) return [];
+		return [{
+			entry,
+			scan,
+			committedFilesOnly: rule.committedFilesOnly === true
+		}];
+	});
+	if (enabledScanRules.length === 0) return [];
+	const diagnostics = [];
+	const seen = /* @__PURE__ */ new Set();
+	const gitIgnoredCache = /* @__PURE__ */ new Map();
+	const isFileGitIgnored = (file) => {
+		let status = gitIgnoredCache.get(file.absolutePath);
+		if (status === void 0) {
+			status = isPathGitIgnored(rootDirectory, file.absolutePath);
+			gitIgnoredCache.set(file.absolutePath, status);
+		}
+		return status === true;
+	};
+	for (const file of collectSecurityScanFiles(rootDirectory)) for (const { entry, scan, committedFilesOnly } of enabledScanRules) for (const finding of scan(file)) {
+		if (committedFilesOnly && isFileGitIgnored(file)) continue;
+		const diagnostic = buildSecurityScanDiagnostic(finding, entry, file.relativePath);
+		const key = `${diagnostic.rule}:${diagnostic.filePath}:${diagnostic.line}:${diagnostic.column}:${diagnostic.message}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		diagnostics.push(diagnostic);
+	}
+	return diagnostics;
+};
 var import_picocolors = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	let p = process || {}, argv = p.argv || [], env = p.env || {};
 	let isColorSupported = !(!!env.NO_COLOR || argv.includes("--no-color")) && (!!env.FORCE_COLOR || argv.includes("--color") || p.platform === "win32" || (p.stdout || {}).isTTY && env.TERM !== "dumb" || !!env.CI);
@@ -36418,7 +37060,7 @@ const readIgnoreFile = (filePath) => {
 	try {
 		content = NFS.readFileSync(filePath, "utf-8");
 	} catch (error) {
-		const errnoCode = error?.code;
+		const errnoCode = isErrnoException(error) ? error.code : void 0;
 		if (errnoCode && errnoCode !== "ENOENT") runSync(warn$1(`Could not read ignore file ${filePath}: ${errnoCode}`));
 		return [];
 	}
@@ -36459,8 +37101,8 @@ const collectIgnorePatterns = (rootDirectory) => {
 	cachedPatternsByRoot.set(rootDirectory, patterns);
 	return patterns;
 };
+const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 const KNIP_JSON_FILENAME = "knip.json";
-const isRecord$1 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 const readJsonFileSafe = (filePath) => {
 	let rawContents;
 	try {
@@ -36476,10 +37118,10 @@ const readJsonFileSafe = (filePath) => {
 };
 const readKnipConfig = (rootDirectory) => {
 	const knipJson = readJsonFileSafe(path.join(rootDirectory, KNIP_JSON_FILENAME));
-	if (isRecord$1(knipJson)) return knipJson;
+	if (isRecord(knipJson)) return knipJson;
 	const packageJson = readJsonFileSafe(path.join(rootDirectory, "package.json"));
-	const packageKnipConfig = isRecord$1(packageJson) ? packageJson.knip : null;
-	return isRecord$1(packageKnipConfig) ? packageKnipConfig : null;
+	const packageKnipConfig = isRecord(packageJson) ? packageJson.knip : null;
+	return isRecord(packageKnipConfig) ? packageKnipConfig : null;
 };
 const normalizePatternList = (value) => {
 	if (typeof value === "string" && value.length > 0) return [value];
@@ -36491,10 +37133,10 @@ const prefixWorkspacePatterns = (workspacePattern, patterns) => {
 	return patterns.map((pattern) => pattern.startsWith("!") ? `!${normalizedWorkspacePattern}/${pattern.slice(1)}` : `${normalizedWorkspacePattern}/${pattern}`);
 };
 const collectKnipWorkspacePatterns = (workspaces, settingName) => {
-	if (!isRecord$1(workspaces)) return [];
+	if (!isRecord(workspaces)) return [];
 	const patterns = [];
 	for (const [workspacePattern, workspaceConfig] of Object.entries(workspaces)) {
-		if (!isRecord$1(workspaceConfig)) continue;
+		if (!isRecord(workspaceConfig)) continue;
 		patterns.push(...prefixWorkspacePatterns(workspacePattern, normalizePatternList(workspaceConfig[settingName])));
 	}
 	return patterns;
@@ -36504,12 +37146,11 @@ const collectKnipPatterns = (rootDirectory, settingName) => {
 	if (!config) return [];
 	return [...normalizePatternList(config[settingName]), ...collectKnipWorkspacePatterns(config.workspaces, settingName)];
 };
-const collectDeadCodeIgnorePatterns = (rootDirectory, userConfig) => {
+const collectDeadCodeIgnorePatterns = (rootDirectory) => {
 	const seen = /* @__PURE__ */ new Set();
 	const sources = [
 		readIgnoreFile(path.join(rootDirectory, ".gitignore")),
 		collectIgnorePatterns(rootDirectory),
-		userConfig?.ignore?.files ?? [],
 		collectKnipPatterns(rootDirectory, "ignore")
 	];
 	for (const source of sources) for (const pattern of source) seen.add(pattern);
@@ -36540,8 +37181,6 @@ const toCanonicalPath = (filePath) => {
 };
 const DEAD_CODE_PLUGIN = "deslop";
 const DEAD_CODE_CATEGORY = "Maintainability";
-const TSCONFIG_FILENAMES$1 = ["tsconfig.json", "tsconfig.base.json"];
-const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 const DEAD_CODE_WORKER_SCRIPT = `
 const inputChunks = [];
 process.stdin.on("data", (chunk) => inputChunks.push(chunk));
@@ -36589,6 +37228,22 @@ process.stdin.on("end", () => {
         ...(workerInput.ignorePatterns.length > 0
           ? { ignorePatterns: workerInput.ignorePatterns }
           : {}),
+        // We consume only deslop's GRAPH-based findings (unusedFiles, unusedExports,
+        // unusedDependencies, circularDependencies). Everything else deslop can compute
+        // is pure wasted work for us, and it's the bulk of the runtime:
+        //   - semantic: a full TS Program for unusedTypes/enum/class-members/
+        //     misclassifiedDependencies (~37-45% of the phase).
+        //   - reportCodeQuality: the duplicate-block, complexity, feature-flag,
+        //     TypeScript-smell, private-type-leak and re-export-cycle detectors. These
+        //     are the single most expensive pass — duplicate-block detection alone was
+        //     ~83s of a ~130s Sentry scan — so skipping them is an ~8.5x dead-code
+        //     speedup on a large repo.
+        // Both are provably safe: the consumed graph findings are computed by their own
+        // detectors, independent of these passes (confirmed byte-identical on
+        // excalidraw + mui-material + sentry). tsConfigPath stays — the module resolver
+        // needs it for path-alias resolution in the import graph.
+        semantic: { enabled: false },
+        reportCodeQuality: false,
       };
       const result = await analyze(defineConfig(config));
       emit({ ok: true, result: normalizeResult(result) });
@@ -36599,7 +37254,7 @@ process.stdin.on("end", () => {
 });
 `;
 const resolveTsConfigPath = (rootDirectory) => {
-	for (const filename of TSCONFIG_FILENAMES$1) {
+	for (const filename of TSCONFIG_FILENAMES) {
 		const candidate = Path.join(rootDirectory, filename);
 		if (NFS.existsSync(candidate)) return candidate;
 	}
@@ -36718,7 +37373,11 @@ const createDeadCodeWorker = (input) => {
 			"pipe",
 			"pipe"
 		],
-		windowsHide: true
+		windowsHide: true,
+		env: input.parseConcurrency === void 0 ? process.env : {
+			...process.env,
+			DESLOP_PARSE_CONCURRENCY: String(input.parseConcurrency)
+		}
 	});
 	const stdoutChunks = [];
 	const stderrChunks = [];
@@ -36763,42 +37422,39 @@ const createDeadCodeWorker = (input) => {
 		}
 	};
 };
-const runDeadCodeWorkerWithTimeout = (handle, timeoutMs) => new Promise((resolve, reject) => {
+const runDeadCodeWorkerWithTimeout = (handle, timeoutMs, abortSignal) => new Promise((resolve, reject) => {
 	let didSettle = false;
-	const timeoutHandle = setTimeout(() => {
+	const settle = (finish) => {
 		if (didSettle) return;
 		didSettle = true;
+		clearTimeout(timeoutHandle);
+		abortSignal?.removeEventListener("abort", onAbort);
 		handle.terminate?.();
-		reject(/* @__PURE__ */ new Error(`Dead-code worker timed out after ${timeoutMs / MILLISECONDS_PER_SECOND}s.`));
-	}, timeoutMs);
+		finish();
+	};
+	const onAbort = () => settle(() => reject(/* @__PURE__ */ new Error("Dead-code worker aborted.")));
+	const timeoutHandle = setTimeout(() => settle(() => reject(/* @__PURE__ */ new Error(`Dead-code worker timed out after ${timeoutMs / MILLISECONDS_PER_SECOND}s.`))), timeoutMs);
 	timeoutHandle.unref?.();
-	handle.result.then((value) => {
-		if (didSettle) return;
-		didSettle = true;
-		clearTimeout(timeoutHandle);
-		handle.terminate?.();
-		resolve(value);
-	}, (error) => {
-		if (didSettle) return;
-		didSettle = true;
-		clearTimeout(timeoutHandle);
-		handle.terminate?.();
-		reject(error);
-	});
+	if (abortSignal?.aborted) {
+		onAbort();
+		return;
+	}
+	abortSignal?.addEventListener("abort", onAbort, { once: true });
+	handle.result.then((value) => settle(() => resolve(value)), (error) => settle(() => reject(error)));
 });
 const checkDeadCode = async (options) => {
-	const { userConfig } = options;
 	const rootDirectory = toCanonicalPath(options.rootDirectory);
 	if (!NFS.existsSync(Path.join(rootDirectory, "package.json"))) return [];
 	const entryPatterns = collectDeadCodeEntryPatterns(rootDirectory);
-	const ignorePatterns = collectDeadCodeIgnorePatterns(rootDirectory, userConfig);
+	const ignorePatterns = collectDeadCodeIgnorePatterns(rootDirectory);
 	const result = parseDeadCodeWorkerResult(await runDeadCodeWorkerWithTimeout((options.createWorker ?? createDeadCodeWorker)({
 		rootDirectory,
 		entryPatterns,
 		tsConfigPath: resolveTsConfigPath(rootDirectory),
 		ignorePatterns,
-		deslopJsModuleSpecifier: options.deslopJsModuleSpecifier ?? import.meta.resolve("deslop-js")
-	}), options.workerTimeoutMs ?? 12e4));
+		deslopJsModuleSpecifier: options.deslopJsModuleSpecifier ?? import.meta.resolve("deslop-js"),
+		parseConcurrency: options.parseConcurrency
+	}), options.workerTimeoutMs ?? 12e4, options.abortSignal));
 	const toRelative = (filePath) => toRelativeFilePath(rootDirectory, filePath);
 	const diagnostics = [];
 	for (const unusedFile of result.unusedFiles) diagnostics.push({
@@ -36896,7 +37552,37 @@ const isDiagnosticOnSurface = (diagnostic, surface, config) => {
 	return true;
 };
 const filterDiagnosticsForSurface = (diagnostics, surface, config) => diagnostics.filter((diagnostic) => isDiagnosticOnSurface(diagnostic, surface, config));
-const excludeMinifiedFiles = (rootDirectory, relativePaths) => relativePaths.filter((relativePath) => !isLargeMinifiedFile(Path.resolve(rootDirectory, relativePath)));
+/**
+* Budget for the dead-code phase, scaled to the work. deslop's graph build is
+* CPU-bound and roughly linear in file count, so a fixed 120s cap is too tight
+* for a large repo (where the pass legitimately runs that long) and is then
+* tipped over by any concurrent load — silently dropping every dead-code
+* finding. Scaling the budget with file count (and inversely with the core
+* share when overlapped) lets the pass complete, while the ceiling still
+* reclaims a genuinely wedged worker. Returns the in-worker SIGKILL deadline
+* and the Effect-side phase backstop that sits a margin above it.
+*/
+const resolveDeadCodeTimeout = (input) => {
+	const coreShareFactor = Math.max(1, input.fullConcurrency / Math.max(1, input.deadCodeConcurrency));
+	const workerTimeoutMs = Math.min(DEAD_CODE_TIMEOUT_CEILING_MS, Math.max(DEAD_CODE_WORKER_TIMEOUT_MS, Math.ceil(input.sourceFileCount * 30 * coreShareFactor)));
+	return {
+		workerTimeoutMs,
+		phaseTimeoutMs: workerTimeoutMs + DEAD_CODE_PHASE_TIMEOUT_OVER_WORKER_MS
+	};
+};
+const collectSizedSourceFiles = (rootDirectory, relativePaths) => {
+	const entries = [];
+	for (const relativePath of relativePaths) {
+		const absolutePath = Path.resolve(rootDirectory, relativePath);
+		const sizeBytes = statSourceFileSize(absolutePath);
+		if (isLargeMinifiedFile(absolutePath, sizeBytes)) continue;
+		entries.push({
+			path: relativePath,
+			sizeBytes: sizeBytes ?? 0
+		});
+	}
+	return entries;
+};
 const listSourceFilesViaGit = (rootDirectory) => {
 	const result = spawnSync("git", [
 		"ls-files",
@@ -36929,7 +37615,8 @@ const listSourceFilesViaFilesystem = (rootDirectory) => {
 	}
 	return filePaths;
 };
-const listSourceFiles = (rootDirectory) => excludeMinifiedFiles(rootDirectory, listSourceFilesViaGit(rootDirectory) ?? listSourceFilesViaFilesystem(rootDirectory));
+const listSourceFilesWithSize = (rootDirectory) => collectSizedSourceFiles(rootDirectory, listSourceFilesViaGit(rootDirectory) ?? listSourceFilesViaFilesystem(rootDirectory));
+const listSourceFiles = (rootDirectory) => listSourceFilesWithSize(rootDirectory).map((entry) => entry.path);
 const resolveLintIncludePaths = (rootDirectory, userConfig, project) => {
 	if (!Array.isArray(userConfig?.ignore?.files) || userConfig.ignore.files.length === 0) return;
 	const ignoredPatterns = compileIgnoredFilePatterns(userConfig);
@@ -36972,24 +37659,25 @@ var Config = class Config extends Service()("react-doctor/Config") {
 var DeadCode = class DeadCode extends Service()("react-doctor/DeadCode") {
 	static layerNode = succeed$3(DeadCode, DeadCode.of({ run: (input) => unwrap(fn("DeadCode.run")(function* () {
 		return yield* tryPromise({
-			try: () => checkDeadCode({
+			try: (signal) => checkDeadCode({
 				rootDirectory: input.rootDirectory,
-				userConfig: input.userConfig
+				userConfig: input.userConfig,
+				parseConcurrency: input.parseConcurrency,
+				workerTimeoutMs: input.workerTimeoutMs,
+				abortSignal: signal
 			}),
 			catch: (cause) => new ReactDoctorError({ reason: new DeadCodeAnalysisFailed({ cause }) })
 		}).pipe(map$3((diagnostics) => fromIterable$1(diagnostics)));
 	})()) }));
 	static layerOf = (diagnostics) => succeed$3(DeadCode, DeadCode.of({ run: () => fromIterable$1(diagnostics) }));
 };
-const createNodeReadFileLinesSync = (rootDirectory) => {
-	return (filePath) => {
-		const absolutePath = Path.isAbsolute(filePath) ? filePath : Path.join(rootDirectory, filePath);
-		try {
-			return NFS.readFileSync(absolutePath, "utf-8").split("\n");
-		} catch {
-			return null;
-		}
-	};
+const createNodeReadFileLinesSync = (rootDirectory) => (filePath) => {
+	const absolutePath = Path.isAbsolute(filePath) ? filePath : Path.join(rootDirectory, filePath);
+	try {
+		return NFS.readFileSync(absolutePath, "utf-8").split("\n");
+	} catch {
+		return null;
+	}
 };
 var Files = class Files extends Service()("react-doctor/Files") {
 	static layerNode = succeed$3(Files, Files.of({
@@ -37207,7 +37895,10 @@ var Git = class Git extends Service()("react-doctor/Git") {
 				directory: input.directory,
 				cause
 			}) });
-		}));
+		}), withSpan("git.exec", { attributes: {
+			"git.command": input.command,
+			"git.subcommand": input.args[0] ?? ""
+		} }));
 		const runGit = (directory, args) => runCommand({
 			command: "git",
 			args,
@@ -37235,7 +37926,7 @@ var Git = class Git extends Service()("react-doctor/Git") {
 			]);
 			if (candidates.status !== 0) return null;
 			return trimOrNull(candidates.stdout.split("\n")[0] ?? "");
-		});
+		}).pipe(withSpan("Git.defaultBranch"));
 		/**
 		* Heuristic "parent branch" detection for `--diff parent`. Git has no
 		* native notion of the branch a branch was forked from, so we consider
@@ -37356,7 +38047,7 @@ var Git = class Git extends Service()("react-doctor/Git") {
 			const result = resultOption.value;
 			if (result.status !== 0) return null;
 			return parseGithubViewerPermission(result.stdout);
-		}).pipe(catch_$1(() => succeed$2(null)));
+		}).pipe(catch_$1(() => succeed$2(null)), withSpan("Git.githubViewerPermission"));
 		/**
 		* Resolves a `--diff A..B` / `A...B` commit range into a changed-file
 		* selection. Each endpoint is validated with `isSafeGitRevision`
@@ -37471,7 +38162,7 @@ var Git = class Git extends Service()("react-doctor/Git") {
 					changedFiles: splitNullSeparated(diff.stdout),
 					isCurrentChanges: false
 				};
-			}),
+			}).pipe(withSpan("Git.diffSelection")),
 			stagedFilePaths: (directory) => runGit(directory, [
 				"diff",
 				"--cached",
@@ -37513,7 +38204,7 @@ var Git = class Git extends Service()("react-doctor/Git") {
 					status: result.status,
 					stdout: result.stdout
 				};
-			}),
+			}).pipe(withSpan("Git.grep")),
 			changedLineRanges: ({ directory, baseRef, cached, files }) => gen(function* () {
 				if (files.length === 0) return [];
 				if (baseRef !== void 0 && !isSafeGitRevision(baseRef)) return null;
@@ -37529,7 +38220,7 @@ var Git = class Git extends Service()("react-doctor/Git") {
 				]);
 				if (result.status !== 0) return null;
 				return parseChangedLineRanges(result.stdout);
-			})
+			}).pipe(withSpan("Git.changedLineRanges"))
 		});
 	})).pipe(provide$2(layer$2.pipe(provide$2(mergeAll$1(layer$1, layer)))));
 	/**
@@ -37744,7 +38435,7 @@ const neutralizeDisableDirectives = async (rootDirectory, includePaths) => {
 		for (const [absolutePath, originalContent] of originalContents) try {
 			NFS.writeFileSync(absolutePath, originalContent);
 		} catch (error) {
-			process.stderr.write(`[react-doctor] Failed to restore inline disable directives in ${absolutePath}: ${error instanceof Error ? error.message : String(error)}\n[react-doctor] Run: git checkout -- ${absolutePath}\n`);
+			process.stderr.write(`[react-doctor] Failed to restore inline disable directives in ${absolutePath}: ${messageFromUnknown(error)}\n[react-doctor] Run: git checkout -- ${absolutePath}\n`);
 		}
 	};
 	const onExit = () => restore();
@@ -37768,63 +38459,14 @@ const neutralizeDisableDirectives = async (rootDirectory, includePaths) => {
 		process.removeListener("exit", onExit);
 	};
 };
-const buildCapabilities = (project) => {
-	const capabilities = /* @__PURE__ */ new Set();
-	capabilities.add(project.framework);
-	if (project.reactVersion !== null || project.preactVersion !== null) capabilities.add("react");
-	if (project.framework === "expo" || project.framework === "react-native" || project.hasReactNativeWorkspace) capabilities.add("react-native");
-	if (project.expoVersion !== null) capabilities.add("expo");
-	if (project.nextjsMajorVersion !== null && project.nextjsMajorVersion >= 15) capabilities.add("nextjs:15");
-	const reactMajor = project.reactMajorVersion;
-	if (reactMajor !== null) {
-		const cappedReactMajor = Math.min(reactMajor, 30);
-		for (let major = 17; major <= cappedReactMajor; major++) capabilities.add(`react:${major}`);
-		if (reactMajor >= 19) {
-			if (isReactAtLeast(parseReactMajorMinor(project.reactVersion), {
-				major: 19,
-				minor: 2
-			})) capabilities.add("react:19.2");
-		}
-	}
-	if (project.tailwindVersion !== null) {
-		capabilities.add("tailwind");
-		if (isTailwindAtLeast(parseTailwindMajorMinor(project.tailwindVersion), {
-			major: 3,
-			minor: 4
-		})) capabilities.add("tailwind:3.4");
-	}
-	if (project.zodVersion !== null) {
-		capabilities.add("zod");
-		if (project.zodMajorVersion !== null && project.zodMajorVersion >= 4) capabilities.add("zod:4");
-	}
-	if (project.isPreES2023Target) capabilities.add("pre-es2023");
-	if (project.hasReactCompiler) capabilities.add("react-compiler");
-	if (project.hasTanStackQuery) capabilities.add("tanstack-query");
-	if (project.hasTypeScript) capabilities.add("typescript");
-	if (project.preactVersion !== null) {
-		capabilities.add("preact");
-		const preactMajor = project.preactMajorVersion;
-		if (preactMajor !== null) {
-			const cappedPreactMajor = Math.min(preactMajor, 20);
-			for (let major = 10; major <= cappedPreactMajor; major++) capabilities.add(`preact:${major}`);
-		}
-		if (project.reactVersion === null) capabilities.add("pure-preact");
-	}
-	return capabilities;
+const ROOT_DIRECTORY_PLACEHOLDER = "<root>";
+const normalizeConfigForHash = (config) => {
+	const clone = JSON.parse(JSON.stringify(config));
+	if (clone?.settings?.["react-doctor"]) clone.settings["react-doctor"].rootDirectory = ROOT_DIRECTORY_PLACEHOLDER;
+	if (Array.isArray(clone?.jsPlugins)) clone.jsPlugins = clone.jsPlugins.map((_, index) => `<plugin:${index}>`);
+	return clone;
 };
-const shouldEnableRule = (requires, tags, capabilities, ignoredTags, disabledBy) => {
-	if (requires) {
-		for (const capability of requires) if (!capabilities.has(capability)) return false;
-	}
-	if (tags?.includes("react-jsx-only") && !capabilities.has("react")) return false;
-	if (disabledBy) {
-		for (const capability of disabledBy) if (capabilities.has(capability)) return false;
-	}
-	if (tags) {
-		for (const tag of tags) if (ignoredTags.has(tag)) return false;
-	}
-	return true;
-};
+const computeRulesetHash = (input) => crypto.createHash("sha1").update(JSON.stringify(normalizeConfigForHash(input.config))).update("\0").update([...input.toolchainVersions].join("\0")).update("\0").update([...input.ignorePatterns].join("\n")).update(" ").update(input.tsconfigContent ?? "").digest("hex");
 /**
 * Loads a plugin module via the local require resolver and extracts
 * `(name, ruleNames)` from either `module.exports.meta + rules` or
@@ -37851,16 +38493,16 @@ const readPluginShape = (pluginSpecifier, loadModule) => {
 		ruleNames: new Set(Object.keys(rules))
 	};
 };
-const bundledRequire = createRequire(import.meta.url);
+const bundledRequire$1 = createRequire(import.meta.url);
 const resolveReactHooksJsPlugin = (hasReactCompiler, customRulesOnly) => {
 	if (!hasReactCompiler || customRulesOnly) return null;
 	let pluginSpecifier;
 	try {
-		pluginSpecifier = bundledRequire.resolve("eslint-plugin-react-hooks");
+		pluginSpecifier = bundledRequire$1.resolve("eslint-plugin-react-hooks");
 	} catch {
 		return null;
 	}
-	const { ruleNames } = readPluginShape(pluginSpecifier, (spec) => bundledRequire(spec));
+	const { ruleNames } = readPluginShape(pluginSpecifier, (spec) => bundledRequire$1(spec));
 	return {
 		entry: {
 			name: "react-hooks-js",
@@ -37907,7 +38549,7 @@ const resolveUserPlugin = (spec, configSourceDirectory) => {
 	try {
 		resolvedSpecifier = isRelative ? Path.resolve(configSourceDirectory, spec) : candidateRequire.resolve(spec);
 	} catch (error) {
-		warnConfigIssue(`config.plugins entry "${spec}" could not be resolved from ${configSourceDirectory}: ${error instanceof Error ? error.message : String(error)}`);
+		warnConfigIssue(`config.plugins entry "${spec}" could not be resolved from ${configSourceDirectory}: ${messageFromUnknown(error)}`);
 		return null;
 	}
 	const { name, ruleNames } = readPluginShape(resolvedSpecifier, (target) => candidateRequire(target));
@@ -37979,8 +38621,8 @@ const buildUserPluginRules = (userPlugin, severityControls) => {
 	}
 	return enabled;
 };
-const createOxlintConfig = ({ pluginPath, project, customRulesOnly = false, extendsPaths = [], ignoredTags = /* @__PURE__ */ new Set(), serverAuthFunctionNames, severityControls, userPlugins = [] }) => {
-	const reactHooksJsPlugin = resolveReactHooksJsPlugin(project.hasReactCompiler, customRulesOnly);
+const createOxlintConfig = ({ pluginPath, project, customRulesOnly = false, extendsPaths = [], ignoredTags = /* @__PURE__ */ new Set(), serverAuthFunctionNames, severityControls, userPlugins = [], disableReactHooksJsPlugin = false, ruleSelection }) => {
+	const reactHooksJsPlugin = disableReactHooksJsPlugin || ruleSelection === "sidecar" ? null : resolveReactHooksJsPlugin(project.hasReactCompiler, customRulesOnly);
 	const reactCompilerRules = reactHooksJsPlugin ? applyRuleSeverityControls(filterRulesToAvailable(REACT_COMPILER_RULES, "react-hooks-js", reactHooksJsPlugin.availableRuleNames), severityControls) : {};
 	const jsPlugins = [];
 	if (reactHooksJsPlugin) jsPlugins.push(reactHooksJsPlugin.entry);
@@ -37989,6 +38631,9 @@ const createOxlintConfig = ({ pluginPath, project, customRulesOnly = false, exte
 	for (const registryEntry of REACT_DOCTOR_RULES) {
 		const rule = reactDoctorPlugin.rules[registryEntry.id];
 		if (!rule) continue;
+		if (ruleSelection === "cacheable" && CROSS_FILE_RULE_IDS.has(registryEntry.id)) continue;
+		if (ruleSelection === "sidecar" && !CROSS_FILE_RULE_IDS.has(registryEntry.id)) continue;
+		if (rule.scan !== void 0) continue;
 		if (customRulesOnly && registryEntry.originallyExternal) continue;
 		if (rule.framework !== "global" && !rule.requires) continue;
 		if (!shouldEnableRule(rule.requires, rule.tags, capabilities, ignoredTags, rule.disabledBy)) continue;
@@ -38002,7 +38647,7 @@ const createOxlintConfig = ({ pluginPath, project, customRulesOnly = false, exte
 		enabledReactDoctorRules[registryEntry.key] = severity;
 	}
 	const userPluginRules = {};
-	for (const userPlugin of userPlugins) {
+	if (ruleSelection !== "sidecar") for (const userPlugin of userPlugins) {
 		Object.assign(userPluginRules, buildUserPluginRules(userPlugin, severityControls));
 		jsPlugins.push(userPlugin.entry);
 	}
@@ -38032,6 +38677,100 @@ const createOxlintConfig = ({ pluginPath, project, customRulesOnly = false, exte
 		}
 	};
 };
+const atomicWriteJson = (filePath, value) => {
+	try {
+		NFS.mkdirSync(Path.dirname(filePath), { recursive: true });
+		const temporaryPath = `${filePath}.${process.pid}.tmp`;
+		NFS.writeFileSync(temporaryPath, JSON.stringify(value));
+		NFS.renameSync(temporaryPath, filePath);
+	} catch {
+		return;
+	}
+};
+const failOpenReadJson = (filePath, fallback) => {
+	try {
+		return JSON.parse(NFS.readFileSync(filePath, "utf8"));
+	} catch {
+		return fallback;
+	}
+};
+const validateDiagnostic = decodeUnknownSync(Diagnostic);
+const decodeFileDiagnostics = (raw) => {
+	if (!Array.isArray(raw)) return null;
+	try {
+		for (const entry of raw) validateDiagnostic(entry);
+		return raw;
+	} catch {
+		return null;
+	}
+};
+const emptyCache = () => ({
+	version: 1,
+	rulesets: {}
+});
+const loadRulesetEntries = (cacheFilePath, rulesetHash) => {
+	const entries = /* @__PURE__ */ new Map();
+	const persisted = failOpenReadJson(cacheFilePath, emptyCache());
+	if (persisted.version !== 1 || !isRecord(persisted.rulesets)) return entries;
+	const bucket = persisted.rulesets[rulesetHash];
+	if (!isRecord(bucket) || !isRecord(bucket.files)) return entries;
+	for (const [fileKey, rawDiagnostics] of Object.entries(bucket.files)) {
+		const decoded = decodeFileDiagnostics(rawDiagnostics);
+		if (decoded !== null) entries.set(fileKey, decoded);
+	}
+	return entries;
+};
+const createFileLintCache = (cacheDirectory, rulesetHash) => {
+	const cacheFilePath = Path.join(cacheDirectory, FILE_LINT_CACHE_FILENAME);
+	const entries = loadRulesetEntries(cacheFilePath, rulesetHash);
+	return {
+		lookup: (fileKey) => entries.get(fileKey) ?? null,
+		store: (fileKey, diagnostics) => {
+			entries.delete(fileKey);
+			entries.set(fileKey, diagnostics);
+		},
+		persist: () => {
+			const onDisk = failOpenReadJson(cacheFilePath, emptyCache());
+			const rulesets = onDisk.version === 1 && isRecord(onDisk.rulesets) ? { ...onDisk.rulesets } : {};
+			const existingBucket = rulesets[rulesetHash];
+			const existingFiles = isRecord(existingBucket) && isRecord(existingBucket.files) ? existingBucket.files : {};
+			const ourFiles = {};
+			for (const [fileKey, diagnostics] of entries) ourFiles[fileKey] = diagnostics;
+			const cappedEntries = Object.entries({
+				...existingFiles,
+				...ourFiles
+			}).slice(-FILE_LINT_CACHE_MAX_FILE_COUNT);
+			rulesets[rulesetHash] = {
+				updatedAtMs: Date.now(),
+				files: Object.fromEntries(cappedEntries)
+			};
+			const keptHashes = Object.entries(rulesets).sort(([, first], [, second]) => second.updatedAtMs - first.updatedAtMs).slice(0, 8).map(([hash]) => hash);
+			const prunedRulesets = {};
+			for (const hash of keptHashes) prunedRulesets[hash] = rulesets[hash];
+			atomicWriteJson(cacheFilePath, {
+				version: 1,
+				rulesets: prunedRulesets
+			});
+		}
+	};
+};
+const bundledRequire = createRequire(import.meta.url);
+const TOOLCHAIN_PACKAGE_SPECIFIERS = [
+	"oxlint/package.json",
+	"oxlint-plugin-react-doctor/package.json",
+	"eslint-plugin-react-hooks/package.json"
+];
+const resolveOxlintToolchainVersions = () => {
+	const versions = [`node=${process.version}`];
+	for (const specifier of TOOLCHAIN_PACKAGE_SPECIFIERS) try {
+		const packageJson = bundledRequire(specifier);
+		const version = typeof packageJson.version === "string" ? packageJson.version : "unknown";
+		versions.push(`${specifier}=${version}`);
+	} catch {
+		versions.push(`${specifier}=missing`);
+	}
+	return versions;
+};
 const esmRequire = createRequire(import.meta.url);
 const resolveOxlintBinary = () => {
 	const oxlintMainPath = esmRequire.resolve("oxlint");
@@ -38048,7 +38787,6 @@ const resolvePluginPath = () => {
 		throw error;
 	}
 };
-const TSCONFIG_FILENAMES = ["tsconfig.json", "tsconfig.base.json"];
 const resolveTsConfigRelativePath = (rootDirectory) => {
 	for (const filename of TSCONFIG_FILENAMES) if (NFS.existsSync(Path.join(rootDirectory, filename))) return `./${filename}`;
 	return null;
@@ -38420,7 +39158,7 @@ const scopeContainsNonImportBinding = (node, scopeNode, identifierName) => {
 const isIdentifierShadowedByLocalBinding = (identifier, sourceFile) => {
 	let currentNode = identifier.parent;
 	while (currentNode) {
-		if (isScopeNode(currentNode)) {
+		if (isScopeBoundary(currentNode)) {
 			if (scopeContainsNonImportBinding(currentNode, currentNode, identifier.text)) return true;
 		}
 		if (currentNode === sourceFile) return false;
@@ -38511,11 +39249,10 @@ const findResolutionInScope = (scopeNode, identifierName, reactImportBindings, s
 	});
 	return resolution;
 };
-const isScopeNode = isScopeBoundary;
 const resolveIdentifierBinding = (identifier, reactImportBindings, sourceFile, visitedDeclarations = /* @__PURE__ */ new Set()) => {
 	let currentNode = identifier.parent;
 	while (currentNode) {
-		if (isScopeNode(currentNode)) {
+		if (isScopeBoundary(currentNode)) {
 			const resolution = findResolutionInScope(currentNode, identifier.text, reactImportBindings, sourceFile, visitedDeclarations);
 			if (resolution) return resolution;
 		}
@@ -38561,8 +39298,18 @@ const shouldSuppressLocalUseHookDiagnostic = (diagnostic, rootDirectory) => {
 	return bindingResolution !== null && !bindingResolution.isReactUseBinding;
 };
 const FILEPATH_WITH_LOCATION_PATTERN = /\S+\.\w+:\d+:\d+[\s\S]*$/;
+const LEADING_SEVERITY_LABEL_PATTERN = /^(?:Error|Warning):\s*/;
+const TRAILING_PERIOD_PATTERN = /\.$/;
 const REACT_COMPILER_TITLE = "React Compiler can't optimize this";
-const REACT_COMPILER_MESSAGE = "This component misses React Compiler's automatic memoization & re-renders more than it should. Rewrite the flagged code so the compiler can optimize it.";
+const REACT_COMPILER_TODO_TITLE = "React Compiler doesn't support this syntax";
+const REACT_COMPILER_IMPACT = "This component misses React Compiler's automatic memoization & re-renders more than it should";
+const REACT_COMPILER_ACTION = "Rewrite the flagged code so the compiler can optimize it.";
+const REACT_COMPILER_GENERIC_MESSAGE = `${REACT_COMPILER_IMPACT}. ${REACT_COMPILER_ACTION}`;
+const buildReactCompilerMessage = (reasonSummary) => {
+	const normalizedSummary = reasonSummary.replace(TRAILING_PERIOD_PATTERN, "");
+	if (!normalizedSummary) return REACT_COMPILER_GENERIC_MESSAGE;
+	return `${REACT_COMPILER_IMPACT}: ${normalizedSummary}. ${REACT_COMPILER_ACTION}`;
+};
 const PLUGIN_CATEGORY_MAP = {
 	react: "Bugs",
 	"react-hooks": "Bugs",
@@ -38589,7 +39336,10 @@ const getRuleRecommendation = (ruleName, project) => {
 };
 const getRuleCategory = (ruleName) => reactDoctorPlugin.rules[ruleName]?.category;
 const getRuleTitle = (ruleName) => reactDoctorPlugin.rules[ruleName]?.title;
-const resolveDiagnosticTitle = (plugin, rule) => plugin === "react-hooks-js" ? REACT_COMPILER_TITLE : getRuleTitle(rule);
+const resolveDiagnosticTitle = (plugin, rule) => {
+	if (plugin !== "react-hooks-js") return getRuleTitle(rule);
+	return rule === "todo" ? REACT_COMPILER_TODO_TITLE : REACT_COMPILER_TITLE;
+};
 const cleanDiagnosticMessage = (message, help, plugin, rule, project) => {
 	const cleaned = resolveCleanedDiagnostic(typeof message === "string" ? message : "", typeof help === "string" ? help : "", plugin, rule, project);
 	return {
@@ -38598,10 +39348,19 @@ const cleanDiagnosticMessage = (message, help, plugin, rule, project) => {
 	};
 };
 const resolveCleanedDiagnostic = (message, help, plugin, rule, project) => {
-	if (plugin === "react-hooks-js") return {
-		message: REACT_COMPILER_MESSAGE,
-		help: appendReanimatedSharedValueHint(message.replace(FILEPATH_WITH_LOCATION_PATTERN, "").trim() || help, rule, project)
-	};
+	if (plugin === "react-hooks-js") {
+		const bailoutReason = message.replace(FILEPATH_WITH_LOCATION_PATTERN, "").trim().replace(LEADING_SEVERITY_LABEL_PATTERN, "").trim();
+		if (rule === "todo") return {
+			message: REACT_COMPILER_GENERIC_MESSAGE,
+			help: appendReanimatedSharedValueHint(bailoutReason || help, rule, project)
+		};
+		const [reasonSummary = "", ...reasonDetailLines] = bailoutReason.split("\n");
+		const reasonDetail = reasonDetailLines.join("\n").trim();
+		return {
+			message: buildReactCompilerMessage(reasonSummary.trim()),
+			help: appendReanimatedSharedValueHint(reasonDetail || help, rule, project)
+		};
+	}
 	return {
 		message: message.replace(FILEPATH_WITH_LOCATION_PATTERN, "").trim() || message,
 		help: help || getRuleRecommendation(rule, project) || ""
@@ -38663,9 +39422,9 @@ const parseOxlintOutput = (stdout, project, rootDirectory) => {
 	try {
 		parsed = JSON.parse(sanitizedStdout);
 	} catch {
-		throw new ReactDoctorError({ reason: new OxlintOutputUnparseable({ preview: stdout.slice(0, 200) }) });
+		throw new ReactDoctorError({ reason: new OxlintOutputUnparseable({ preview: stdout.slice(0, 600) }) });
 	}
-	if (!isOxlintOutput(parsed)) throw new ReactDoctorError({ reason: new OxlintOutputUnparseable({ preview: stdout.slice(0, 200) }) });
+	if (!isOxlintOutput(parsed)) throw new ReactDoctorError({ reason: new OxlintOutputUnparseable({ preview: stdout.slice(0, 600) }) });
 	const minifiedFileCache = /* @__PURE__ */ new Map();
 	const isMinifiedDiagnosticFile = (filename) => {
 		const absolutePath = Path.isAbsolute(filename) ? filename : Path.resolve(rootDirectory || ".", filename);
@@ -38702,15 +39461,19 @@ const parseOxlintOutput = (stdout, project, rootDirectory) => {
 		};
 	});
 };
-const SANITIZED_ENV = (() => {
-	const sanitized = {};
-	for (const [name, value] of Object.entries(process.env)) {
+const buildOxlintChildEnv = (sourceEnv) => {
+	const childEnv = {};
+	for (const [name, value] of Object.entries(sourceEnv)) {
 		if (name === "NODE_OPTIONS" || name === "NODE_DEBUG") continue;
 		if (name.startsWith("npm_config_")) continue;
-		sanitized[name] = value;
+		childEnv[name] = value;
 	}
-	return sanitized;
-})();
+	const isCompileCacheDisabled = Boolean(sourceEnv.NODE_DISABLE_COMPILE_CACHE);
+	const isCompileCacheAlreadySet = childEnv.NODE_COMPILE_CACHE !== void 0;
+	if (!isCompileCacheDisabled && !isCompileCacheAlreadySet) childEnv.NODE_COMPILE_CACHE = Path.join(os.tmpdir(), NODE_COMPILE_CACHE_DIR_NAME);
+	return childEnv;
+};
+const SANITIZED_ENV = buildOxlintChildEnv(process.env);
 /**
 * Spawn one oxlint subprocess with hard ceilings on wall time and
 * output size. Returns stdout on success; raises a tagged
@@ -38727,7 +39490,11 @@ const SANITIZED_ENV = (() => {
 * The first three are splittable (the caller's binary-split retry
 * shrinks the batch and re-spawns); the fourth isn't.
 */
-const spawnOxlint = (args, rootDirectory, nodeBinaryPath, spawnTimeoutMs = OXLINT_SPAWN_TIMEOUT_MS, outputMaxBytes = OXLINT_OUTPUT_MAX_BYTES) => new Promise((resolve, reject) => {
+const spawnOxlint = (args, rootDirectory, nodeBinaryPath, spawnTimeoutMs = OXLINT_SPAWN_TIMEOUT_MS, outputMaxBytes = OXLINT_OUTPUT_MAX_BYTES, abortSignal) => new Promise((resolve, reject) => {
+	if (abortSignal?.aborted) {
+		reject(new ReactDoctorError({ reason: new OxlintSpawnFailed({ cause: "lint phase aborted" }) }));
+		return;
+	}
 	const child = spawn(nodeBinaryPath, args, {
 		cwd: rootDirectory,
 		env: SANITIZED_ENV,
@@ -38737,11 +39504,18 @@ const spawnOxlint = (args, rootDirectory, nodeBinaryPath, spawnTimeoutMs = OXLIN
 			"pipe"
 		]
 	});
+	const onAbort = () => {
+		child.kill("SIGKILL");
+		reject(new ReactDoctorError({ reason: new OxlintSpawnFailed({ cause: "lint phase aborted" }) }));
+	};
+	abortSignal?.addEventListener("abort", onAbort, { once: true });
+	const clearAbortListener = () => abortSignal?.removeEventListener("abort", onAbort);
 	const timeoutHandle = setTimeout(() => {
+		clearAbortListener();
 		child.kill("SIGKILL");
 		reject(new ReactDoctorError({ reason: new OxlintBatchExceeded({
 			kind: "timeout",
-			detail: `${spawnTimeoutMs / 1e3}s budget exceeded`
+			detail: `${spawnTimeoutMs / MILLISECONDS_PER_SECOND}s budget exceeded`
 		}) }));
 	}, spawnTimeoutMs);
 	timeoutHandle.unref?.();
@@ -38772,10 +39546,12 @@ const spawnOxlint = (args, rootDirectory, nodeBinaryPath, spawnTimeoutMs = OXLIN
 	});
 	child.on("error", (error) => {
 		clearTimeout(timeoutHandle);
+		clearAbortListener();
 		reject(new ReactDoctorError({ reason: new OxlintSpawnFailed({ cause: error }) }));
 	});
 	child.on("close", (_code, signal) => {
 		clearTimeout(timeoutHandle);
+		clearAbortListener();
 		if (didKillForSize) {
 			reject(new ReactDoctorError({ reason: new OxlintBatchExceeded({
 				kind: "output-too-large",
@@ -38842,26 +39618,28 @@ const isParallelismRelatedSpawnError = (error) => {
 * loop with a slimmer config in that case.
 */
 const spawnLintBatches = async (input) => {
-	const { baseArgs, fileBatches, rootDirectory, nodeBinaryPath, project, onPartialFailure, onFileProgress, spawnTimeoutMs, outputMaxBytes } = input;
+	const { baseArgs, fileBatches, rootDirectory, nodeBinaryPath, project, onPartialFailure, onFileProgress, spawnTimeoutMs, outputMaxBytes, splitTotalBudgetMs = OXLINT_SPLIT_TOTAL_BUDGET_MS, splitMaxDepth = 8, signal } = input;
 	const requestedConcurrency = resolveScanConcurrency(input.concurrency ?? 1);
 	const totalFileCount = fileBatches.reduce((sum, batch) => sum + batch.length, 0);
 	const runBatchPass = async (concurrency) => {
 		const allDiagnostics = [];
 		const droppedFiles = [];
 		let firstDropReason = null;
-		const spawnLintBatch = async (batch) => {
+		const splitDeadlineMs = Date.now() + splitTotalBudgetMs;
+		const spawnLintBatch = async (batch, depth) => {
 			const batchArgs = [...baseArgs, ...batch];
 			try {
-				return parseOxlintOutput(await spawnOxlint(batchArgs, rootDirectory, nodeBinaryPath, spawnTimeoutMs, outputMaxBytes), project, rootDirectory);
+				return parseOxlintOutput(await spawnOxlint(batchArgs, rootDirectory, nodeBinaryPath, spawnTimeoutMs, outputMaxBytes, signal), project, rootDirectory);
 			} catch (error) {
 				if (!isSplittableReactDoctorError(error)) throw error;
-				if (batch.length <= 1) {
+				const splitBudgetExhausted = Date.now() >= splitDeadlineMs || depth >= splitMaxDepth;
+				if (batch.length <= 1 || splitBudgetExhausted) {
 					droppedFiles.push(...batch);
-					if (firstDropReason === null) firstDropReason = error.message;
+					if (firstDropReason === null) firstDropReason = splitBudgetExhausted && batch.length > 1 ? `${error.message} (split budget exhausted after ${splitMaxDepth} levels / ${splitTotalBudgetMs / MILLISECONDS_PER_SECOND}s)` : error.message;
 					return [];
 				}
 				const splitIndex = Math.ceil(batch.length / 2);
-				return [...await spawnLintBatch(batch.slice(0, splitIndex)), ...await spawnLintBatch(batch.slice(splitIndex))];
+				return [...await spawnLintBatch(batch.slice(0, splitIndex), depth + 1), ...await spawnLintBatch(batch.slice(splitIndex), depth + 1)];
 			}
 		};
 		let startedFileCount = 0;
@@ -38878,7 +39656,7 @@ const spawnLintBatches = async (input) => {
 		try {
 			const batchResults = await mapWithConcurrency(fileBatches, concurrency, async (batch) => {
 				startedFileCount += batch.length;
-				const batchDiagnostics = await spawnLintBatch(batch);
+				const batchDiagnostics = await spawnLintBatch(batch, 0);
 				scannedFileCount += batch.length;
 				if (onFileProgress) {
 					displayedFileCount = Math.min(Math.max(displayedFileCount, scannedFileCount), totalFileCount);
@@ -38939,6 +39717,20 @@ const validateRuleRegistration = () => {
 	].filter((entry) => entry !== null).join("; ");
 	console.warn(`[react-doctor] rule-registration drift: ${detail}`);
 };
+const hashFileContents = (filePath) => {
+	try {
+		return crypto.createHash("sha1").update(NFS.readFileSync(filePath)).digest("hex");
+	} catch {
+		return null;
+	}
+};
+const resolveReactDoctorCacheDir = (projectDirectory) => {
+	const nodeModulesDirectory = Path.join(projectDirectory, "node_modules");
+	if (NFS.existsSync(nodeModulesDirectory)) return Path.join(nodeModulesDirectory, ".cache", "react-doctor");
+	const projectHash = crypto.createHash("sha256").update(projectDirectory).digest("hex").slice(0, 16);
+	return Path.join(os.tmpdir(), "react-doctor-cache", projectHash);
+};
+const sortSourceFilesByCost = (entries) => [...entries].sort((left, right) => right.sizeBytes - left.sizeBytes).map((entry) => entry.path);
 /**
 * Atomically (re)writes the generated oxlintrc.json. Used twice in
 * the runner: once for the primary scan, once for the
@@ -38955,6 +39747,28 @@ const writeOxlintConfig = (configPath, configToWrite) => {
 	} finally {
 		NFS.closeSync(fileHandle);
 	}
+};
+const REACT_HOOKS_JS_DROP_PREFIX = "React Compiler rules (react-hooks-js/*) skipped — eslint-plugin-react-hooks failed to load in this environment";
+/**
+* Detects an oxlint config-load crash caused by the optional
+* `react-hooks-js` (eslint-plugin-react-hooks) React Compiler plugin and
+* builds the partial-failure note for it; returns `null` when the failure
+* was anything else.
+*
+* oxlint prints a framed error to stdout (not stderr) and exits non-zero
+* when a `jsPlugins` entry can't be imported; that non-JSON stdout
+* surfaces as `OxlintOutputUnparseable`. Because oxlint fails the WHOLE
+* config load on it, leaving the plugin in would drop every curated
+* react-doctor diagnostic too — so the caller retries with the plugin
+* stripped (issue #833). Both markers sit at the start of oxlint's
+* message, so they survive the `preview` slice even for deep pnpm paths.
+*/
+const reactHooksJsPluginDropNote = (error) => {
+	if (!(error instanceof ReactDoctorError) || error.reason._tag !== "OxlintOutputUnparseable") return null;
+	const { preview } = error.reason;
+	if (!preview.includes("Failed to load JS plugin") || !preview.includes("eslint-plugin-react-hooks")) return null;
+	const underlyingReason = preview.match(/Error:[^\n]*/)?.[0]?.trim();
+	return `${REACT_HOOKS_JS_DROP_PREFIX}${underlyingReason ? `: ${underlyingReason}` : ""}. Other rules ran normally.`;
 };
 /**
 * The oxlint runner. Composed of three pieces in `runners/oxlint/`:
@@ -38975,7 +39789,7 @@ const writeOxlintConfig = (configPath, configToWrite) => {
 *   6. always restore disable directives + clean up the temp dir
 */
 const runOxlint = async (options) => {
-	const { rootDirectory, project, includePaths, nodeBinaryPath = process.execPath, customRulesOnly = false, respectInlineDisables = true, adoptExistingLintConfig = true, ignoredTags = /* @__PURE__ */ new Set(), userConfig, configSourceDirectory = rootDirectory, onPartialFailure, spawnTimeoutMs, outputMaxBytes } = options;
+	const { rootDirectory, project, includePaths, nodeBinaryPath = process.execPath, customRulesOnly = false, respectInlineDisables = true, adoptExistingLintConfig = true, ignoredTags = /* @__PURE__ */ new Set(), userConfig, configSourceDirectory = rootDirectory, onPartialFailure, perFileLintCacheEnabled = false, onCacheStats, spawnTimeoutMs, outputMaxBytes, lintBatchOrdering = "arrival" } = options;
 	const serverAuthFunctionNames = Array.isArray(userConfig?.serverAuthFunctionNames) ? userConfig.serverAuthFunctionNames.filter((entry) => typeof entry === "string" && entry.length > 0) : void 0;
 	const severityControls = buildRuleSeverityControls(userConfig);
 	validateRuleRegistration();
@@ -38983,38 +39797,165 @@ const runOxlint = async (options) => {
 	const pluginPath = resolvePluginPath();
 	const extendsPaths = (adoptExistingLintConfig && !customRulesOnly ? detectUserLintConfigPaths(rootDirectory) : []).filter(canOxlintExtendConfig);
 	const userPlugins = resolveUserPlugins(userConfig?.plugins, configSourceDirectory);
-	const buildConfig = (extendsForThisAttempt) => createOxlintConfig({
+	const buildConfig = (overrides) => createOxlintConfig({
 		pluginPath,
 		project,
 		customRulesOnly,
-		extendsPaths: extendsForThisAttempt,
+		extendsPaths: overrides.extendsPaths,
 		ignoredTags,
 		serverAuthFunctionNames,
 		severityControls,
-		userPlugins
+		userPlugins,
+		disableReactHooksJsPlugin: overrides.disableReactHooksJsPlugin,
+		ruleSelection: overrides.ruleSelection
 	});
 	const restoreDisableDirectives = respectInlineDisables ? () => {} : await neutralizeDisableDirectives(rootDirectory, includePaths);
 	const configDirectory = NFS.mkdtempSync(Path.join(os.tmpdir(), "react-doctor-oxlintrc-"));
 	const configPath = Path.join(configDirectory, "oxlintrc.json");
 	try {
-		const baseArgs = [
-			resolveOxlintBinary(),
-			"-c",
-			configPath,
-			"--format",
-			"json"
-		];
+		const oxlintBinary = resolveOxlintBinary();
+		const sharedArgs = [];
+		let tsconfigContent = null;
 		if (project.hasTypeScript) {
 			const tsconfigRelativePath = resolveTsConfigRelativePath(rootDirectory);
-			if (tsconfigRelativePath) baseArgs.push("--tsconfig", tsconfigRelativePath);
+			if (tsconfigRelativePath) {
+				sharedArgs.push("--tsconfig", tsconfigRelativePath);
+				try {
+					tsconfigContent = NFS.readFileSync(Path.resolve(rootDirectory, tsconfigRelativePath), "utf8");
+				} catch {
+					tsconfigContent = null;
+				}
+			}
 		}
 		const combinedPatterns = collectIgnorePatterns(rootDirectory);
 		if (combinedPatterns.length > 0) {
 			const combinedIgnorePath = Path.join(configDirectory, "combined.ignore");
 			NFS.writeFileSync(combinedIgnorePath, `${combinedPatterns.join("\n")}\n`);
-			baseArgs.push("--ignore-path", combinedIgnorePath);
+			sharedArgs.push("--ignore-path", combinedIgnorePath);
 		}
-		const fileBatches = batchIncludePaths(baseArgs, includePaths !== void 0 ? includePaths : listSourceFiles(rootDirectory));
+		const makeBaseArgs = (oxlintConfigPath) => [
+			oxlintBinary,
+			"-c",
+			oxlintConfigPath,
+			"--format",
+			"json",
+			...sharedArgs
+		];
+		const discoverScanFiles = () => lintBatchOrdering === "cost" ? sortSourceFilesByCost(listSourceFilesWithSize(rootDirectory)) : listSourceFiles(rootDirectory);
+		const candidateFiles = includePaths !== void 0 ? includePaths : discoverScanFiles();
+		const runConfigOverFiles = async (buildConfigForPass, configFileName, files, fileProgress) => {
+			if (files.length === 0) return {
+				diagnostics: [],
+				didDropReactHooksJsPlugin: false,
+				hadPartialFailure: false
+			};
+			let hadPartialFailure = false;
+			const reportPartialFailure = (reason) => {
+				hadPartialFailure = true;
+				onPartialFailure?.(reason);
+			};
+			const passConfigPath = Path.join(configDirectory, configFileName);
+			const passBaseArgs = makeBaseArgs(passConfigPath);
+			const passFileBatches = batchIncludePaths(passBaseArgs, files);
+			const spawnPass = () => spawnLintBatches({
+				baseArgs: passBaseArgs,
+				fileBatches: passFileBatches,
+				rootDirectory,
+				nodeBinaryPath,
+				project,
+				onPartialFailure: reportPartialFailure,
+				onFileProgress: fileProgress,
+				spawnTimeoutMs,
+				outputMaxBytes,
+				concurrency: options.concurrency,
+				signal: options.signal
+			});
+			writeOxlintConfig(passConfigPath, buildConfigForPass({}));
+			try {
+				return {
+					diagnostics: await spawnPass(),
+					didDropReactHooksJsPlugin: false,
+					hadPartialFailure
+				};
+			} catch (error) {
+				const reactHooksJsDropNote = reactHooksJsPluginDropNote(error);
+				if (reactHooksJsDropNote === null) throw error;
+				writeOxlintConfig(passConfigPath, buildConfigForPass({ disableReactHooksJsPlugin: true }));
+				const diagnostics = await spawnPass();
+				reportPartialFailure(reactHooksJsDropNote);
+				return {
+					diagnostics,
+					didDropReactHooksJsPlugin: true,
+					hadPartialFailure
+				};
+			}
+		};
+		if (perFileLintCacheEnabled && respectInlineDisables && !project.hasReactCompiler && extendsPaths.length === 0 && userPlugins.length === 0) {
+			const rulesetHash = computeRulesetHash({
+				config: buildConfig({
+					extendsPaths: [],
+					ruleSelection: "cacheable"
+				}),
+				toolchainVersions: resolveOxlintToolchainVersions(),
+				ignorePatterns: combinedPatterns,
+				tsconfigContent
+			});
+			const cache = createFileLintCache(resolveReactDoctorCacheDir(rootDirectory), rulesetHash);
+			const cacheKeyByFile = /* @__PURE__ */ new Map();
+			const missFiles = [];
+			const replayedDiagnostics = [];
+			for (const candidateFile of candidateFiles) {
+				const contentHash = hashFileContents(Path.resolve(rootDirectory, candidateFile));
+				if (contentHash === null) {
+					missFiles.push(candidateFile);
+					continue;
+				}
+				const cacheKey = `${candidateFile.replaceAll("\\", "/")} ${contentHash}`;
+				cacheKeyByFile.set(candidateFile, cacheKey);
+				const cachedDiagnostics = cache.lookup(cacheKey);
+				if (cachedDiagnostics === null) missFiles.push(candidateFile);
+				else replayedDiagnostics.push(...cachedDiagnostics);
+			}
+			const cacheHitFileCount = candidateFiles.length - missFiles.length;
+			const cacheableResult = await runConfigOverFiles((overrides) => buildConfig({
+				extendsPaths: [],
+				ruleSelection: "cacheable",
+				disableReactHooksJsPlugin: overrides.disableReactHooksJsPlugin
+			}), "oxlintrc.cacheable.json", missFiles, void 0);
+			const sidecarResult = await runConfigOverFiles(() => buildConfig({
+				extendsPaths: [],
+				ruleSelection: "sidecar"
+			}), "oxlintrc.sidecar.json", candidateFiles, options.onFileProgress);
+			onCacheStats?.(cacheHitFileCount, candidateFiles.length);
+			const missFileByNormalizedPath = /* @__PURE__ */ new Map();
+			for (const missFile of missFiles) missFileByNormalizedPath.set(missFile.replaceAll("\\", "/"), missFile);
+			const freshDiagnosticsByFile = /* @__PURE__ */ new Map();
+			let isAttributionSound = true;
+			for (const diagnostic of cacheableResult.diagnostics) {
+				const missFile = missFileByNormalizedPath.get(diagnostic.filePath);
+				if (missFile === void 0) {
+					isAttributionSound = false;
+					break;
+				}
+				const fileDiagnostics = freshDiagnosticsByFile.get(missFile) ?? [];
+				fileDiagnostics.push(diagnostic);
+				freshDiagnosticsByFile.set(missFile, fileDiagnostics);
+			}
+			if (!cacheableResult.didDropReactHooksJsPlugin && !cacheableResult.hadPartialFailure && isAttributionSound) {
+				for (const missFile of missFiles) {
+					const cacheKey = cacheKeyByFile.get(missFile);
+					if (cacheKey !== void 0) cache.store(cacheKey, freshDiagnosticsByFile.get(missFile) ?? []);
+				}
+				cache.persist();
+			}
+			return dedupeDiagnostics([
+				...replayedDiagnostics,
+				...cacheableResult.diagnostics,
+				...sidecarResult.diagnostics
+			]);
+		}
+		const baseArgs = makeBaseArgs(configPath);
+		const fileBatches = batchIncludePaths(baseArgs, candidateFiles);
 		const runBatches = () => spawnLintBatches({
 			baseArgs,
 			fileBatches,
@@ -39025,14 +39966,25 @@ const runOxlint = async (options) => {
 			onFileProgress: options.onFileProgress,
 			spawnTimeoutMs,
 			outputMaxBytes,
-			concurrency: options.concurrency
+			concurrency: options.concurrency,
+			signal: options.signal
 		});
-		writeOxlintConfig(configPath, buildConfig(extendsPaths));
+		writeOxlintConfig(configPath, buildConfig({ extendsPaths }));
 		try {
 			return await runBatches();
 		} catch (error) {
+			const reactHooksJsDropNote = reactHooksJsPluginDropNote(error);
+			if (reactHooksJsDropNote !== null) {
+				writeOxlintConfig(configPath, buildConfig({
+					extendsPaths,
+					disableReactHooksJsPlugin: true
+				}));
+				const diagnostics = await runBatches();
+				onPartialFailure?.(reactHooksJsDropNote);
+				return diagnostics;
+			}
 			if (extendsPaths.length === 0) throw error;
-			writeOxlintConfig(configPath, buildConfig([]));
+			writeOxlintConfig(configPath, buildConfig({ extendsPaths: [] }));
 			return await runBatches();
 		}
 	} finally {
@@ -39094,9 +40046,11 @@ var Linter = class Linter extends Service()("react-doctor/Linter") {
 		const spawnTimeoutMs = yield* OxlintSpawnTimeoutMs;
 		const outputMaxBytes = yield* OxlintOutputMaxBytes;
 		const concurrency = yield* OxlintConcurrency;
+		const lintBatchOrdering = yield* LintBatchOrdering;
+		const perFileLintCacheEnabled = yield* PerFileLintCacheEnabled;
 		const collectedFailures = [];
 		const diagnostics = yield* tryPromise({
-			try: () => runOxlint({
+			try: (signal) => runOxlint({
 				rootDirectory: input.rootDirectory,
 				project: input.project,
 				includePaths: input.includePaths ? [...input.includePaths] : void 0,
@@ -39111,9 +40065,13 @@ var Linter = class Linter extends Service()("react-doctor/Linter") {
 					collectedFailures.push(reason);
 				},
 				onFileProgress: input.onFileProgress,
+				perFileLintCacheEnabled,
+				onCacheStats: input.onCacheStats,
 				spawnTimeoutMs,
 				outputMaxBytes,
-				concurrency
+				concurrency,
+				signal,
+				lintBatchOrdering
 			}),
 			catch: ensureReactDoctorError
 		});
@@ -39313,23 +40271,60 @@ var Score = class Score extends Service()("react-doctor/Score") {
 	}) }));
 	static layerOf = (result) => succeed$3(Score, Score.of({ compute: () => succeed$2(result) }));
 };
-const decodeArtifact = decodeUnknownOption(Struct({ score: optional(Struct({
+const isControlCharacter = (codePoint) => codePoint <= 31 || codePoint >= 127 && codePoint <= 159;
+const sanitizeTerminalText = (value) => {
+	let sanitized = "";
+	for (const character of value) {
+		if (isControlCharacter(character.codePointAt(0) ?? 0)) continue;
+		sanitized += character === "`" ? "'" : character;
+	}
+	return sanitized;
+};
+const SocketScoreSchema = Struct({
 	overall: Number$1,
 	license: Number$1,
 	maintenance: Number$1,
 	quality: Number$1,
 	supplyChain: Number$1,
 	vulnerability: Number$1
-})) }));
-const SCORE_AXES = [
-	{
-		key: "supplyChain",
-		label: "supply chain"
-	},
-	{
-		key: "vulnerability",
-		label: "vulnerability"
-	},
+});
+const SocketAlertSchema = Struct({
+	type: String$1,
+	severity: String$1,
+	file: optional(NullOr(String$1)),
+	props: optional(NullOr(Struct({ note: optional(NullOr(String$1)) })))
+});
+const SocketArtifactSchema = Struct({ score: optional(SocketScoreSchema) });
+const RawAlertsSchema = Struct({ alerts: optional(NullOr(ArraySchema(Unknown))) });
+const decodeArtifact = decodeUnknownOption(SocketArtifactSchema);
+const decodeRawAlerts = decodeUnknownOption(RawAlertsSchema);
+const decodeAlert = decodeUnknownOption(SocketAlertSchema);
+const extractAlerts = (parsed) => {
+	const rawAlerts = getOrNull(decodeRawAlerts(parsed))?.alerts;
+	if (!rawAlerts) return [];
+	const alerts = [];
+	for (const candidate of rawAlerts) {
+		const alert = getOrNull(decodeAlert(candidate));
+		if (alert !== null) alerts.push(alert);
+	}
+	return alerts;
+};
+const GATED_AXES = [{
+	key: "supplyChain",
+	label: "supply chain",
+	guidance: {
+		meaning: "risky install-time behavior — install scripts, obfuscated or native code, network/filesystem/shell access, or typosquatting",
+		remediation: "Confirm this is the package you meant to install, and prefer a more established, audited alternative"
+	}
+}, {
+	key: "vulnerability",
+	label: "vulnerability",
+	guidance: {
+		meaning: "known security vulnerabilities (CVEs) affecting this version",
+		remediation: "Upgrade to a version with no known advisories (run `npm audit` to find one), or replace it"
+	}
+}];
+const CONTEXT_AXES = [
 	{
 		key: "maintenance",
 		label: "maintenance"
@@ -39343,6 +40338,12 @@ const SCORE_AXES = [
 		label: "license"
 	}
 ];
+const SCORE_AXES = [...GATED_AXES, ...CONTEXT_AXES];
+const worstGatedAxis = (score) => {
+	let worst = GATED_AXES[0];
+	for (const axis of GATED_AXES) if (score[axis.key] < score[worst.key]) worst = axis;
+	return worst;
+};
 const clampScore = (value) => {
 	if (!Number.isFinite(value)) return 50;
 	return Math.min(Math.max(value, 0), 100);
@@ -39360,8 +40361,9 @@ const resolveConcreteVersion = (spec) => {
 	const trimmed = spec.trim();
 	if (trimmed.length === 0) return null;
 	if (trimmed.includes(":")) return null;
-	const match = trimmed.match(/\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/);
-	return match ? match[0] : null;
+	const range = import_semver.validRange(trimmed);
+	if (range === null || range === "*") return null;
+	return import_semver.minVersion(trimmed)?.version ?? null;
 };
 const locateDependencyKey = (packageJsonText, section, name) => {
 	const needle = `"${name}"`;
@@ -39420,7 +40422,7 @@ const readPackageJsonText = (packageJsonPath) => {
 	}
 };
 const toPurl = (dependency) => `pkg:npm/${dependency.name}@${dependency.version}`;
-const parseScoreFromBody = (body) => {
+const parseArtifactFromBody = (body) => {
 	for (const line of body.split("\n")) {
 		if (line.trim().length === 0) continue;
 		let parsed;
@@ -39430,26 +40432,30 @@ const parseScoreFromBody = (body) => {
 			continue;
 		}
 		const artifact = getOrNull(decodeArtifact(parsed));
-		if (artifact?.score) return artifact.score;
+		if (artifact?.score) return {
+			score: artifact.score,
+			alerts: extractAlerts(parsed)
+		};
 	}
 	return null;
 };
-const fetchSocketScore = (dependency) => tryPromise(async (signal) => {
+const fetchSocketArtifact = (dependency) => tryPromise(async (signal) => {
 	const requestUrl = `${SOCKET_FREE_PURL_API_BASE}/${encodeURIComponent(toPurl(dependency))}`;
 	const response = await fetch(requestUrl, {
 		headers: { "User-Agent": SOCKET_FREE_USER_AGENT },
 		signal
 	});
 	if (!response.ok) return null;
-	return parseScoreFromBody(await response.text());
-}).pipe(timeout(FETCH_TIMEOUT_MS), orElseSucceed(() => null), tap$1((score) => {
+	return parseArtifactFromBody(await response.text());
+}).pipe(timeout(FETCH_TIMEOUT_MS), orElseSucceed(() => null), tap$1((artifact) => {
 	const scoreAttributes = {};
-	if (score !== null) {
-		scoreAttributes["socket.score.overall"] = toHundred(score.overall);
-		for (const axis of SCORE_AXES) scoreAttributes[`socket.score.${axis.key}`] = toHundred(score[axis.key]);
+	if (artifact !== null) {
+		scoreAttributes["socket.score.overall"] = toHundred(artifact.score.overall);
+		for (const axis of SCORE_AXES) scoreAttributes[`socket.score.${axis.key}`] = toHundred(artifact.score[axis.key]);
+		scoreAttributes["socket.alert.count"] = artifact.alerts.length;
 	}
 	return annotateCurrentSpan({
-		"socket.scored": score !== null,
+		"socket.scored": artifact !== null,
 		...scoreAttributes
 	});
 }), withSpan("SupplyChain.fetchScore", { attributes: {
@@ -39457,17 +40463,69 @@ const fetchSocketScore = (dependency) => tryPromise(async (signal) => {
 	"socket.version": dependency.version,
 	"socket.purl": toPurl(dependency)
 } }));
-const formatAxisScores = (score) => SCORE_AXES.map((axis) => `${axis.label} ${toHundred(score[axis.key])}`).join(", ");
-const buildLowScoreDiagnostic = (dependency, score, options) => {
-	const overall = toHundred(score.overall);
+const formatOtherAxisScores = (score, failingKey) => SCORE_AXES.filter((axis) => axis.key !== failingKey).map((axis) => `${axis.label} ${toHundred(score[axis.key])}`).join(", ");
+const ALERT_SEVERITY_RANK = {
+	critical: 4,
+	high: 3,
+	middle: 2,
+	medium: 2,
+	low: 1
+};
+const severityRank = (severity) => ALERT_SEVERITY_RANK[severity.toLowerCase()] ?? 0;
+const displaySeverity = (severity) => {
+	const normalized = sanitizeTerminalText(severity.toLowerCase());
+	return normalized === "middle" ? "medium" : normalized;
+};
+const ALERT_TYPE_LABELS = {
+	malware: "known malware",
+	gptMalware: "AI-detected malware",
+	gptSecurity: "AI-detected security risk",
+	gptAnomaly: "AI-detected code anomaly",
+	envVars: "environment-variable access",
+	usesEval: "use of eval",
+	troll: "protestware",
+	didYouMean: "possible typosquat",
+	typosquat: "possible typosquat"
+};
+const humanizeAlertType = (type) => type.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").toLowerCase().trim();
+const friendlyAlertType = (type) => ALERT_TYPE_LABELS[type] ?? sanitizeTerminalText(humanizeAlertType(type));
+const summarizeAlertNote = (note) => {
+	const collapsed = sanitizeTerminalText(note.replace(/\s+/g, " ").trim());
+	const firstSentence = collapsed.split(/(?<=\.)\s/)[0] || collapsed;
+	if (firstSentence.length <= 160) return firstSentence.replace(/\.$/, "");
+	return `${firstSentence.slice(0, 160).trimEnd()}…`;
+};
+const selectTopAlerts = (alerts) => [...alerts].sort((left, right) => severityRank(right.severity) - severityRank(left.severity)).slice(0, 3);
+const formatAlertReason = (topAlerts, totalCount) => {
+	if (topAlerts.length === 1) {
+		const [alert] = topAlerts;
+		const location = alert.file ? ` in \`${sanitizeTerminalText(alert.file)}\`` : "";
+		const note = alert.props?.note ? summarizeAlertNote(alert.props.note) : null;
+		const detail = note ? `: "${note}"` : "";
+		return `Socket flagged a ${displaySeverity(alert.severity)} ${friendlyAlertType(alert.type)} alert${location}${detail}.`;
+	}
+	return `Socket flagged ${totalCount} alerts (${topAlerts.map((alert) => friendlyAlertType(alert.type)).join(", ")}${totalCount > topAlerts.length ? ` (+${totalCount - topAlerts.length} more)` : ""}); most severe: ${displaySeverity(topAlerts[0].severity)}.`;
+};
+const formatDependencyIdentity = (dependency) => import_semver.valid(dependency.spec) !== null ? `${dependency.name}@${dependency.version}` : `${dependency.name}@${dependency.version} (lowest version "${dependency.spec}" allows)`;
+const buildSupplyChainHelp = (dependency, failingAxis, topAlerts, packagePageUrl, options) => {
+	const hasCriticalAlert = topAlerts.some((alert) => alert.severity.toLowerCase() === "critical");
+	const entry = `\`"${dependency.name}": "${dependency.spec}"\``;
+	return `${hasCriticalAlert ? `Treat ${dependency.name} as compromised — do not ship it. Remove ${entry} from package.json and your lockfile, then audit anything it ran.` : `${failingAxis.guidance.remediation}; update ${entry} in package.json.`} Full report: ${packagePageUrl}. ${hasCriticalAlert ? `Only if you've confirmed this is a false positive, set \`supplyChain.enabled: false\`.` : `If you've reviewed and accepted this package, raise \`supplyChain.minScore\` (currently ${options.minScore}) or set \`supplyChain.severity: "warning"\`.`}`;
+};
+const buildLowScoreDiagnostic = (dependency, artifact, failingAxis, options) => {
 	const packagePageUrl = `${SOCKET_PACKAGE_PAGE_BASE}/${dependency.name}/overview/${dependency.version}`;
+	const failingScore = toHundred(artifact.score[failingAxis.key]);
+	const topAlerts = selectTopAlerts(artifact.alerts);
+	const reason = topAlerts.length > 0 ? formatAlertReason(topAlerts, artifact.alerts.length) : `This points to ${failingAxis.guidance.meaning}.`;
+	const headline = `\`${formatDependencyIdentity(dependency)}\` scored ${failingScore}/100 on Socket's ${failingAxis.label} axis (minimum ${options.minScore}).`;
+	const otherAxes = `Other axes — ${formatOtherAxisScores(artifact.score, failingAxis.key)}.`;
 	return {
 		filePath: "package.json",
 		plugin: SUPPLY_CHAIN_PLUGIN,
 		rule: SUPPLY_CHAIN_RULE,
 		severity: options.severity,
-		message: `\`${dependency.name}\` (declared in package.json as "${dependency.spec}", scored at ${dependency.version}) has a Socket supply-chain score of ${overall}/100 (below the minimum of ${options.minScore}). Axis scores — ${formatAxisScores(score)}.`,
-		help: `Update or replace the \`"${dependency.name}": "${dependency.spec}"\` entry in package.json. Review ${dependency.name} on Socket: ${packagePageUrl}. Or raise \`supplyChain.minScore\` if you have vetted and accepted this package.`,
+		message: `${headline} ${reason} ${otherAxes}`,
+		help: buildSupplyChainHelp(dependency, failingAxis, topAlerts, packagePageUrl, options),
 		url: packagePageUrl,
 		line: dependency.line,
 		column: dependency.column,
@@ -39478,7 +40536,9 @@ const buildLowScoreDiagnostic = (dependency, score, options) => {
 * Scores every direct dependency in the project's `package.json` against
 * Socket.dev's free PURL endpoint (the same one Socket Firewall's free tier
 * uses — no API key) and returns a diagnostic for each dependency whose
-* Socket `overall` score is below the configured `minScore`.
+* worst Socket *security* axis — supply chain or vulnerability — is below
+* the configured `minScore`. The quality / maintenance / license axes are
+* reported as context but never gate (see GATED_AXES).
 *
 * Lookups run with bounded concurrency via `Effect.forEach`. The check is
 * total/fail-open: each per-package lookup already recovers to `null`
@@ -39491,13 +40551,14 @@ const checkSupplyChain = (input) => gen(function* () {
 	const packageJsonPath = Path.join(input.rootDirectory, "package.json");
 	const dependencies = collectDependenciesToScore(readPackageJson(packageJsonPath), readPackageJsonText(packageJsonPath), options.includeDevDependencies);
 	if (dependencies.length === 0) return [];
-	const scores = yield* forEach$1(dependencies, fetchSocketScore, { concurrency: 8 });
+	const artifacts = yield* forEach$1(dependencies, fetchSocketArtifact, { concurrency: 8 }).pipe(timeoutOption(input.totalTimeoutMs ?? 9e4), map$3((maybeArtifacts) => getOrElse$1(maybeArtifacts, () => [])));
 	const diagnostics = [];
 	for (let index = 0; index < dependencies.length; index += 1) {
-		const score = scores[index];
-		if (!score) continue;
-		if (toHundred(score.overall) >= options.minScore) continue;
-		diagnostics.push(buildLowScoreDiagnostic(dependencies[index], score, options));
+		const artifact = artifacts[index];
+		if (!artifact) continue;
+		const worstAxis = worstGatedAxis(artifact.score);
+		if (toHundred(artifact.score[worstAxis.key]) >= options.minScore) continue;
+		diagnostics.push(buildLowScoreDiagnostic(dependencies[index], artifact, worstAxis, options));
 	}
 	return diagnostics;
 });
@@ -39505,7 +40566,8 @@ const checkSupplyChain = (input) => gen(function* () {
 * `SupplyChain` scores the project's direct dependencies against Socket.dev's
 * free, keyless PURL endpoint — the same lookup Socket Firewall's free tier
 * (`sfw`) performs — and streams a diagnostic for each dependency whose
-* Socket score falls below the configured `supplyChain.minScore`.
+* worst Socket security axis (supply chain or vulnerability) falls below
+* the configured `supplyChain.minScore`.
 *
 * Runs by default (one network request per dependency); the orchestrator
 * provides `layerOf([])` only when the user opts out via
@@ -39514,6 +40576,10 @@ const checkSupplyChain = (input) => gen(function* () {
 * The underlying `checkSupplyChain` Effect is total/fail-open — per-package
 * timeouts and network failures recover to "skip" — so the stream never
 * fails, mirroring `DeadCode`'s stream shape so the two compose the same way.
+* The orchestrator (`run-inspect.ts`) consumes this stream on a background
+* fiber whose network time overlaps the lint pass, joined under a generous
+* wall-clock budget; a budget expiry is the same fail-open outcome as a Socket
+* outage.
 */
 var SupplyChain = class SupplyChain extends Service()("react-doctor/SupplyChain") {
 	static layerNode = succeed$3(SupplyChain, SupplyChain.of({ run: (input) => unwrap(checkSupplyChain(input).pipe(map$3((diagnostics) => fromIterable$1(diagnostics)), withSpan("SupplyChain.run"))) }));
@@ -39572,17 +40638,42 @@ const formatLintFailText = (reasonTag, nodeVersion) => {
 *
 * Phases:
 *
-*   1. Config.resolve(directory) → Project.discover → Git metadata
+*   1. Config.resolve(directory) → Project.discover → Git metadata.
+*      The GitHub viewer-permission lookup is forked onto a background
+*      fiber here and joined late (it feeds score metadata, not
+*      diagnostics).
 *   2. beforeLint hook (e.g. CLI renders the project-detection block)
-*   3. environment checks (reduced-motion + pnpm hardening)
-*   4. Linter.run + DeadCode.run — forked as concurrent fibers so
-*      their wall-clock times overlap. Progress spinners stay
-*      sequential (lint first, then dead-code) for clean terminal
-*      output. GitHub viewer permission also runs as a background
-*      fiber during this phase.
-*   5. afterLint hook
-*   6. Reporter.finalize
-*   7. Score.compute against the surface-filtered diagnostic set
+*   3. environment checks (reduced-motion + pnpm hardening +
+*      expo/react-native + security scan), collected synchronously
+*   4. The supply-chain check (Socket.dev) is forked onto a background
+*      fiber so its ~100% network-bound time overlaps the ~100%
+*      CPU/subprocess-bound lint pass below, collapsing two serial
+*      phases into roughly `max(supplyChain, lint)`. It is capped by
+*      `SupplyChainOverlapTimeoutMs` (measured from fork) so a hung
+*      socket can't drag out its join; on timeout it fails open to no
+*      diagnostics — the same outcome class as a Socket outage.
+*   5. Linter.run runs; DeadCode.run runs concurrently (forked child
+*      fiber) ONLY when the memory gate has headroom to run the 8 GB
+*      dead-code child alongside the oxlint workers — or when overlap is
+*      forced via REACT_DOCTOR_DEAD_CODE_OVERLAP. Otherwise dead-code
+*      runs sequentially after lint, exactly as it did pre-overlap. The
+*      fiber is joined (or interrupted, SIGKILLing its worker, on lint
+*      failure) before diagnostics are concatenated. The afterLint hook
+*      fires between lint and dead-code. Progress spinner labels AND the
+*      final diagnostic / score order stay independent of execution
+*      order, so terminal output is identical either way; supply-chain
+*      rides alongside without a spinner.
+*   6. Join the supply-chain fiber, then assemble the diagnostics in a
+*      FIXED order (env, supply-chain, lint, dead-code) so the output is
+*      byte-identical regardless of which fiber settled first. The
+*      viewer-permission fiber is joined later, during score-metadata
+*      assembly (it feeds score metadata, not diagnostics). The per-element
+*      `Reporter.emit` side-channel now interleaves supply-chain with lint
+*      emits, so capture-order assertions must target the deterministic
+*      concat below, not emit order (production `Reporter.layerNoop` makes
+*      emit a no-op).
+*   7. Reporter.finalize
+*   8. Score.compute against the surface-filtered diagnostic set
 *
 * The orchestrator owns spinner lifecycle via `Progress`; callers
 * choose `Progress.layerOra(...)` for CLI feedback or
@@ -39634,12 +40725,27 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 		...checkPnpmHardening(scanDirectory),
 		...checkReactServerComponentsAdvisory(scanDirectory, project),
 		...checkExpoProject(scanDirectory, project),
-		...checkReactNativeProject(scanDirectory, project)
+		...checkReactNativeProject(scanDirectory, project),
+		...checkSecurityScan(scanDirectory, {
+			project,
+			ignoredTags: input.ignoredTags
+		})
 	])));
-	const supplyChainCollected = !isDiffMode || (input.supplyChainManifestChanged ?? false) ? yield* runCollect(applyPerElementPipeline(supplyChainService.run({
+	const shouldRunSupplyChain = !isDiffMode || (input.supplyChainManifestChanged ?? false);
+	const supplyChainOverlapTimeout = yield* SupplyChainOverlapTimeoutMs;
+	const supplyChainFiber = yield* forkChild(shouldRunSupplyChain ? runCollect(applyPerElementPipeline(supplyChainService.run({
 		rootDirectory: scanDirectory,
 		userConfig: resolvedConfig.config
-	}))) : [];
+	}))).pipe(map$3((diagnostics) => ({
+		diagnostics,
+		timedOut: false
+	})), timeout(supplyChainOverlapTimeout), orElseSucceed(() => ({
+		diagnostics: [],
+		timedOut: true
+	}))) : succeed$2({
+		diagnostics: [],
+		timedOut: false
+	}));
 	const lintFailure = yield* make$13({
 		didFail: false,
 		reason: null,
@@ -39650,12 +40756,49 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 		didFail: false,
 		reason: null
 	});
-	const scanConcurrency = yield* OxlintConcurrency;
+	const scanConcurrency = resolveScanConcurrency(yield* OxlintConcurrency);
+	const lintPhaseTimeoutMs = yield* LintPhaseTimeoutMs;
+	const deadCodePhaseTimeoutMs = yield* DeadCodePhaseTimeoutMs;
+	const resolveDeadCodePhaseTimeoutMs = (scaledPhaseTimeoutMs) => deadCodePhaseTimeoutMs === 15e4 ? scaledPhaseTimeoutMs : deadCodePhaseTimeoutMs;
 	const workerCountSuffix = scanConcurrency > 1 ? ` ${highlighter.dim(`[~${scanConcurrency} workers]`)}` : "";
+	const shouldRunDeadCode = input.runDeadCode && !isDiffMode && (showWarnings || deadCodeMaySurfaceWhenWarningsHidden(resolvedConfig.config));
+	const deadCodeOverlapMode = yield* DeadCodeOverlap;
+	const shouldOverlapDeadCode = shouldRunDeadCode && deadCodeOverlapMode === "on";
+	const deadCodeParseConcurrency = shouldOverlapDeadCode ? Math.max(1, Math.floor(scanConcurrency * DEAD_CODE_OVERLAP_PARSE_SHARE)) : void 0;
+	const lintConcurrency = deadCodeParseConcurrency === void 0 ? scanConcurrency : Math.max(1, scanConcurrency - deadCodeParseConcurrency);
+	const buildCollectDeadCode = (deadCodeTimeout) => runCollect(applyPerElementPipeline(deadCodeService.run({
+		rootDirectory: scanDirectory,
+		userConfig: resolvedConfig.config,
+		parseConcurrency: deadCodeParseConcurrency,
+		workerTimeoutMs: deadCodeTimeout.workerTimeoutMs
+	}).pipe(catchTag("ReactDoctorError", (error) => unwrap(gen(function* () {
+		yield* set(deadCodeFailure, {
+			didFail: true,
+			reason: error.message
+		});
+		return empty$4;
+	})))))).pipe(timeoutOption(deadCodeTimeout.phaseTimeoutMs), flatMap$2(match$3({
+		onNone: () => set(deadCodeFailure, {
+			didFail: true,
+			reason: `Dead-code analysis exceeded ${Math.round(deadCodeTimeout.phaseTimeoutMs / MILLISECONDS_PER_SECOND)}s and was skipped.`
+		}).pipe(as([])),
+		onSome: succeed$2
+	})));
+	const overlapDeadCodeTimeout = resolveDeadCodeTimeout({
+		sourceFileCount: project.sourceFileCount,
+		deadCodeConcurrency: deadCodeParseConcurrency ?? scanConcurrency,
+		fullConcurrency: scanConcurrency
+	});
+	const deadCodeFiber = shouldOverlapDeadCode ? yield* forkChild(buildCollectDeadCode({
+		workerTimeoutMs: overlapDeadCodeTimeout.workerTimeoutMs,
+		phaseTimeoutMs: resolveDeadCodePhaseTimeoutMs(overlapDeadCodeTimeout.phaseTimeoutMs)
+	})) : null;
 	const scanProgress = yield* progressService.start("Scanning...");
 	const scanStartTime = Date.now();
 	let lastReportedTotalFileCount = 0;
-	const lintCollected = yield* runCollect(applyPerElementPipeline(linterService.run({
+	let lintCacheHitFileCount = null;
+	let lintCacheTotalFileCount = null;
+	const baseLintStream = linterService.run({
 		rootDirectory: scanDirectory,
 		project,
 		includePaths: lintIncludePaths ?? void 0,
@@ -39669,6 +40812,10 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 		onFileProgress: (scannedFileCount, totalFileCount) => {
 			lastReportedTotalFileCount = totalFileCount;
 			runSync(scanProgress.update(`Scanning files (${scannedFileCount}/${totalFileCount})${workerCountSuffix}...`));
+		},
+		onCacheStats: (cacheHitFileCount, totalConsideredFileCount) => {
+			lintCacheHitFileCount = cacheHitFileCount;
+			lintCacheTotalFileCount = totalConsideredFileCount;
 		}
 	}).pipe(catchTag("ReactDoctorError", (error) => unwrap(gen(function* () {
 		yield* set(lintFailure, {
@@ -39678,35 +40825,54 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 			reasonKind: error.reason._tag === "OxlintUnavailable" ? error.reason.kind : null
 		});
 		return empty$4;
-	}))))));
+	}))));
+	const lintCollected = yield* runCollect(applyPerElementPipeline(shouldOverlapDeadCode ? baseLintStream.pipe(provideService(OxlintConcurrency, lintConcurrency)) : baseLintStream)).pipe(timeoutOption(lintPhaseTimeoutMs), flatMap$2(match$3({
+		onNone: () => set(lintFailure, {
+			didFail: true,
+			reason: `Lint analysis exceeded ${lintPhaseTimeoutMs / MILLISECONDS_PER_SECOND}s and was skipped.`,
+			reasonTag: "OxlintBatchExceeded",
+			reasonKind: null
+		}).pipe(as([])),
+		onSome: succeed$2
+	})));
 	const lintFailureState = yield* get$2(lintFailure);
 	yield* afterLint(lintFailureState.didFail);
 	if (lintFailureState.didFail) yield* scanProgress.fail(formatLintFailText(lintFailureState.reasonTag, process.version));
-	const shouldRunDeadCode = input.runDeadCode && !isDiffMode && (showWarnings || deadCodeMaySurfaceWhenWarningsHidden(resolvedConfig.config));
-	const deadCodeCollected = lintFailureState.didFail || !shouldRunDeadCode ? [] : yield* scanProgress.update("Analyzing dead code...").pipe(andThen(runCollect(applyPerElementPipeline(deadCodeService.run({
-		rootDirectory: scanDirectory,
-		userConfig: resolvedConfig.config
-	}).pipe(catchTag("ReactDoctorError", (error) => unwrap(gen(function* () {
-		yield* set(deadCodeFailure, {
-			didFail: true,
-			reason: error.message
-		});
-		return empty$4;
-	}))))))));
-	const deadCodeFailureState = yield* get$2(deadCodeFailure);
-	const scanElapsedMilliseconds = Date.now() - scanStartTime;
-	const scanElapsedSeconds = (scanElapsedMilliseconds / 1e3).toFixed(1);
 	const totalFileCount = lastReportedTotalFileCount || (lintIncludePaths?.length ?? project.sourceFileCount);
+	const scannedFilesLabel = `${totalFileCount} ${totalFileCount === 1 ? "file" : "files"}`;
+	let deadCodeCollected = [];
+	if (lintFailureState.didFail) {
+		if (deadCodeFiber !== null) yield* interrupt(deadCodeFiber);
+	} else if (shouldRunDeadCode) {
+		yield* scanProgress.update(`Scanned ${scannedFilesLabel}, analyzing dead code...`);
+		const sequentialDeadCodeTimeout = resolveDeadCodeTimeout({
+			sourceFileCount: totalFileCount,
+			deadCodeConcurrency: scanConcurrency,
+			fullConcurrency: scanConcurrency
+		});
+		deadCodeCollected = deadCodeFiber !== null ? yield* join(deadCodeFiber) : yield* buildCollectDeadCode({
+			workerTimeoutMs: sequentialDeadCodeTimeout.workerTimeoutMs,
+			phaseTimeoutMs: resolveDeadCodePhaseTimeoutMs(sequentialDeadCodeTimeout.phaseTimeoutMs)
+		});
+	}
+	const deadCodeFailureState = lintFailureState.didFail ? {
+		didFail: false,
+		reason: null
+	} : yield* get$2(deadCodeFailure);
+	const scanElapsedMilliseconds = Date.now() - scanStartTime;
+	const scanElapsedSeconds = (scanElapsedMilliseconds / MILLISECONDS_PER_SECOND).toFixed(1);
 	if (!lintFailureState.didFail) if (deadCodeFailureState.didFail) yield* scanProgress.fail(DEAD_CODE_FAIL_TEXT);
 	else if (input.suppressScanSummary) yield* scanProgress.stop();
-	else yield* scanProgress.succeed(`Scanned ${totalFileCount} ${totalFileCount === 1 ? "file" : "files"} in ${scanElapsedSeconds}s${workerCountSuffix}`);
+	else yield* scanProgress.succeed(`Scanned ${scannedFilesLabel} in ${scanElapsedSeconds}s${workerCountSuffix}`);
+	const supplyChainResult = yield* join(supplyChainFiber);
+	const supplyChainCollected = supplyChainResult.diagnostics;
 	yield* reporterService.finalize;
-	const finalDiagnostics = [
+	const finalDiagnostics = sortDiagnosticsStable(assignFixGroups([
 		...envCollected,
 		...supplyChainCollected,
 		...lintCollected,
 		...deadCodeCollected
-	];
+	]));
 	const githubViewerPermission = yield* join(githubViewerPermissionFiber);
 	const scoreMetadata = {
 		...repo !== null ? { repo } : {},
@@ -39742,9 +40908,14 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 		lintPartialFailures,
 		didDeadCodeFail: deadCodeFailureState.didFail,
 		deadCodeFailureReason: deadCodeFailureState.reason,
+		deadCodeOverlapped: shouldOverlapDeadCode,
 		scannedFileCount: totalFileCount,
 		scannedFilePaths,
-		scanElapsedMilliseconds
+		scanElapsedMilliseconds,
+		scanConcurrency,
+		supplyChainOverlapTimedOut: supplyChainResult.timedOut,
+		lintCacheHitFileCount,
+		lintCacheTotalFileCount
 	};
 }).pipe(withSpan("runInspect", { attributes: {
 	"inspect.directory": input.directory,
@@ -39752,7 +40923,7 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 	"inspect.runDeadCode": input.runDeadCode,
 	"inspect.isCi": input.isCi,
 	"inspect.scoreSurface": input.scoreSurface ?? "score"
-} }));
+} }), (scanProgram) => flatMap$2(ScanDeadlineMs, (scanDeadlineMs) => scanProgram.pipe(timeout(scanDeadlineMs), catchTag$1("TimeoutError", () => new ReactDoctorError({ reason: new ScanDeadlineExceeded({ detail: `${scanDeadlineMs / MILLISECONDS_PER_SECOND}s elapsed` }) })))));
 const parseNodeVersion = (versionString) => {
 	const [major = 0, minor = 0, patch = 0] = versionString.replace(/^v/, "").trim().split(".").map(Number);
 	return {
@@ -39910,7 +41081,7 @@ const materializeSourceTree = (input) => gen(function* () {
 	static layerNode = effect(StagedFiles, gen(function* () {
 		const git = yield* Git;
 		return StagedFiles.of({
-			discoverSourceFiles: (directory) => git.stagedFilePaths(directory).pipe(map$3((entries) => entries.filter(isLintableSourceFile))),
+			discoverSourceFiles: (directory) => git.stagedFilePaths(directory).pipe(map$3((entries) => entries.filter(isLintableSourceFile)), withSpan("StagedFiles.discoverSourceFiles")),
 			materialize: ({ directory, stagedFiles, tempDirectory }) => materializeSourceTree({
 				directory,
 				files: stagedFiles,
@@ -39920,7 +41091,7 @@ const materializeSourceTree = (input) => gen(function* () {
 				tempDirectory: tree.tempDirectory,
 				stagedFiles: tree.materializedFiles,
 				cleanup: tree.cleanup
-			})))
+			})), withSpan("StagedFiles.materialize"))
 		});
 	}));
 	/**
@@ -39988,7 +41159,10 @@ const runEditorScan = async (input) => {
 		isCi: false,
 		resolveLocalGithubViewerPermission: false,
 		skipJsxIncludeFilter: true
-	}).pipe(provide(layers), provide(layerOtlp)));
+	}).pipe(withSpan("runEditorScan", { attributes: {
+		"editor.lint": lint,
+		"editor.runDeadCode": runDeadCode
+	} }), provide(layers), provide(layerOtlp)));
 	if (isSuccess(exit)) {
 		const output = exit.value;
 		return {
@@ -40018,7 +41192,7 @@ const runEditorScan = async (input) => {
 		didDeadCodeFail: false,
 		deadCodeFailureReason: null,
 		lintPartialFailures: [],
-		error: error instanceof Error ? error.message : String(error)
+		error: messageFromUnknown(error)
 	};
 };
 /**
@@ -40070,7 +41244,7 @@ const computeConfigFingerprint = (projectDirectory, version) => {
 /** Display name used in client-facing messages and progress titles. */
 const SERVER_DISPLAY_NAME = "React Doctor";
 /** Server version reported in `serverInfo`; injected at build, `dev` from source. */
-const SERVER_VERSION = "0.5.1";
+const SERVER_VERSION = "0.5.7";
 /** `Diagnostic.source` shown next to every published diagnostic. */
 const DIAGNOSTIC_SOURCE = "react-doctor";
 /**
@@ -40300,7 +41474,6 @@ const toLspDiagnostic = (input) => {
 		data
 	};
 };
-const toUri = (absoluteFilePath) => fsPathToUri(absoluteFilePath);
 /**
 * Owns the published-diagnostic state. Maps scan outcomes to LSP
 * diagnostics, publishes complete per-URI replacement sets (so the
@@ -40330,7 +41503,7 @@ var DiagnosticsManager = class {
 		const isProtectedPath = (fsPath) => protectOpen && this.isOpen(fsPath);
 		for (const [fsPath, coreDiagnostics] of outcome.byFile) {
 			if (isProtectedPath(fsPath)) continue;
-			const uri = toUri(fsPath);
+			const uri = fsPathToUri(fsPath);
 			const text = this.textProvider(fsPath);
 			const lspDiagnostics = coreDiagnostics.map((diagnostic) => toLspDiagnostic({
 				diagnostic,
@@ -40352,7 +41525,7 @@ var DiagnosticsManager = class {
 		for (const fsPath of outcome.requestedPaths) {
 			if (isProtectedPath(fsPath)) continue;
 			if (outcome.byFile.has(fsPath)) continue;
-			const uri = toUri(fsPath);
+			const uri = fsPathToUri(fsPath);
 			if (this.byUri.has(uri)) this.byUri.delete(uri);
 			this.publish(uri, []);
 		}
@@ -40377,7 +41550,7 @@ var DiagnosticsManager = class {
 		const set = this.projectUris.get(project) ?? /* @__PURE__ */ new Set();
 		for (const uri of liveUris) set.add(uri);
 		for (const fsPath of outcome.requestedPaths) {
-			const uri = toUri(fsPath);
+			const uri = fsPathToUri(fsPath);
 			if (!liveUris.has(uri)) set.delete(uri);
 		}
 		this.projectUris.set(project, set);
@@ -40405,7 +41578,7 @@ var DiagnosticsManager = class {
 		const tracked = this.projectUris.get(project);
 		if (!tracked) return;
 		const liveUris = /* @__PURE__ */ new Set();
-		for (const fsPath of liveFsPaths) liveUris.add(toUri(fsPath));
+		for (const fsPath of liveFsPaths) liveUris.add(fsPathToUri(fsPath));
 		for (const uri of [...tracked]) {
 			if (liveUris.has(uri)) continue;
 			this.byUri.delete(uri);
@@ -40702,7 +41875,7 @@ const createProjectGraph = (options) => {
 				});
 			}
 		} catch (error) {
-			logger.warn(`Project discovery failed for ${root}: ${error instanceof Error ? error.message : String(error)}`);
+			logger.warn(`Project discovery failed for ${root}: ${messageFromUnknown(error)}`);
 		}
 		return [...seen.values()].sort((first, second) => second.directory.length - first.directory.length);
 	};
@@ -40726,9 +41899,15 @@ const createProjectGraph = (options) => {
 			clearPackageJsonCache();
 			clearIgnorePatternsCache();
 			clearAutoSuppressionCaches();
+			clearMinifiedFileCache();
 			projects = null;
 		}
 	};
+};
+const toProjectRelative = (projectDirectory, filePath) => {
+	const relative = Path.relative(projectDirectory, filePath).replace(/\\/g, "/");
+	if (relative.length === 0 || relative.startsWith("../") || Path.isAbsolute(relative)) return null;
+	return relative;
 };
 const resolveCacheFilePath = (projectDirectory) => {
 	const nodeModules = path.join(projectDirectory, "node_modules");
@@ -40764,7 +41943,7 @@ const createLintCache = (input) => {
 			fs.writeFileSync(tempPath, JSON.stringify(payload));
 			fs.renameSync(tempPath, cacheFilePath);
 		} catch (error) {
-			logger.warn(`Failed to persist lint cache: ${error instanceof Error ? error.message : String(error)}`);
+			logger.warn(`Failed to persist lint cache: ${messageFromUnknown(error)}`);
 		}
 	};
 	return {
@@ -40790,11 +41969,6 @@ const createLintCache = (input) => {
 };
 const OVERLAY_TEMP_PREFIX = "react-doctor-lsp-";
 const OVERLAY_CONFIG_FILENAMES = [...new Set([...STAGED_FILES_PROJECT_CONFIG_FILENAMES, ...ADOPTABLE_LINT_CONFIG_FILENAMES])];
-const toProjectRelative$1 = (projectDirectory, filePath) => {
-	const relative = path.relative(projectDirectory, filePath).replace(/\\/g, "/");
-	if (relative.length === 0 || relative.startsWith("../") || path.isAbsolute(relative)) return null;
-	return relative;
-};
 /**
 * Writes the live (possibly unsaved) content of the target files into a
 * throwaway temp tree that mirrors the project, alongside the well-known
@@ -40808,7 +41982,7 @@ const materializeOverlay = (input) => {
 	const relativePaths = [];
 	try {
 		for (const filePath of input.files) {
-			const relative = toProjectRelative$1(input.projectDirectory, filePath);
+			const relative = toProjectRelative(input.projectDirectory, filePath);
 			if (relative === null) continue;
 			const content = input.readText(filePath);
 			if (content === null) continue;
@@ -40855,11 +42029,6 @@ const materializeOverlay = (input) => {
 		});
 		throw error;
 	}
-};
-const toProjectRelative = (projectDirectory, filePath) => {
-	const relative = path.relative(projectDirectory, filePath).replace(/\\/g, "/");
-	if (relative.length === 0 || relative.startsWith("../") || path.isAbsolute(relative)) return null;
-	return relative;
 };
 /**
 * Resolves a diagnostic's (possibly relative, possibly overlay-temp)
@@ -41082,7 +42251,7 @@ const createScheduler = (options) => {
 				if (outcome && !token.isCancelled) options.onResult(outcome);
 			}).catch((error) => {
 				if (options.onError) options.onError(error, request);
-				else logger.error(`Scan failed: ${error instanceof Error ? error.message : String(error)}`);
+				else logger.error(`Scan failed: ${messageFromUnknown(error)}`);
 			}).finally(() => {
 				running -= 1;
 				if (isBackground) runningBackground -= 1;
@@ -41469,7 +42638,7 @@ const createServer = (connection, options = {}) => {
 				maybeWarnLintUnavailable(outcome);
 				if (outcome.request.priority === "background") scanTelemetry.accumulate(outcome);
 			},
-			onError: (error, request) => logger.error(`Scan of ${request.projectDirectory} threw: ${error instanceof Error ? error.message : String(error)}`),
+			onError: (error, request) => logger.error(`Scan of ${request.projectDirectory} threw: ${messageFromUnknown(error)}`),
 			onIdleChange: (idle) => {
 				setBusy(!idle);
 				if (idle) scanTelemetry.finish();
@@ -41772,6 +42941,8 @@ const METRIC = {
 	cliInvoked: "cli.invoked",
 	cliError: "cli.error",
 	projectDetected: "project.detected",
+	projectPathSelected: "project.path_selected",
+	projectConfigSelected: "project.config_selected",
 	scanCompleted: "scan.completed",
 	scanDuration: "scan.duration",
 	scanPhaseDuration: "scan.phase_duration",

@@ -267,18 +267,135 @@ const wrapCreateForReactJsxOnly = (create) => ((context) => {
 	return wrappedVisitors;
 });
 const defineRule = (rule) => {
+	if (!("create" in rule)) return {
+		...rule,
+		create: () => ({})
+	};
 	const tags = rule.tags;
-	const create = rule.create;
-	if (typeof create !== "function") return rule;
-	let wrappedCreate = create;
+	let wrappedCreate = rule.create;
 	if (tags?.includes("test-noise") && !tags?.includes("migration-hint")) wrappedCreate = wrapCreateForTestNoise(wrappedCreate);
 	if (tags?.includes("react-jsx-only")) wrappedCreate = wrapCreateForReactJsxOnly(wrappedCreate);
-	if (wrappedCreate === create) return rule;
+	if (wrappedCreate === rule.create) return rule;
 	return {
 		...rule,
 		create: wrappedCreate
 	};
 };
+//#endregion
+//#region src/plugin/rules/security-scan/utils/get-location-at-index.ts
+const getLocationAtIndex = (content, matchIndex) => {
+	if (matchIndex < 0) return {
+		line: 1,
+		column: 1
+	};
+	const lines = content.slice(0, matchIndex).split(/\r?\n/);
+	return {
+		line: lines.length,
+		column: (lines[lines.length - 1]?.length ?? 0) + 1
+	};
+};
+//#endregion
+//#region src/plugin/rules/security-scan/utils/get-match-location.ts
+const getMatchLocation = (content, pattern) => getLocationAtIndex(content, content.search(pattern));
+//#endregion
+//#region src/plugin/constants/security-scan.ts
+const TEXT_FILE_PATTERN = /\.(?:[cm]?[jt]sx?|json|jsonc|map|html?|mdx?|ya?ml|toml|sql|rules|env|txt|log|svg|xml|pem|key|crt|cert|pub|py|php)$/i;
+const DOTENV_FILE_PATTERN = /(?:^|\/)\.env(?:\.|$)/;
+const SOURCE_FILE_PATTERN = /\.(?:[cm]?[jt]sx?)$/i;
+const SCRIPT_SOURCE_FILE_PATTERN = /\.(?:[cm]?[jt]sx?|py|php)$/i;
+const DATABASE_SOURCE_FILE_PATTERN = /\.(?:[cm]?[jt]sx?|py)$/i;
+const SERVER_CONTEXT_PATTERN = /(?:^|\/)(?:api|backend|server|servers|middleware|route|routes|functions|lambdas|workers)(?:\/|$)|(?:^|\/)[^/]+\.server\.[cm]?[jt]sx?$/i;
+const TEST_CONTEXT_PATTERN = /(?:^|\/)(?:__fixtures__|__mocks__|__tests__|fixtures|mocks|test|tests|testdata|test-data|e2e|playwright)(?:\/|$)|\.(?:test|spec|e2e|e2e-spec|integration-test|fixture|fixtures|stories|story)\.[cm]?[jt]sx?$|(?:^|\/)(?:test_[^/]+|[^/]+_test|conftest)\.py$|\.env\.[^/]*(?:test|e2e)[^/]*$/i;
+const BUILD_SCRIPT_CONTEXT_PATTERN = /(?:^|\/)scripts(?:\/|$)/i;
+const DEMO_CONTEXT_PATTERN = /(?:^|\/)(?:examples?|tutorials?|demos?|samples?|playgrounds?)(?:\/|$)/i;
+const DOCUMENTATION_CONTEXT_PATTERN = /(?:^|\/)(?:README|CHANGELOG|CONTRIBUTING|PUBLISHING|DOCS)\.mdx?$|\.mdx?$/i;
+const GENERATED_SOURCE_CONTEXT_PATTERN = /(?:^|\/)(?:generated|__generated__|dist|build|coverage|out|storybook-static|vendor|vendors|third[-_]?party|libraries)(?:\/|$)|(?:^|\/)\.next\/|(?:^|\/)\.yarn\/|(?:^|\/)public\/(?:chunks?|assets?|build|dist|static)\/|(?:generated|\.gen)\.[cm]?[jt]sx?$|@\d+\.\d+\.\d+(?:[-.][\w.]+)?\.[cm]?js$|[.-]min\.[cm]?js$|\.asm\.js$|(?:^|\/)[\w-]+[.@-]\d+\.\d+\.\d+(?:[-.][\w.]+)?\//i;
+const GENERATED_BUNDLE_FILE_PATTERN = /\.(iife|umd|global|min)\.js$/i;
+const BROWSER_ARTIFACT_PATH_PATTERNS = [
+	/(?:^|\/)\.next\/static\//,
+	/(?:^|\/)\.output\/public\//,
+	/(?:^|\/)build\/static\//,
+	/(?:^|\/)dist\/assets\//,
+	/(?:^|\/)public\//,
+	/(?:^|\/)out\//,
+	/(?:^|\/)storybook-static\//
+];
+const AGENT_TOOL_DANGEROUS_CAPABILITY_PATTERN = /\b(?:exec|execSync|spawn|child_process|eval|new Function|vm\.run|readFile|writeFile|fs\.read|fs\.write|fetch|axios|http\.request|sandbox|runCode|executeCode)\b/;
+//#endregion
+//#region src/plugin/rules/security-scan/utils/is-browser-artifact-path.ts
+const SERVER_BUILD_ROOT_SEGMENTS = new Set([".next", ".output"]);
+const isNonShippedBuildArtifactPath = (relativePath) => {
+	const segments = relativePath.split("/");
+	for (let index = 0; index < segments.length; index += 1) {
+		if (!SERVER_BUILD_ROOT_SEGMENTS.has(segments[index])) continue;
+		if (segments[index] === ".next" && segments[index + 1] === "dev") return true;
+		if (segments[index + 1] === "server" && index + 2 < segments.length) return true;
+	}
+	return false;
+};
+const isBrowserArtifactPath = (relativePath, isGeneratedBundle) => {
+	if (isNonShippedBuildArtifactPath(relativePath)) return false;
+	if (isGeneratedBundle) return true;
+	if (relativePath.endsWith(".map")) return true;
+	return BROWSER_ARTIFACT_PATH_PATTERNS.some((pattern) => pattern.test(relativePath));
+};
+//#endregion
+//#region src/plugin/rules/security-scan/utils/is-config-or-ci-path.ts
+const isConfigOrCiPath = (relativePath) => /(?:^|\/)(?:package\.json|Dockerfile|docker-compose\.ya?ml|\.github\/workflows\/[^/]+\.ya?ml|vercel\.json|next\.config\.[cm]?[jt]s|netlify\.toml)$/i.test(relativePath);
+//#endregion
+//#region src/plugin/rules/security-scan/utils/is-production-file-path.ts
+const isProductionFilePath = (relativePath, sourceFilePattern) => {
+	if (!sourceFilePattern.test(relativePath)) return false;
+	if (TEST_CONTEXT_PATTERN.test(relativePath)) return false;
+	if (BUILD_SCRIPT_CONTEXT_PATTERN.test(relativePath)) return false;
+	if (DOCUMENTATION_CONTEXT_PATTERN.test(relativePath)) return false;
+	if (GENERATED_SOURCE_CONTEXT_PATTERN.test(relativePath)) return false;
+	return true;
+};
+//#endregion
+//#region src/plugin/rules/security-scan/utils/is-production-source-path.ts
+const isProductionSourcePath = (relativePath) => {
+	return isProductionFilePath(relativePath, SOURCE_FILE_PATTERN);
+};
+//#endregion
+//#region src/plugin/rules/security-scan/active-static-asset.ts
+const SVG_ACTIVE_PATTERN = /<script\b|on(?:load|error|click|mouseover)\s*=/i;
+const DANGEROUS_ALLOW_SVG_PATTERN = /dangerouslyAllowSVG\s*:\s*true/i;
+const EXECUTABLE_SVG_EMBED_PATTERN = /<(?:object|embed|iframe)\b[^>]+(?:data|src)=["'][^"']+\.svg(?:\?[^"']*)?["']/i;
+const activeStaticAsset = defineRule({
+	id: "active-static-asset",
+	title: "Executable SVG exposure",
+	severity: "warn",
+	recommendation: "Prefer `<img>` for SVG images; if SVG must be served directly, use attachment disposition and a CSP that blocks scripts and objects.",
+	scan: (file) => {
+		const findings = [];
+		if (file.relativePath.endsWith(".svg") && isBrowserArtifactPath(file.relativePath, file.isGeneratedBundle)) {
+			if (SVG_ACTIVE_PATTERN.test(file.content)) {
+				const location = getMatchLocation(file.content, SVG_ACTIVE_PATTERN);
+				findings.push({
+					message: "A browser-reachable SVG contains script or event-handler code.",
+					line: location.line,
+					column: location.column,
+					severity: "error",
+					title: "Active SVG in public assets",
+					help: "Serve untrusted SVG as downloads, sanitize it, or isolate it on a cookieless asset origin with a restrictive CSP."
+				});
+			}
+			return findings;
+		}
+		if (!isProductionSourcePath(file.relativePath) && !isConfigOrCiPath(file.relativePath)) return findings;
+		const pattern = [DANGEROUS_ALLOW_SVG_PATTERN, EXECUTABLE_SVG_EMBED_PATTERN].find((candidate) => candidate.test(file.content));
+		if (pattern !== void 0) {
+			const location = getMatchLocation(file.content, pattern);
+			findings.push({
+				message: "The app enables or embeds SVG in an executable browser context.",
+				line: location.line,
+				column: location.column
+			});
+		}
+		return findings;
+	}
+});
 //#endregion
 //#region src/plugin/constants/library.ts
 const HEAVY_LIBRARIES = new Set([
@@ -772,6 +889,148 @@ const advancedEventHandlerRefs = defineRule({
 	} })
 });
 //#endregion
+//#region src/plugin/rules/security-scan/utils/strip-comments-preserving-positions.ts
+const WHITESPACE_PATTERN = /\s/;
+const quotedLiteralHasWhitespace = (content, openQuoteIndex, delimiter) => {
+	for (let cursor = openQuoteIndex + 1; cursor < content.length; cursor += 1) {
+		const character = content[cursor];
+		if (character === "\\") {
+			cursor += 1;
+			continue;
+		}
+		if (character === delimiter) return false;
+		if (WHITESPACE_PATTERN.test(character)) return true;
+	}
+	return false;
+};
+const blankNonCodePreservingPositions = (content, blankStringContents) => {
+	const characters = content.split("");
+	let stringDelimiter = null;
+	let isBlankingString = false;
+	const templateExpressionDepths = [];
+	let index = 0;
+	const blankUnlessNewline = (offset) => {
+		if (offset < content.length && content[offset] !== "\n") characters[offset] = " ";
+	};
+	while (index < content.length) {
+		const character = content[index];
+		const nextCharacter = content[index + 1];
+		if (stringDelimiter !== null) {
+			if (character === "\\") {
+				if (isBlankingString) {
+					blankUnlessNewline(index);
+					blankUnlessNewline(index + 1);
+				}
+				index += 2;
+				continue;
+			}
+			if (character === stringDelimiter) {
+				stringDelimiter = null;
+				index += 1;
+				continue;
+			}
+			if (blankStringContents && stringDelimiter === "`" && character === "$" && nextCharacter === "{") {
+				templateExpressionDepths.push(0);
+				stringDelimiter = null;
+				index += 2;
+				continue;
+			}
+			if (isBlankingString) blankUnlessNewline(index);
+			index += 1;
+			continue;
+		}
+		if (character === "\"" || character === "'") {
+			stringDelimiter = character;
+			isBlankingString = blankStringContents && quotedLiteralHasWhitespace(content, index, character);
+			index += 1;
+			continue;
+		}
+		if (character === "`") {
+			stringDelimiter = "`";
+			isBlankingString = blankStringContents;
+			index += 1;
+			continue;
+		}
+		if (character === "/" && nextCharacter === "/") {
+			while (index < content.length && content[index] !== "\n") {
+				characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "/" && nextCharacter === "*") {
+			while (index < content.length) {
+				if (content[index] === "*" && content[index + 1] === "/") {
+					characters[index] = " ";
+					characters[index + 1] = " ";
+					index += 2;
+					break;
+				}
+				blankUnlessNewline(index);
+				index += 1;
+			}
+			continue;
+		}
+		if (templateExpressionDepths.length > 0) {
+			const innermost = templateExpressionDepths.length - 1;
+			if (character === "{") templateExpressionDepths[innermost] += 1;
+			else if (character === "}") if (templateExpressionDepths[innermost] === 0) {
+				templateExpressionDepths.pop();
+				stringDelimiter = "`";
+				isBlankingString = blankStringContents;
+			} else templateExpressionDepths[innermost] -= 1;
+		}
+		index += 1;
+	}
+	return characters.join("");
+};
+const stripCommentsPreservingPositions = (content) => blankNonCodePreservingPositions(content, false);
+const stripCommentsAndStringLiteralsPreservingPositions = (content) => blankNonCodePreservingPositions(content, true);
+//#endregion
+//#region src/plugin/rules/security-scan/utils/scan-by-pattern.ts
+const strippedContentCache = /* @__PURE__ */ new WeakMap();
+const stringStrippedContentCache = /* @__PURE__ */ new WeakMap();
+const getScannableContent = (file, ignoreStringLiterals = false) => {
+	if (!SOURCE_FILE_PATTERN.test(file.relativePath)) return file.content;
+	const cache = ignoreStringLiterals ? stringStrippedContentCache : strippedContentCache;
+	const cachedContent = cache.get(file);
+	if (cachedContent !== void 0) return cachedContent;
+	const strippedContent = ignoreStringLiterals ? stripCommentsAndStringLiteralsPreservingPositions(file.content) : stripCommentsPreservingPositions(file.content);
+	cache.set(file, strippedContent);
+	return strippedContent;
+};
+const scanByPattern = ({ shouldScan, pattern, requireAll, suppressWhen, ignoreStringLiterals, message }) => (file) => {
+	if (!shouldScan(file)) return [];
+	const content = getScannableContent(file, ignoreStringLiterals);
+	if (requireAll !== void 0 && !requireAll.every((gate) => gate.test(content))) return [];
+	const matchedPattern = (pattern instanceof RegExp ? [pattern] : pattern).find((candidate) => candidate.test(content));
+	if (matchedPattern === void 0) return [];
+	if (suppressWhen !== void 0 && suppressWhen.test(content)) return [];
+	const { line, column } = getMatchLocation(content, matchedPattern);
+	return [{
+		message,
+		line,
+		column
+	}];
+};
+//#endregion
+//#region src/plugin/rules/security-scan/agent-tool-capability-risk.ts
+const AGENT_TOOL_DEFINITION_PATTERN = /\b(?:tool\s*\(\s*\{|createTool\s*\(|defineTool\s*\(|new\s+(?:DynamicTool|StructuredTool)\s*\()/;
+const AGENT_TOOL_CONTEXT_PATH_PATTERN = /(?:^|\/)(?:agents?|tools?|mcp)(?:\/|$)|(?:agent|tool|mcp)[^/]*\.[cm]?[jt]sx?$/i;
+const agentToolCapabilityRisk = defineRule({
+	id: "agent-tool-capability-risk",
+	title: "Agent tool exposes dangerous capability",
+	severity: "warn",
+	recommendation: "Treat tool inputs as prompt-injection controlled. Validate arguments, scope permissions per call, and avoid exposing shell/file/network primitives directly to agents.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath) && AGENT_TOOL_CONTEXT_PATH_PATTERN.test(file.relativePath),
+		pattern: AGENT_TOOL_DEFINITION_PATTERN,
+		requireAll: [AGENT_TOOL_DANGEROUS_CAPABILITY_PATTERN],
+		ignoreStringLiterals: true,
+		message: "An agent-callable tool appears to expose network, filesystem, shell, or code-execution capability."
+	})
+});
+//#endregion
 //#region src/plugin/utils/get-jsx-prop-string-value.ts
 const getJsxPropStringValue = (attribute) => {
 	const value = attribute.value;
@@ -911,6 +1170,11 @@ const getImportedNameFromModule = (contextNode, localIdentifierName, moduleSourc
 	if (!info) return null;
 	if (info.source !== moduleSource) return null;
 	return info.imported;
+};
+const getImportSourceForName = (contextNode, localIdentifierName) => {
+	const lookup = getImportLookup(contextNode);
+	if (!lookup) return null;
+	return lookup.get(localIdentifierName)?.source ?? null;
 };
 //#endregion
 //#region src/plugin/utils/find-variable-initializer.ts
@@ -1132,6 +1396,15 @@ const isMemberProperty = (node, propertyName) => Boolean(node && isNodeOfType(no
 const NEXTJS_SOURCE_FILE_EXTENSION_GROUP = "(?:tsx?|jsx?|mts|mjs)";
 const PAGE_FILE_PATTERN = new RegExp(`/page\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
 const PAGE_OR_LAYOUT_FILE_PATTERN = new RegExp(`/(page|layout)\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
+const LAYOUT_FILE_NAMES = [
+	"layout.tsx",
+	"layout.jsx",
+	"layout.ts",
+	"layout.js",
+	"layout.mts",
+	"layout.mjs"
+];
+const METADATA_EXPORT_NAMES = ["metadata", "generateMetadata"];
 const INTERNAL_PAGE_PATH_PATTERN = /\/(?:(?:\((?:dashboard|admin|settings|account|internal|manage|console|portal|auth|onboarding|app|ee|protected)\))|(?:dashboard|admin|settings|account|internal|manage|console|portal))\//i;
 const PAGES_DIRECTORY_PATTERN = /\/pages\//;
 const NEXTJS_NAVIGATION_FUNCTIONS = new Set([
@@ -1642,7 +1915,7 @@ const anchorAmbiguousText = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/anchor-has-content.ts
-const MESSAGE$51 = "Blind users can't follow this link because screen readers announce nothing, so add visible text, `aria-label`, or `aria-labelledby`.";
+const MESSAGE$59 = "Blind users can't follow this link because screen readers announce nothing, so add visible text, `aria-label`, or `aria-labelledby`.";
 const anchorHasContent = defineRule({
 	id: "anchor-has-content",
 	title: "Anchor has no content",
@@ -1658,7 +1931,7 @@ const anchorHasContent = defineRule({
 		for (const attribute of ["title", "aria-label"]) if (hasJsxPropIgnoreCase(opening.attributes, attribute)) return;
 		context.report({
 			node: opening.name,
-			message: MESSAGE$51
+			message: MESSAGE$59
 		});
 	} })
 });
@@ -2052,7 +2325,7 @@ const parseJsxValue = (value) => {
 };
 //#endregion
 //#region src/plugin/rules/a11y/aria-activedescendant-has-tabindex.ts
-const MESSAGE$50 = "Keyboard users can't focus this element with `aria-activedescendant` because it isn't tabbable, so add `tabIndex={0}`.";
+const MESSAGE$58 = "Keyboard users can't focus this element with `aria-activedescendant` because it isn't tabbable, so add `tabIndex={0}`.";
 const ariaActivedescendantHasTabindex = defineRule({
 	id: "aria-activedescendant-has-tabindex",
 	title: "aria-activedescendant missing tabindex",
@@ -2070,14 +2343,14 @@ const ariaActivedescendantHasTabindex = defineRule({
 			if (tabIndexValue === null || tabIndexValue >= -1) return;
 			context.report({
 				node: node.name,
-				message: MESSAGE$50
+				message: MESSAGE$58
 			});
 			return;
 		}
 		if (isInteractiveElement(tag, node)) return;
 		context.report({
 			node: node.name,
-			message: MESSAGE$50
+			message: MESSAGE$58
 		});
 	} })
 });
@@ -2746,7 +3019,7 @@ const ABSTRACT_ROLES = new Set([
 	"widget",
 	"window"
 ]);
-const PRESENTATION_ROLES$2 = new Set(["presentation", "none"]);
+const PRESENTATION_ROLES$1 = new Set(["presentation", "none"]);
 //#endregion
 //#region src/plugin/rules/a11y/aria-role.ts
 const buildBaseMessage = (suffix) => `This \`role\` is not a valid ARIA role, so assistive tech cannot expose it correctly. Use a real, non-abstract role.${suffix}`;
@@ -2857,6 +3130,330 @@ const ariaUnsupportedElements = defineRule({
 			});
 		}
 	} })
+});
+const artifactBaasAuthoritySurface = defineRule({
+	id: "artifact-baas-authority-surface",
+	title: "BaaS authority map shipped in browser artifact",
+	severity: "warn",
+	recommendation: "Client BaaS config is often public, but shipped collection names plus owner, role, tenant, or admin fields give attackers a precise authorization map. Verify rules/RLS enforce every boundary server-side.",
+	scan: scanByPattern({
+		shouldScan: (file) => isBrowserArtifactPath(file.relativePath, file.isGeneratedBundle),
+		pattern: /\b(?:collection\s*\(\s*["'](?:boosts|sessions|sessions_admin|users|orgs|candidateJobs|conversations|documents|profiles)|from\s*\(\s*["'](?:users|profiles|documents|organizations|memberships)|creatorID|creatorId|providerId|ghostOrg|ownerId|orgId|tenantId|workspaceId|role|roles|isAdmin|SuperAdmin)\b/i,
+		requireAll: [/\b(?:initializeApp|firebase|firestore|getFirestore)\b[\s\S]{0,700}\b(?:apiKey|authDomain|projectId|databaseURL|storageBucket)\b|\b(?:apiKey|authDomain|projectId|databaseURL|storageBucket)\b[\s\S]{0,700}\b(?:firebase|firestore|getFirestore|initializeApp)\b|\bcreateClient\b[\s\S]{0,700}\b(?:supabase|SUPABASE_URL)\b|\b(?:supabase|SUPABASE_URL)\b[\s\S]{0,700}\bcreateClient\b/i],
+		message: "A browser artifact exposes Firebase/Supabase config together with sensitive collections or authorization fields."
+	})
+});
+//#endregion
+//#region src/plugin/constants/security.ts
+const AUTH_FUNCTION_NAMES = new Set([
+	"auth",
+	"getSession",
+	"getServerSession",
+	"getUser",
+	"requireAuth",
+	"checkAuth",
+	"verifyAuth",
+	"authenticate",
+	"currentUser",
+	"getAuth",
+	"validateSession"
+]);
+const AUTH_STRONG_TOKEN_PATTERN = /^auth(?:n|z|ed|enticate[ds]?|enticating|entication|orize[ds]?|orizing|orization|orizer)?$/;
+const AUTH_STANDALONE_NOUN_TOKENS = new Set([
+	"signedin",
+	"loggedin",
+	"signin"
+]);
+const AUTH_ASSERTIVE_VERB_TOKENS = new Set([
+	"require",
+	"ensure",
+	"assert",
+	"verify",
+	"validate",
+	"check",
+	"protect",
+	"enforce",
+	"guard",
+	"gate",
+	"restrict",
+	"is",
+	"has",
+	"can",
+	"must"
+]);
+const AUTH_GETTER_VERB_TOKENS = new Set([
+	"get",
+	"fetch",
+	"load",
+	"read",
+	"resolve",
+	"retrieve",
+	"use"
+]);
+const AUTH_QUALIFIER_TOKENS = new Set([
+	"current",
+	"my",
+	"own"
+]);
+const AUTH_STRONG_NOUN_TOKENS = new Set([
+	"session",
+	"sessions",
+	"login",
+	"admin",
+	"admins",
+	"superadmin",
+	"superuser",
+	"role",
+	"roles",
+	"permission",
+	"permissions",
+	"jwt",
+	"identity",
+	"principal",
+	"credential",
+	"credentials"
+]);
+const AUTH_WEAK_NOUN_TOKENS = new Set([
+	"user",
+	"users",
+	"account",
+	"accounts",
+	"token",
+	"tokens",
+	"access",
+	"me",
+	"viewer",
+	"caller",
+	"subject",
+	"scope",
+	"scopes"
+]);
+const GENERIC_AUTH_METHOD_NAMES = new Set(["getUser"]);
+const AUTH_OBJECT_PATTERN = /(?:^|[._])(?:auth|authn|authz|clerk|session|jwt|firebase|supabase|nextauth|kinde|workos|stytch|descope|cognito|propelauth|lucia)/i;
+const SECRET_PATTERNS = [
+	/^sk_live_/,
+	/^sk_test_/,
+	/^AKIA[0-9A-Z]{16}$/,
+	/^ghp_[a-zA-Z0-9]{36}$/,
+	/^gho_[a-zA-Z0-9]{36}$/,
+	/^github_pat_/,
+	/^glpat-/,
+	/^xox[bporas]-/,
+	/^sk-[a-zA-Z0-9]{32,}$/
+];
+const SECRET_VALUE_PATTERNS = [
+	/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/,
+	/\bAWS_SECRET_ACCESS_KEY\s*[:=]\s*["']?[A-Za-z0-9/+=]{35,}["']?/,
+	/\bgithub_pat_[A-Za-z0-9_]{30,}\b/,
+	/\bgh[pousr]_[A-Za-z0-9]{30,}\b/,
+	/\bglpat-[A-Za-z0-9_-]{20,}\b/,
+	/\bxox[baprs]-[A-Za-z0-9-]{20,}\b/,
+	/\bsk_(?:live|test)_[A-Za-z0-9]{16,}\b/,
+	/\brk_(?:live|test)_[A-Za-z0-9]{16,}\b/,
+	/\bsk-[A-Za-z0-9_-]{32,}\b/,
+	/\bsk-ant-api\d{2}-[A-Za-z0-9_-]{20,}\b/,
+	/\blin_(?:api|oauth)_[A-Za-z0-9]{20,}\b/,
+	/\bvercel_[A-Za-z0-9]{20,}\b/,
+	/\bsntrys_[A-Za-z0-9_-]{20,}\b/,
+	/\bkey-[a-f0-9]{32}\b/i,
+	/\bnpm_[A-Za-z0-9]{30,}\b/,
+	/\bSG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/,
+	/https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+/,
+	/https:\/\/discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9_-]+/,
+	/\bsb_secret_[A-Za-z0-9_]{20,}\b/,
+	/\bservice_role\b/i,
+	/"private_key"\s*:\s*"-----BEGIN PRIVATE KEY-----/,
+	/-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/,
+	/\b(?:postgres|mysql|mongodb(?:\+srv)?|redis):\/\/[^:\s/@]+:(?!(?:pass(?:word)?|my[a-z]*pass(?:word)?|mysecretpassword|myusername|postgres|mysql|redis|root|admin|minioadmin|secret|example|changeme|change_me|test|guest|placeholder|default|user(?:name)?|x{3,}|\*{2,}|\$\{[^}]*\}|\$[A-Z_]+|<[^>]*>|%[\w.]+%|\{\{[^}]*\}\})@)[^@\s/]+@(?!(?:localhost|127\.0\.0\.1|0\.0\.0\.0|host\.docker\.internal)(?:[:/\s]|$))[^\s:/@]*\./i
+];
+const PUBLIC_ENV_SECRET_NAME_PATTERN = /\b(?:NEXT_PUBLIC|VITE|REACT_APP|EXPO_PUBLIC)_[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|DATABASE_URL|SERVICE_ROLE|AWS_ACCESS_KEY|AWS_SECRET)[A-Z0-9_]*\b/i;
+const FULL_ENV_LEAK_CONTEXT_PATTERN = /\b(?:process\.env|import\.meta\.env|window\.__[A-Z0-9_]*ENV[A-Z0-9_]*__|__[A-Z0-9_]*ENV[A-Z0-9_]*__)\b/;
+const FULL_ENV_LEAK_SECRET_NAME_PATTERN = /\b(?:DATABASE_URL|AWS_SECRET_ACCESS_KEY|AWS_ACCESS_KEY_ID|MAILGUN_API_KEY|SALESFORCE_CLIENT_SECRET|OKTA_CLIENT_SECRET|SESSION_SECRET|COOKIE_SECRET|PRIVATE_KEY|SERVICE_ROLE)\b/;
+const TRUSTED_PUBLIC_SECRET_NAME_PATTERN = /(?:SENTRY_DSN|PUBLIC_KEY|PUBLISHABLE|ANON_KEY|POSTHOG_(?:PROJECT_)?TOKEN|POSTHOG_KEY|TLDRAW_LICENSE_KEY|CLERK_PUBLISHABLE_KEY|ALGOLIA_SEARCH_KEY|GC_API_KEY|GOOGLE_MAPS_API_KEY|MAPBOX_TOKEN|MIXPANEL_TOKEN|(?:NEXT_PUBLIC|VITE|REACT_APP|EXPO_PUBLIC)_(?:DISABLE|ENABLE|ALLOW|REQUIRE)_)/i;
+const PUBLIC_CLIENT_KEY_PATTERNS = [
+	/^appl_/,
+	/^goog_/,
+	/^amzn_/,
+	/^strp_/,
+	/^pk_(?:live|test)_/,
+	/^sb_publishable_/,
+	/^phc_/,
+	/^public-token-(?:live|test)-/,
+	/^pk\.eyJ/
+];
+const SECRET_UNAMBIGUOUS_PLACEHOLDER_VALUE_PATTERNS = [
+	/^[\s._\-*\u2022xX]{8,}$/,
+	/(?:\.{3,}|\u2026|[*\u2022]{3,})/,
+	/(?:^|[_\-\s])(?:your|redacted|masked|placeholder|replace[_\-\s]?me|changeme)(?:$|[_\-\s])/i,
+	/<[^>]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^>]*>/i,
+	/\[[^\]]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^\]]*\]/i,
+	/\{[^}]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^}]*\}/i
+];
+const SECRET_CONTEXTUAL_PLACEHOLDER_VALUE_PATTERNS = [/(?:^|[_\-\s])(?:example|sample|dummy)(?:$|[_\-\s])/i];
+const SECRET_PLACEHOLDER_CONTEXT_PATTERN = /(?:placeholder|example|sample|dummy|masked|redacted|mask)/i;
+const SECRET_VARIABLE_PATTERN = /(?:api_?key|secret|token|password|credential|auth)/i;
+const SECRET_TOOLING_FILE_PATTERN = /(?:^|\/)[^/]+\.config\.[cm]?[jt]s$/;
+const SECRET_TOOLING_RC_FILE_PATTERN = /(?:^|\/)(?:\.[a-z-]+rc|[a-z-]+\.rc)\.[cm]?[jt]s$/;
+const SECRET_TEST_FILE_PATTERN = /(?:^|\/)[^/]+\.(?:test|spec|stories|story|fixture|fixtures)\.[cm]?[jt]sx?$/;
+const SECRET_SERVER_FILE_SUFFIX_PATTERN = /(?:^|\/)[^/]+\.server\.[cm]?[jt]sx?$/;
+const SECRET_SERVER_ENTRY_FILE_PATTERN = /(?:^|\/)(?:middleware|proxy|route)\.[cm]?[jt]sx?$/;
+const SECRET_NEXT_PAGES_API_FILE_PATTERN = /(?:^|\/)pages\/api\/.+\.[cm]?[jt]sx?$/;
+const SECRET_CLIENT_FILE_SUFFIX_PATTERN = /(?:^|\/)[^/]+\.(?:client|browser|web)\.[cm]?[jt]sx?$/;
+const SECRET_CLIENT_ENTRY_FILE_PATTERN = /(?:^|\/)(?:src\/)?(?:main|index|[Aa]pp|client)\.[cm]?[jt]sx?$/;
+const SECRET_SERVER_DIRECTORY_NAMES = new Set([
+	"backend",
+	"functions",
+	"lambdas",
+	"lambda",
+	"middleware",
+	"server",
+	"servers"
+]);
+const SECRET_SERVER_SOURCE_ROOT_OWNER_NAMES = new Set([
+	"api",
+	"backend",
+	"edge",
+	"function",
+	"functions",
+	"lambda",
+	"lambdas",
+	"server",
+	"servers",
+	"worker",
+	"workers"
+]);
+const SECRET_TEST_DIRECTORY_NAMES = new Set([
+	"__fixtures__",
+	"__mocks__",
+	"__tests__",
+	"fixtures",
+	"mocks",
+	"test",
+	"tests"
+]);
+const SECRET_TOOLING_DIRECTORY_NAMES = new Set([
+	"bin",
+	"config",
+	"configs",
+	"script",
+	"scripts",
+	"tooling",
+	"tools"
+]);
+const SECRET_CLIENT_SOURCE_DIRECTORY_NAMES = new Set([
+	"components",
+	"features",
+	"hooks",
+	"pages",
+	"ui",
+	"views",
+	"widgets"
+]);
+const SECRET_FALSE_POSITIVE_SUFFIXES = new Set([
+	"modal",
+	"label",
+	"text",
+	"title",
+	"name",
+	"id",
+	"url",
+	"path",
+	"route",
+	"page",
+	"param",
+	"field",
+	"column",
+	"header",
+	"placeholder",
+	"prefix",
+	"description",
+	"type",
+	"icon",
+	"class",
+	"style",
+	"variant",
+	"event",
+	"action",
+	"status",
+	"state",
+	"mode",
+	"flag",
+	"option",
+	"config",
+	"message",
+	"error",
+	"display",
+	"view",
+	"component",
+	"element",
+	"container",
+	"wrapper",
+	"button",
+	"link",
+	"input",
+	"select",
+	"dialog",
+	"menu",
+	"form",
+	"step",
+	"index",
+	"count",
+	"length",
+	"role",
+	"scope",
+	"context",
+	"provider",
+	"ref",
+	"handler",
+	"query",
+	"schema",
+	"constant"
+]);
+//#endregion
+//#region src/plugin/rules/security-scan/utils/escape-reg-exp.ts
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+//#endregion
+//#region src/plugin/rules/security-scan/utils/find-suspicious-public-env-secret-name.ts
+const findSuspiciousPublicEnvSecretNamePattern = (content) => {
+	for (const match of content.matchAll(new RegExp(PUBLIC_ENV_SECRET_NAME_PATTERN.source, "gi"))) {
+		const value = match[0] ?? "";
+		if (!TRUSTED_PUBLIC_SECRET_NAME_PATTERN.test(value)) return new RegExp(escapeRegExp(value));
+	}
+};
+//#endregion
+//#region src/plugin/rules/security-scan/utils/has-full-env-leak-shape.ts
+const hasFullEnvLeakShape = (content) => FULL_ENV_LEAK_CONTEXT_PATTERN.test(content) && FULL_ENV_LEAK_SECRET_NAME_PATTERN.test(content);
+//#endregion
+//#region src/plugin/rules/security-scan/utils/scan-artifact-leak.ts
+const scanArtifactLeak = (file, findLeakPattern, message) => {
+	if (DOCUMENTATION_CONTEXT_PATTERN.test(file.relativePath)) return [];
+	if (!isBrowserArtifactPath(file.relativePath, file.isGeneratedBundle)) return [];
+	const leakPattern = findLeakPattern(file.content);
+	if (leakPattern === void 0) return [];
+	const location = getMatchLocation(file.content, leakPattern);
+	return [{
+		message,
+		line: location.line,
+		column: location.column
+	}];
+};
+//#endregion
+//#region src/plugin/rules/security-scan/artifact-env-leak.ts
+const artifactEnvLeak = defineRule({
+	id: "artifact-env-leak",
+	title: "Server env leaked to browser artifact",
+	severity: "error",
+	recommendation: "Treat public env prefixes as publication, not secrecy; keep secret env vars server-only and rebuild after rotating leaked keys.",
+	scan: (file) => scanArtifactLeak(file, (content) => findSuspiciousPublicEnvSecretNamePattern(content) ?? (hasFullEnvLeakShape(content) ? FULL_ENV_LEAK_SECRET_NAME_PATTERN : void 0), "A browser artifact contains server-secret environment names or a full environment dump shape.")
+});
+//#endregion
+//#region src/plugin/rules/security-scan/artifact-secret-leak.ts
+const artifactSecretLeak = defineRule({
+	id: "artifact-secret-leak",
+	title: "Secret shipped in browser artifact",
+	severity: "error",
+	recommendation: "Remove the secret from client bundles/static assets, rotate it, and route privileged service calls through server-only code.",
+	scan: (file) => scanArtifactLeak(file, (content) => SECRET_VALUE_PATTERNS.find((pattern) => pattern.test(content)), "A browser-delivered artifact contains a secret-looking credential value.")
 });
 //#endregion
 //#region src/plugin/constants/js.ts
@@ -3728,6 +4325,58 @@ const asyncParallel = defineRule({
 	}
 });
 //#endregion
+//#region src/plugin/rules/security/auth-token-in-web-storage.ts
+const MESSAGE$57 = "Storing an auth token in `localStorage`/`sessionStorage` exposes it to any XSS on the page: JavaScript can read web storage and exfiltrate the token. Keep tokens in an `HttpOnly`, `Secure`, `SameSite` cookie instead.";
+const STORAGE_NAMES = new Set(["localStorage", "sessionStorage"]);
+const STORAGE_GLOBALS = new Set([
+	"window",
+	"globalThis",
+	"self"
+]);
+const SENSITIVE_KEY_PATTERN = /token|jwt|secret|password|passwd|credential|api[-_]?key|bearer|private[-_]?key/i;
+const isWebStorageObject = (node) => {
+	if (isNodeOfType(node, "Identifier")) return STORAGE_NAMES.has(node.name);
+	if (isNodeOfType(node, "MemberExpression") && !node.computed && isNodeOfType(node.object, "Identifier") && STORAGE_GLOBALS.has(node.object.name) && isNodeOfType(node.property, "Identifier")) return STORAGE_NAMES.has(node.property.name);
+	return false;
+};
+const staticMemberName = (member) => {
+	if (!member.computed && isNodeOfType(member.property, "Identifier")) return member.property.name;
+	if (member.computed && isNodeOfType(member.property, "Literal") && typeof member.property.value === "string") return member.property.value;
+	return null;
+};
+const authTokenInWebStorage = defineRule({
+	id: "auth-token-in-web-storage",
+	title: "Auth token in web storage",
+	severity: "warn",
+	recommendation: "Don't persist auth tokens (JWTs, access/refresh tokens, secrets) in `localStorage`/`sessionStorage`; they're readable by any XSS. Use an `HttpOnly` cookie set by the server.",
+	create: (context) => ({
+		CallExpression(node) {
+			const callee = node.callee;
+			if (!isNodeOfType(callee, "MemberExpression") || callee.computed) return;
+			if (!isNodeOfType(callee.property, "Identifier") || callee.property.name !== "setItem") return;
+			if (!isWebStorageObject(callee.object)) return;
+			const keyArgument = node.arguments?.[0];
+			if (!keyArgument || !isNodeOfType(keyArgument, "Literal") || typeof keyArgument.value !== "string") return;
+			if (!SENSITIVE_KEY_PATTERN.test(keyArgument.value)) return;
+			context.report({
+				node,
+				message: MESSAGE$57
+			});
+		},
+		AssignmentExpression(node) {
+			const target = node.left;
+			if (!isNodeOfType(target, "MemberExpression")) return;
+			if (!isWebStorageObject(target.object)) return;
+			const propertyName = staticMemberName(target);
+			if (!propertyName || !SENSITIVE_KEY_PATTERN.test(propertyName)) return;
+			context.report({
+				node: target,
+				message: MESSAGE$57
+			});
+		}
+	})
+});
+//#endregion
 //#region src/plugin/rules/a11y/autocomplete-valid.ts
 const buildMessage$25 = (value) => `Users who rely on autofill can't fill this field because \`${value}\` isn't a known token, so use a valid \`autoComplete\` token.`;
 const AUTOFILL_TOKENS = new Set([
@@ -3825,6 +4474,17 @@ const autocompleteValid = defineRule({
 			}
 		} };
 	}
+});
+const buildPipelineSecretBoundary = defineRule({
+	id: "build-pipeline-secret-boundary",
+	title: "Build pipeline runs code near secrets",
+	severity: "warn",
+	recommendation: "Run dependency installs with scripts disabled before exposing secrets, isolate untrusted build code, and move signing/deploy authority into a narrow privileged step.",
+	scan: scanByPattern({
+		shouldScan: (file) => isConfigOrCiPath(file.relativePath) && !file.relativePath.endsWith("package.json"),
+		pattern: /(?:npm|pnpm|yarn|bun)\s+(?:install|ci)\b(?:(?!--ignore-scripts)[\s\S]){0,700}\bsecrets\.[A-Z0-9_]+|\bsecrets\.[A-Z0-9_]+(?:(?!--ignore-scripts)[\s\S]){0,700}(?:npm|pnpm|yarn|bun)\s+(?:install|ci)\b/i,
+		message: "The build or install pipeline can execute package lifecycle code while CI secrets may be present."
+	})
 });
 //#endregion
 //#region src/plugin/utils/is-create-element-call.ts
@@ -4050,6 +4710,14 @@ const checkedRequiresOnchangeOrReadonly = defineRule({
 	}
 });
 //#endregion
+//#region src/plugin/utils/is-presentation-role.ts
+const isPresentationRole = (openingElement) => {
+	const roleAttribute = hasJsxPropIgnoreCase(openingElement.attributes, "role");
+	if (!roleAttribute) return false;
+	const value = getJsxPropStringValue(roleAttribute);
+	return value !== null && PRESENTATION_ROLES$1.has(value);
+};
+//#endregion
 //#region src/plugin/utils/is-pure-event-blocker-handler.ts
 const BLOCKER_METHOD_NAMES = new Set([
 	"stopPropagation",
@@ -4087,8 +4755,7 @@ const isPureEventBlockerHandler = (attribute) => {
 };
 //#endregion
 //#region src/plugin/rules/a11y/click-events-have-key-events.ts
-const PRESENTATION_ROLES$1 = new Set(["presentation", "none"]);
-const MESSAGE$49 = "Keyboard users can't trigger this click handler because there's no keyboard one, so add `onKeyUp`, `onKeyDown`, or `onKeyPress`.";
+const MESSAGE$56 = "Keyboard users can't trigger this click handler because there's no keyboard one, so add `onKeyUp`, `onKeyDown`, or `onKeyPress`.";
 const KEY_HANDLERS = [
 	"onKeyUp",
 	"onKeyDown",
@@ -4112,18 +4779,27 @@ const clickEventsHaveKeyEvents = defineRule({
 			if (!onClick) return;
 			if (isPureEventBlockerHandler(onClick)) return;
 			if (isHiddenFromScreenReader(node, context.settings)) return;
-			const roleAttribute = hasJsxPropIgnoreCase(node.attributes, "role");
-			if (roleAttribute) {
-				const roleValue = getJsxPropStringValue(roleAttribute);
-				if (roleValue && PRESENTATION_ROLES$1.has(roleValue)) return;
-			}
+			if (isPresentationRole(node)) return;
 			if (KEY_HANDLERS.some((handler) => hasJsxPropIgnoreCase(node.attributes, handler))) return;
 			context.report({
 				node: node.name,
-				message: MESSAGE$49
+				message: MESSAGE$56
 			});
 		} };
 	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/clickjacking-redirect-risk.ts
+const clickjackingRedirectRisk = defineRule({
+	id: "clickjacking-redirect-risk",
+	title: "Redirect or frame boundary risk",
+	severity: "warn",
+	recommendation: "Allowlist redirect origins/paths, set `frame-ancestors` for privileged pages, and avoid URL-prefilled privileged dialogs.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath) || isConfigOrCiPath(file.relativePath),
+		pattern: /\bredirect\s*\((?!\s*(?:await\s+)?[\w$]*(?:safe|valid|sanitiz|allowlist|whitelist)[\w$]*\s*\()[^)'"`\n]*\b(?:searchParams\.get|nextUrl\.searchParams|returnTo|callbackUrl|continue|next)\b|<iframe\b[\s\S]{0,700}\b(?:next=|continue=|redirect=|redirect_uri|userstoinvite|sharingaction|role=|\.\.)|frame-ancestors\s+(?:\*|'self'\s+\*)|X-Frame-Options["']?\s*:\s*["']?ALLOW/i,
+		message: "Redirect or framing configuration may let attacker-controlled URLs chain into privileged UI or clickjacking."
+	})
 });
 //#endregion
 //#region src/plugin/rules/client/client-localstorage-no-version.ts
@@ -4194,6 +4870,23 @@ const clientPassiveEventListeners = defineRule({
 	} })
 });
 //#endregion
+//#region src/plugin/rules/security-scan/utils/is-dev-tooling-path.ts
+const isDevToolingPath = (relativePath) => /(?:^|\/)(?:tools?|scripts?)\/|(?:^|\/)management\/commands\/|(?:^|\/)(?:build|make|gulpfile|gruntfile)\.[cm]?[jt]s$/i.test(relativePath);
+//#endregion
+//#region src/plugin/rules/security-scan/utils/is-production-script-source-path.ts
+const isProductionScriptSourcePath = (relativePath) => isProductionFilePath(relativePath, SCRIPT_SOURCE_FILE_PATTERN);
+const commandExecutionInputRisk = defineRule({
+	id: "command-execution-input-risk",
+	title: "Command execution uses caller-shaped input",
+	severity: "error",
+	recommendation: "Avoid shell execution for caller-controlled values. Use fixed commands, argument arrays, strict allowlists, and no shell interpolation.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionScriptSourcePath(file.relativePath) && !isDevToolingPath(file.relativePath),
+		pattern: /(?:(?<![.\w$])(?:exec(?:Sync)?|spawn(?:Sync)?|system|passthru|proc_open|shell_exec)|\b(?:os\.system|subprocess\.(?:run|Popen|call)|(?:child_process|childProcess|cp)\.(?:exec|spawn)\w*))\s*\([^)]{0,220}(?:req\.|request\.|params\.|query\.|body\.|searchParams|\$_(?:GET|POST|REQUEST)|shell\s*=\s*true|f['"`][^'"`]*\{)/i,
+		message: "Command execution appears to include request, query, body, or shell-interpolated input."
+	})
+});
+//#endregion
 //#region src/plugin/utils/is-interactive-role.ts
 const isInteractiveRole = (role) => INTERACTIVE_ROLES.has(role);
 //#endregion
@@ -4205,7 +4898,7 @@ const isReactComponentName = (name) => {
 };
 //#endregion
 //#region src/plugin/rules/a11y/control-has-associated-label.ts
-const MESSAGE$48 = "Blind users can't tell what this control does because screen readers find no label, so add visible text, `aria-label`, or `aria-labelledby`.";
+const MESSAGE$55 = "Blind users can't tell what this control does because screen readers find no label, so add visible text, `aria-label`, or `aria-labelledby`.";
 const DEFAULT_IGNORE_ELEMENTS = ["link", "canvas"];
 const DEFAULT_LABELLING_PROPS = [
 	"alt",
@@ -4366,9 +5059,133 @@ const controlHasAssociatedLabel = defineRule({
 			for (const child of node.children) if (checkChildForLabel(child, 1, checkContext)) return;
 			context.report({
 				node: opening,
-				message: MESSAGE$48
+				message: MESSAGE$55
 			});
 		} };
+	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/cors-cookie-trust-risk.ts
+const corsCookieTrustRisk = defineRule({
+	id: "cors-cookie-trust-risk",
+	title: "Broad cookie or credentialed CORS trust",
+	severity: "warn",
+	recommendation: "Keep auth cookies host-only and HttpOnly, avoid credentialed CORS for less-trusted docs/vendor origins, and isolate documentation domains from app sessions.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath) || isConfigOrCiPath(file.relativePath),
+		pattern: /Access-Control-Allow-Credentials["']?\s*[:,]\s*["']?true[\s\S]{0,700}Access-Control-Allow-Origin["']?\s*[:,]\s*["']?(?:\*|https:\/\/docs\.|https:\/\/.*mintlify)|\b(?:session|auth|token|jwt)[^=\n]{0,80}\bDomain=\./i,
+		message: "Credentialed CORS or broad auth-cookie scope can make a docs/custom-domain XSS become account compromise."
+	})
+});
+//#endregion
+//#region src/plugin/rules/security-scan/dangerous-html-sink.ts
+const DANGEROUS_HTML_PATTERN = /dangerouslySetInnerHTML|\.(?:inner|outer)HTML\s*[+]?=(?!=)|\.insertAdjacentHTML\s*\(|\bdocument\.write(?:ln)?\s*\(|\.(?:createContextualFragment|setHTMLUnsafe)\s*\(/;
+const HTML_VALUE_START_PATTERN = /(?:__html\s*:|\.(?:inner|outer)HTML\s*[+]?=(?!=)|\.insertAdjacentHTML\s*\(\s*[^,]*,|\bdocument\.write(?:ln)?\s*\(|\.(?:createContextualFragment|setHTMLUnsafe)\s*\()\s*([\s\S]*)/;
+const HTML_TAINT_PATTERN = /searchParams|query|params|request|req\.|response\.|result\.|data\.|await|fetch|props\.|children|content|html|body|text|message|\blocation\b|document\.cookie|\breferrer\b|\blocalStorage\b|\bsessionStorage\b|URLSearchParams|window\.name/i;
+const STRING_LITERAL_VALUE_PATTERN = /^(?:["'][^"']*["']|`[^`$]*`)\s*(?:\/\/[^\n]*)?\s*(?:[;,})\n]|$)/;
+const MODULE_CONSTANT_VALUE_PATTERN = /^[A-Z][A-Z0-9_]*\s*(?:\/\/[^\n]*)?\s*(?:[;,})\n]|$)/;
+const DOM_CONTENT_SOURCE_VALUE_PATTERN = /^[\w$]+(?:\??\.[\w$]+)*\??\.(?:inner|outer)HTML\b/;
+const SANITIZER_PATTERN = /\b(?:DOMPurify|sanitize\w*|purify|(?:escape|encode)[A-Za-z]*(?:Html|HTML|Entit\w*)|insane|xss)\b|(?<!un)safe|(?<!un)saniti[sz]/i;
+const SANITIZED_ASSIGNMENT_PATTERN = /=\s*[^\n;]*\b(?:DOMPurify\b|sanitize\w*\s*\(|purify\w*\s*\()/i;
+const DOM_CONTENT_ASSIGNMENT_PATTERN = /=\s*[\w$.?[\]]*\.(?:inner|outer)HTML\s*(?:[;,)\n]|$)/;
+const ENV_CONFIG_VALUE_PATTERN = /process\.env/;
+const I18N_VALUE_PATTERN = /\b(?:t|i18n|translate|formatMessage|intl)\s*[.(]/;
+const ESCAPING_SERIALIZER_CALL_PATTERN = /^(?:[\w$.]+\.)?(?:toHtml|render[A-Za-z]*(?:Html|HTML)|renderToString|renderToStaticMarkup|codeToHtml|codeToHast|highlight[A-Za-z]*)\s*\(/;
+const HIGHLIGHTER_LIBRARY_PATTERN = /\b(?:shiki|prism|hljs|highlightjs|getHighlighter|codeToHtml|codeToHast|refractor|lowlight|starry-night)\b|highlight\.js/i;
+const SERIALIZER_ASSIGNMENT_PATTERN = /=\s*[^\n;]*(?:\b(?:katex|shiki|hljs|prism|mermaid)\b|hast-util-to-html|renderHtmlFromRichText|(?:toHtml|render[A-Za-z]*(?:Html|HTML)|renderToString|renderToStaticMarkup|codeToHtml|codeToHast)\s*\()/i;
+const BARE_IDENTIFIER_VALUE_PATTERN = /^[\w$]+\s*(?:[;,})\n]|$)/;
+const MEMBER_OR_INDEX_ACCESS_VALUE_PATTERN = /^[\w$]+(?:\.[\w$]+|\[[^\]]*\])+\s*(?:[;,})\n]|$)/;
+const STYLE_TAG_BEFORE_SINK_PATTERN = /<style\b[^<>]*$/;
+const STYLE_TAG_LOOKBEHIND_LINES = 5;
+const EMAIL_TEMPLATE_PATH_PATTERN = /(?:^|\/)emails?(?:\/|$)|email[-_.]templates?(?:\/|$)|RawHtml|[A-Za-z]*[Ee]mail[A-Za-z]*\.(?:t|j)sx?/i;
+const INNERHTML_TARGET_PATTERN = /(?:^|[^\w$.])([\w$]+(?:\.[\w$]+)*)\.(?:(?:inner|outer)HTML\s*[+]?=(?!=)|insertAdjacentHTML\s*\()/;
+const LIVE_DOM_ATTACH_PATTERN = /\b(?:appendChild|append|prepend|before|after|replaceWith|replaceChild|replaceChildren|insertBefore|insertAdjacentElement)\s*\(/;
+const VALUE_LOOKAHEAD_LINES = 4;
+const VALUE_EXPRESSION_MAX_CHARS = 300;
+const STATIC_TEMPLATE_LOOKAHEAD_LINES = 60;
+const STATIC_TEMPLATE_MAX_CHARS = 5e3;
+const getTemplateInterpolations = (valueTail) => {
+	if (!valueTail.startsWith("`")) return null;
+	const closingBacktickIndex = valueTail.indexOf("`", 1);
+	if (closingBacktickIndex < 0 || closingBacktickIndex > STATIC_TEMPLATE_MAX_CHARS) return null;
+	const interpolations = valueTail.slice(1, closingBacktickIndex).match(/\$\{[^}]*\}/g);
+	return interpolations === null ? "" : interpolations.join(" ");
+};
+const isInertParseTarget = (target, fileContent) => {
+	const escapedTarget = escapeRegExp(target);
+	const escapedRoot = escapeRegExp(target.split(".")[0] ?? target);
+	if (new RegExp(`\\b${escapedRoot}\\s*=\\s*[^\\n;]*(?:getElementById|querySelector|getElementsBy|\\.current\\b|document\\.(?:body|head|documentElement))`).test(fileContent)) return false;
+	if (new RegExp(`${escapedTarget}\\s*=\\s*document\\.createElement\\(\\s*["'\`]template["'\`]`).test(fileContent)) return true;
+	if (new RegExp(`${escapedRoot}\\s*=\\s*[^\\n;]*\\bcreateElement\\(\\s*["'\`](?:style|textarea)["'\`]`).test(fileContent)) return true;
+	if (new RegExp(`${escapedRoot}\\s*=\\s*[^\\n;]*\\bcreateHTMLDocument\\s*\\(`).test(fileContent)) return true;
+	if (!new RegExp(`${escapedRoot}\\s*=\\s*[^\\n;]*\\bcreateElement\\s*\\(`).test(fileContent)) return false;
+	const attachedToLiveTreePattern = new RegExp(`${LIVE_DOM_ATTACH_PATTERN.source}[^)]*\\b${escapedRoot}\\b`);
+	const returnedAsNodePattern = new RegExp(`\\breturn\\b[^\\n]*\\b${escapedRoot}\\b(?!\\s*\\.\\s*(?:textContent|innerText|innerHTML|outerHTML))`);
+	if (attachedToLiveTreePattern.test(fileContent) || returnedAsNodePattern.test(fileContent)) return false;
+	return new RegExp(`\\b${escapedRoot}\\.(?:textContent|innerText|querySelector|querySelectorAll|children|childNodes)\\b`).test(fileContent);
+};
+const dangerousHtmlSink = defineRule({
+	id: "dangerous-html-sink",
+	title: "HTML injection sink with dynamic content",
+	severity: "warn",
+	recommendation: "Prefer rendering structured React nodes. If HTML is required, sanitize with a well-reviewed sanitizer and keep the trust boundary close to the sink.",
+	scan: (file) => {
+		if (file.isGeneratedBundle) return [];
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		if (EMAIL_TEMPLATE_PATH_PATTERN.test(file.relativePath)) return [];
+		if (!DANGEROUS_HTML_PATTERN.test(file.content)) return [];
+		const findings = [];
+		const lines = file.content.split("\n");
+		for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+			const line = lines[lineIndex] ?? "";
+			if (!DANGEROUS_HTML_PATTERN.test(line)) continue;
+			const codeBeforeSinkOnLine = line.slice(0, line.search(DANGEROUS_HTML_PATTERN)).replace(/"[^"]*"|'[^']*'|`[^`]*`/g, "");
+			if (/(?:^|[^:])\/\//.test(codeBeforeSinkOnLine) || /^\s*[/*]/.test(line)) continue;
+			const sinkWindow = lines.slice(lineIndex, lineIndex + 1 + VALUE_LOOKAHEAD_LINES).join("\n");
+			const valueMatch = HTML_VALUE_START_PATTERN.exec(sinkWindow);
+			if (valueMatch === null) continue;
+			const fullValueTail = (valueMatch[1] ?? "").trimStart();
+			const valueTail = fullValueTail.slice(0, VALUE_EXPRESSION_MAX_CHARS);
+			const terminatorIndex = valueTail.search(/[;}]/);
+			const valueExpression = terminatorIndex >= 0 ? valueTail.slice(0, terminatorIndex + 1) : valueTail;
+			if (STRING_LITERAL_VALUE_PATTERN.test(valueExpression)) continue;
+			if (MODULE_CONSTANT_VALUE_PATTERN.test(valueExpression)) continue;
+			if (DOM_CONTENT_SOURCE_VALUE_PATTERN.test(valueExpression) && !valueExpression.includes("+")) {
+				const afterDomRead = valueExpression.replace(DOM_CONTENT_SOURCE_VALUE_PATTERN, "");
+				if (!HTML_TAINT_PATTERN.test(afterDomRead)) continue;
+			}
+			const longValueTail = HTML_VALUE_START_PATTERN.exec(lines.slice(lineIndex, lineIndex + 1 + STATIC_TEMPLATE_LOOKAHEAD_LINES).join("\n"))?.[1]?.trimStart();
+			const templateInterpolations = getTemplateInterpolations(longValueTail ?? fullValueTail);
+			if (templateInterpolations === "") continue;
+			const judgedExpression = templateInterpolations ?? valueExpression;
+			if (SANITIZER_PATTERN.test(judgedExpression)) continue;
+			if (ENV_CONFIG_VALUE_PATTERN.test(judgedExpression)) continue;
+			if (I18N_VALUE_PATTERN.test(judgedExpression)) continue;
+			if (!HTML_TAINT_PATTERN.test(judgedExpression)) continue;
+			if (ESCAPING_SERIALIZER_CALL_PATTERN.test(valueExpression)) continue;
+			if (/highlighted/i.test(valueExpression)) continue;
+			if (/highlight/i.test(valueExpression) && HIGHLIGHTER_LIBRARY_PATTERN.test(file.content)) continue;
+			if (BARE_IDENTIFIER_VALUE_PATTERN.test(valueExpression) || MEMBER_OR_INDEX_ACCESS_VALUE_PATTERN.test(valueExpression)) {
+				const valueIdentifier = valueExpression.match(/^[\w$]+/)?.[0];
+				if (valueIdentifier !== void 0) {
+					const escapedIdentifier = escapeRegExp(valueIdentifier);
+					const fromSerializer = new RegExp(`\\b${escapedIdentifier}\\b\\s*${SERIALIZER_ASSIGNMENT_PATTERN.source}`, "i");
+					const fromSanitizer = new RegExp(`\\b${escapedIdentifier}\\b\\s*${SANITIZED_ASSIGNMENT_PATTERN.source}`, "i");
+					const fromDomContent = new RegExp(`\\b${escapedIdentifier}\\b\\s*${DOM_CONTENT_ASSIGNMENT_PATTERN.source}`);
+					if (fromSerializer.test(file.content) || fromSanitizer.test(file.content) || fromDomContent.test(file.content)) continue;
+				}
+			}
+			const sinkTargetMatch = INNERHTML_TARGET_PATTERN.exec(line);
+			if (sinkTargetMatch?.[1] !== void 0 && isInertParseTarget(sinkTargetMatch[1], file.content)) continue;
+			const textBeforeSink = lines.slice(Math.max(0, lineIndex - STYLE_TAG_LOOKBEHIND_LINES), lineIndex + 1).join("\n").slice(0, -line.length + line.search(DANGEROUS_HTML_PATTERN));
+			if (STYLE_TAG_BEFORE_SINK_PATTERN.test(textBeforeSink)) continue;
+			findings.push({
+				message: "HTML is injected from a dynamic-looking source, which can become XSS if the value is user-controlled or unsanitized.",
+				line: lineIndex + 1,
+				column: line.search(/\S/) + 1
+			});
+		}
+		return findings;
 	}
 });
 const LONG_TRANSITION_DURATION_THRESHOLD_MS = 1e3;
@@ -4668,6 +5485,38 @@ const noVagueButtonLabel = defineRule({
 	} })
 });
 //#endregion
+//#region src/plugin/utils/has-jsx-spread-attribute.ts
+const hasJsxSpreadAttribute$1 = (attributes) => attributes.some((attribute) => isNodeOfType(attribute, "JSXSpreadAttribute"));
+//#endregion
+//#region src/plugin/rules/a11y/dialog-has-accessible-name.ts
+const MESSAGE$54 = "This dialog has no accessible name, so screen readers announce it as just “dialog.” Add `aria-label` or point `aria-labelledby` at its heading.";
+const DIALOG_ROLES = new Set(["dialog", "alertdialog"]);
+const NAME_PROVIDING_ATTRIBUTES = [
+	"aria-label",
+	"aria-labelledby",
+	"title"
+];
+const dialogHasAccessibleName = defineRule({
+	id: "dialog-has-accessible-name",
+	title: "Dialog without accessible name",
+	severity: "warn",
+	recommendation: "Give every `<dialog>` / `role=\"dialog\"` an accessible name with `aria-label` or `aria-labelledby` (referencing the dialog's title element).",
+	create: (context) => ({ JSXOpeningElement(node) {
+		if (!isNodeOfType(node.name, "JSXIdentifier")) return;
+		const tagName = node.name.name;
+		if (tagName[0] !== tagName[0]?.toLowerCase()) return;
+		const roleAttribute = hasJsxPropIgnoreCase(node.attributes, "role");
+		const roleValue = roleAttribute ? getJsxPropStringValue(roleAttribute) : null;
+		if (!(tagName === "dialog" || roleValue !== null && DIALOG_ROLES.has(roleValue))) return;
+		if (hasJsxSpreadAttribute$1(node.attributes)) return;
+		if (NAME_PROVIDING_ATTRIBUTES.some((attribute) => hasJsxPropIgnoreCase(node.attributes, attribute))) return;
+		context.report({
+			node: node.name,
+			message: MESSAGE$54
+		});
+	} })
+});
+//#endregion
 //#region src/plugin/utils/is-es5-component.ts
 const PRAGMA$2 = "React";
 const CREATE_CLASS = "createReactClass";
@@ -4702,7 +5551,7 @@ const isEs6Component = (node) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/display-name.ts
-const MESSAGE$47 = "This component shows up as Anonymous in React DevTools because it has no `displayName`.";
+const MESSAGE$53 = "This component shows up as Anonymous in React DevTools because it has no `displayName`.";
 const DEFAULT_ADDITIONAL_HOCS = [
 	"observer",
 	"lazy",
@@ -4901,11 +5750,11 @@ const displayName = defineRule({
 	category: "Architecture",
 	create: (context) => {
 		const settings = resolveSettings$44(context.settings);
-		const ignoreNamed = settings.ignoreTranspilerName ? false : true;
+		const ignoreNamed = !settings.ignoreTranspilerName;
 		const reportAt = (node) => {
 			context.report({
 				node,
-				message: MESSAGE$47
+				message: MESSAGE$53
 			});
 		};
 		return {
@@ -5830,6 +6679,20 @@ const isReactHookName = (name) => {
 //#region src/plugin/utils/is-react-component-or-hook-name.ts
 const isReactComponentOrHookName = (name) => isReactComponentName(name) || isReactHookName(name);
 //#endregion
+//#region src/plugin/utils/is-react-hoc-callback-argument.ts
+const reactHocCalleeName = (callee) => {
+	if (isNodeOfType(callee, "Identifier")) return callee.name;
+	if (isNodeOfType(callee, "MemberExpression") && !callee.computed && isNodeOfType(callee.object, "Identifier") && callee.object.name === "React" && isNodeOfType(callee.property, "Identifier")) return `React.${callee.property.name}`;
+	return null;
+};
+const isReactHocCallbackArgument = (functionNode) => {
+	const parent = functionNode.parent;
+	if (!parent || !isNodeOfType(parent, "CallExpression")) return false;
+	if (parent.arguments[0] !== functionNode) return false;
+	const calleeName = reactHocCalleeName(parent.callee);
+	return calleeName !== null && REACT_HOC_NAMES.has(calleeName);
+};
+//#endregion
 //#region src/plugin/rules/react-builtins/exhaustive-deps-low-level.ts
 /**
 * Lowest-level helpers consumed by both the main `exhaustive-deps`
@@ -6060,6 +6923,7 @@ const findEnclosingComponentOrHookFunction$1 = (node) => {
 	let current = node.parent;
 	while (current) {
 		if (isNodeOfType(current, "FunctionDeclaration") || isNodeOfType(current, "FunctionExpression") || isNodeOfType(current, "ArrowFunctionExpression")) {
+			if (isReactHocCallbackArgument(current)) return current;
 			const functionName = inferFunctionName$1(current);
 			if (functionName && isReactComponentOrHookName(functionName)) return current;
 		}
@@ -6750,6 +7614,56 @@ const expoNoNonInlinedEnv = defineRule({
 	}
 });
 //#endregion
+//#region src/plugin/rules/security-scan/utils/is-client-source-path.ts
+const isClientSourcePath = (relativePath) => {
+	if (!isProductionSourcePath(relativePath)) return false;
+	if (SERVER_CONTEXT_PATTERN.test(relativePath)) return false;
+	return true;
+};
+//#endregion
+//#region src/plugin/rules/security-scan/firebase-client-owned-authz-field.ts
+const CLIENT_DATABASE_EVIDENCE_PATTERN = /firebase|firestore|supabase|\b(?:setDoc|addDoc)\s*\(/i;
+const firebaseClientOwnedAuthzField = defineRule({
+	id: "firebase-client-owned-authz-field",
+	title: "Client writes authorization field",
+	severity: "error",
+	recommendation: "Derive authority fields on the server or enforce them in Firebase/Supabase rules; never trust client-provided owner, org, or role values.",
+	scan: scanByPattern({
+		shouldScan: (file) => isClientSourcePath(file.relativePath) && (CLIENT_DATABASE_EVIDENCE_PATTERN.test(file.content) || CLIENT_DATABASE_EVIDENCE_PATTERN.test(file.relativePath)),
+		pattern: /(?:\b(?:setDoc|updateDoc|addDoc)\s*\(|(?:\b(?:firebase|firestore|getFirestore)\b|\bcollection\s*\(|\.collection\s*\()[\s\S]{0,500}\.(?:set|update|add)\s*\()[\s\S]{0,700}\b(?:ownerId|ownerID|creatorId|creatorID|providerId|providerID|orgId|orgID|tenantId|tenantID|workspaceId|workspaceID|ghostOrg|role|roles|isAdmin)\b/i,
+		message: "Client code writes an ownership, tenant, or role field that should be server-owned and immutable."
+	})
+});
+//#endregion
+//#region src/plugin/rules/security-scan/utils/is-firebase-rules-path.ts
+const isFirebaseRulesPath = (relativePath) => /(?:^|\/)(?:firestore\.rules|storage\.rules|database\.rules\.json)$/.test(relativePath);
+//#endregion
+//#region src/plugin/rules/security-scan/firebase-permissive-rules.ts
+const firebasePermissiveRules = defineRule({
+	id: "firebase-permissive-rules",
+	title: "Permissive Firebase security rule",
+	severity: "error",
+	recommendation: "Bind every read/write to `request.auth.uid`, immutable ownership, and tenant membership instead of treating sign-in as authorization.",
+	scan: scanByPattern({
+		shouldScan: (file) => isFirebaseRulesPath(file.relativePath),
+		pattern: /allow\s+(?:read|write|create|update|delete|list|get|read,\s*write)\s*:\s*if\s+(?:true|request\.auth\s*!=\s*null)\s*;?/i,
+		message: "Firebase rules grant broad access to everyone or to any signed-in user, which is the Chattr/Firewreck failure mode."
+	})
+});
+//#endregion
+//#region src/plugin/rules/security-scan/firebase-query-filter-as-auth.ts
+const firebaseQueryFilterAsAuth = defineRule({
+	id: "firebase-query-filter-as-auth",
+	title: "Firestore query filter used as authorization",
+	severity: "warn",
+	recommendation: "Make sure Firestore rules compare the requested document against `request.auth.uid` and trusted membership data.",
+	scan: scanByPattern({
+		shouldScan: (file) => isClientSourcePath(file.relativePath),
+		pattern: /\.where\s*\(\s*["'](?:uid|userId|userID|ownerId|ownerID|orgId|orgID|tenantId|tenantID|role)["']\s*,\s*["']==["']/i,
+		message: "Firestore query code filters by an auth-shaped field; filtering is not authorization unless rules enforce the same boundary."
+	})
+});
+//#endregion
 //#region src/plugin/utils/compile-glob.ts
 /**
 * Compiles a simple glob pattern (only `*` as a wildcard) into an
@@ -6988,7 +7902,7 @@ const forbidElements = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/forward-ref-uses-ref.ts
-const MESSAGE$46 = "The parent can't reach this component's node because the `forwardRef` wrapper ignores `ref`.";
+const MESSAGE$52 = "The parent can't reach this component's node because the `forwardRef` wrapper ignores `ref`.";
 const forwardRefUsesRef = defineRule({
 	id: "forward-ref-uses-ref",
 	title: "forwardRef without ref parameter",
@@ -7008,13 +7922,44 @@ const forwardRefUsesRef = defineRule({
 		if (isNodeOfType(onlyParam, "RestElement")) return;
 		context.report({
 			node: inner,
-			message: MESSAGE$46
+			message: MESSAGE$52
 		});
 	} })
 });
 //#endregion
+//#region src/plugin/rules/security-scan/git-provider-url-injection-risk.ts
+const GIT_PROVIDER_HOST_PATTERN = /api\.github\.com|github\.com|gitlab\.com|bitbucket\.org/gi;
+const TEMPLATE_INTERPOLATION_PATTERN = /\$\{([^}]*)\}/g;
+const EXTERNAL_INPUT_PATTERN = /\b(?:params|searchParams|query|req|request|input|payload)\s*[.[]|\buntrusted|\bdecodeURI\w*/;
+const ENCODED_INTERPOLATION_PATTERN = /encodeURIComponent\s*\(/;
+const INTERPOLATION_LOOKAHEAD_CHARS = 200;
+const gitProviderUrlInjectionRisk = defineRule({
+	id: "git-provider-url-injection-risk",
+	title: "Git provider URL built from interpolation",
+	severity: "warn",
+	recommendation: "Validate owner, repo, org, and branch identifiers against strict slugs and build URLs with URL/path encoders instead of raw interpolation.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		const findings = [];
+		for (const hostMatch of file.content.matchAll(GIT_PROVIDER_HOST_PATTERN)) {
+			const rawTail = file.content.slice(hostMatch.index, hostMatch.index + INTERPOLATION_LOOKAHEAD_CHARS);
+			const templateEndIndex = rawTail.indexOf("`");
+			const urlTail = templateEndIndex >= 0 ? rawTail.slice(0, templateEndIndex) : rawTail;
+			if (!Array.from(urlTail.matchAll(TEMPLATE_INTERPOLATION_PATTERN)).some((interpolation) => EXTERNAL_INPUT_PATTERN.test(interpolation[1] ?? "") && !ENCODED_INTERPOLATION_PATTERN.test(interpolation[1] ?? ""))) continue;
+			const location = getLocationAtIndex(file.content, hostMatch.index);
+			findings.push({
+				message: "GitHub/GitLab/Bitbucket URL construction interpolates path components that may be attacker-controlled.",
+				line: location.line,
+				column: location.column
+			});
+			break;
+		}
+		return findings;
+	}
+});
+//#endregion
 //#region src/plugin/rules/a11y/heading-has-content.ts
-const MESSAGE$45 = "Blind users can't use this heading to navigate because screen readers skip it empty, so add text, `aria-label`, or `aria-labelledby`.";
+const MESSAGE$51 = "Blind users can't use this heading to navigate because screen readers skip it empty, so add text, `aria-label`, or `aria-labelledby`.";
 const DEFAULT_HEADING_TAGS = [
 	"h1",
 	"h2",
@@ -7047,7 +7992,7 @@ const headingHasContent = defineRule({
 			if (isHiddenFromScreenReader(node, context.settings)) return;
 			context.report({
 				node,
-				message: MESSAGE$45
+				message: MESSAGE$51
 			});
 		} };
 	}
@@ -7185,7 +8130,7 @@ const hooksNoNanInDeps = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/html-has-lang.ts
-const MESSAGE$44 = "Screen readers may mispronounce this page because it doesn't declare a language, so add a `lang` attribute like `en`.";
+const MESSAGE$50 = "Screen readers may mispronounce this page because it doesn't declare a language, so add a `lang` attribute like `en`.";
 const resolveSettings$38 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { htmlTags: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.htmlHasLang ?? {} : {}).htmlTags ?? ["html"] };
@@ -7228,26 +8173,17 @@ const htmlHasLang = defineRule({
 		return { JSXOpeningElement(node) {
 			const tag = getElementType(node, context.settings);
 			if (!tagSet.has(tag)) return;
-			const hasSpread = node.attributes.some((attribute) => isNodeOfType(attribute, "JSXSpreadAttribute"));
 			const lang = hasJsxPropIgnoreCase(node.attributes, "lang");
 			if (!lang) {
 				context.report({
 					node: node.name,
-					message: MESSAGE$44
+					message: MESSAGE$50
 				});
 				return;
 			}
-			const verdict = evaluateLang(lang.value);
-			if (verdict === "missing" || verdict === "empty") {
-				context.report({
-					node: lang,
-					message: MESSAGE$44
-				});
-				return;
-			}
-			if (hasSpread && !lang) context.report({
-				node: node.name,
-				message: MESSAGE$44
+			if (evaluateLang(lang.value) === "empty") context.report({
+				node: lang,
+				message: MESSAGE$50
 			});
 		} };
 	}
@@ -7461,7 +8397,7 @@ const htmlNoNestedInteractive = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/iframe-has-title.ts
-const MESSAGE$43 = "Screen reader users cannot identify this `<iframe>` because it has no title. Add a `title` that describes its content.";
+const MESSAGE$49 = "Screen reader users cannot identify this `<iframe>` because it has no title. Add a `title` that describes its content.";
 const evaluateTitleValue = (value) => {
 	if (!value) return "missing";
 	if (isNodeOfType(value, "Literal")) {
@@ -7501,14 +8437,14 @@ const iframeHasTitle = defineRule({
 		if (!titleAttr) {
 			if (hasSpread || tag === "iframe") context.report({
 				node: node.name,
-				message: MESSAGE$43
+				message: MESSAGE$49
 			});
 			return;
 		}
 		const verdict = evaluateTitleValue(titleAttr.value);
 		if (verdict === "missing" || verdict === "empty") context.report({
 			node: titleAttr,
-			message: MESSAGE$43
+			message: MESSAGE$49
 		});
 	} })
 });
@@ -7612,7 +8548,7 @@ const iframeMissingSandbox = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/img-redundant-alt.ts
-const MESSAGE$42 = "Screen reader users hear \"image\" or \"photo\" twice because they already announce it, so describe what the image shows instead.";
+const MESSAGE$48 = "Screen reader users hear \"image\" or \"photo\" twice because they already announce it, so describe what the image shows instead.";
 const DEFAULT_COMPONENTS = ["img"];
 const DEFAULT_REDUNDANT_WORDS = [
 	"image",
@@ -7677,9 +8613,231 @@ const imgRedundantAlt = defineRule({
 			if (!altAttribute) return;
 			if (altValueRedundant(altAttribute, settings.words)) context.report({
 				node: altAttribute,
-				message: MESSAGE$42
+				message: MESSAGE$48
 			});
 		} };
+	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/import-metadata-execution-risk.ts
+const PROCESS_MODULE_EVIDENCE_PATTERN = /child_process|childProcess|execa|subprocess|Deno\.run/;
+const EXECUTION_WITH_BARE_CALLS_PATTERN = /(?:\b(?:eval|new\s+Function|vm\.runIn\w*)|(?<![.\w$])(?:exec(?:File)?(?:Sync)?|spawn(?:Sync)?)|\b(?:child_process|childProcess|cp)\.(?:exec|spawn)\w*)\s*\([^;]{0,200}(?<!["'])\b(?:exif|metadata|manifest|preset|plugin|upload|drop(?:ped|s)?\b|archive|zip|unzip|untar)(?!\w*["'])/;
+const EXECUTION_WITHOUT_BARE_CALLS_PATTERN = /(?:\b(?:eval|new\s+Function|vm\.runIn\w*)|\b(?:child_process|childProcess|cp)\.(?:exec|spawn)\w*)\s*\([^;]{0,200}(?<!["'])\b(?:exif|metadata|manifest|preset|plugin|upload|drop(?:ped|s)?\b|archive|zip|unzip|untar)(?!\w*["'])/;
+const EXECUTION_RISK_MESSAGE = "Imported metadata, uploads, or plugin manifests appear to reach code execution.";
+const scanWithBareCalls = scanByPattern({
+	shouldScan: () => true,
+	pattern: EXECUTION_WITH_BARE_CALLS_PATTERN,
+	message: EXECUTION_RISK_MESSAGE
+});
+const scanWithoutBareCalls = scanByPattern({
+	shouldScan: () => true,
+	pattern: EXECUTION_WITHOUT_BARE_CALLS_PATTERN,
+	message: EXECUTION_RISK_MESSAGE
+});
+const importMetadataExecutionRisk = defineRule({
+	id: "import-metadata-execution-risk",
+	title: "Imported metadata reaches code execution",
+	severity: "error",
+	recommendation: "Parse imported metadata as data with strict schemas; do not evaluate EXIF, manifests, presets, dropped files, or archives.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		return PROCESS_MODULE_EVIDENCE_PATTERN.test(file.content) ? scanWithBareCalls(file) : scanWithoutBareCalls(file);
+	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/insecure-crypto-risk.ts
+const WEAK_HASH_PATTERN = /createHash\s*\(\s*["'](?:md5|sha1)["']|\bmd5\s*\(/gi;
+const SECURITY_CONTEXT_PATTERN = /\b(?:password|token|secret|signature|signing|auth|credential|session|cookie|csrf|api.?key)\b/i;
+const DEPRECATED_CIPHER_API_PATTERN = /(?<!cipher\.)\bcreate(?:Cipher|Decipher)\s*\(/;
+const WEAK_CIPHER_ALGORITHM_PATTERN = /\bcreate(?:Cipher|Decipher)iv\s*\(\s*["'](?:des|des3|des-?ede3?|rc4|rc2|bf|blowfish)\b/i;
+const WEAK_CIPHER_NAME_PATTERN = /\b(?:DES|RC4|Blowfish)\b/;
+const CIPHER_CONTEXT_PATTERN = /\b(?:cipher|decipher|encrypt|decrypt|crypto)\b/i;
+const UNSAFE_SIGNATURE_COMPARISON_PATTERN = /[A-Za-z_$][\w$.]*signature[\w$]*(?:\([^)]*\))?\s*(?:===?|!==?)\s*[A-Za-z_$][\w$.]*(?:\([^)]*\))?|[A-Za-z_$][\w$.]*(?:\([^)]*\))?\s*(?:===?|!==?)\s*[A-Za-z_$][\w$.]*signature[\w$]*(?:\([^)]*\))?/i;
+const ENUM_MEMBER_COMPARAND_PATTERN = /(?:===?|!==?)\s*[A-Z](?:[a-z]|[A-Z0-9_]*\b(?!\s*[.(]))|^[A-Z](?:[a-z]|[A-Z0-9_]*\b(?!\s*[.(]))[\w$.]*(?:\([^)]*\))?\s*(?:===?|!==?)/;
+const SIGNATURE_METADATA_IDENTIFIER_PATTERN = /signature(?:Method|Type|Status|Algorithm|Kind|Mode|Version)\b/i;
+const BOOLEAN_COMPARAND_PATTERN = /(?:===?|!==?)\s*(?:true|false|null|undefined)\b/;
+const CLIENT_COMPONENT_FILE_PATTERN = /\.[cm]?[jt]sx$/i;
+const TIMING_SAFE_COMPARISON_PATTERN = /timingSafeEqual|timing.?safe/i;
+const PROTOCOL_MANDATED_HASH_CONTEXT_PATTERN = /gravatar|digest[-_ ]?auth|oauth[-_ ]?1|\b_id\b|\betag\b|checksum|cache[-_ ]?key|fingerprint/i;
+const SECURITY_RANDOM_CONTEXT_PATTERN = /token|secret|password|nonce|salt|csrf|credential|otp/i;
+const UI_NONCE_CONTEXT_PATTERN = /(?:focus|render|refresh|remount|redraw|animation|layout|cache|update)[-_]?nonce/i;
+const MATH_RANDOM_CALL_PATTERN = /Math\.random\s*\(/g;
+const SECURITY_CONTEXT_WINDOW_CHARS = 250;
+const findMatchIndexNearContext = (content, pattern, contextPattern, excludeContextPattern) => {
+	for (const callMatch of content.matchAll(pattern)) {
+		const surroundingText = content.slice(Math.max(0, callMatch.index - SECURITY_CONTEXT_WINDOW_CHARS), callMatch.index + SECURITY_CONTEXT_WINDOW_CHARS);
+		if (!contextPattern.test(surroundingText)) continue;
+		if (excludeContextPattern?.test(surroundingText)) continue;
+		return callMatch.index;
+	}
+	return -1;
+};
+const findRandomCallIndexWithSameLineContext = (content, pattern, contextPattern, excludeContextPattern) => {
+	for (const callMatch of content.matchAll(pattern)) {
+		const lineStartIndex = content.lastIndexOf("\n", callMatch.index) + 1;
+		const lineEndCandidate = content.indexOf("\n", callMatch.index);
+		const lineEndIndex = lineEndCandidate < 0 ? content.length : lineEndCandidate;
+		const lineText = content.slice(lineStartIndex, lineEndIndex);
+		if (excludeContextPattern.test(lineText)) continue;
+		if (contextPattern.test(lineText)) return callMatch.index;
+	}
+	return -1;
+};
+const insecureCryptoRisk = defineRule({
+	id: "insecure-crypto-risk",
+	title: "Weak cryptography in security context",
+	severity: "warn",
+	recommendation: "Use modern primitives, `crypto.randomBytes` / Web Crypto randomness, and timing-safe comparisons for signatures, digests, tokens, and auth material.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		if (DEMO_CONTEXT_PATTERN.test(file.relativePath)) return [];
+		if (PROTOCOL_MANDATED_HASH_CONTEXT_PATTERN.test(file.relativePath)) return [];
+		let matchIndex = findMatchIndexNearContext(file.content, WEAK_HASH_PATTERN, SECURITY_CONTEXT_PATTERN, PROTOCOL_MANDATED_HASH_CONTEXT_PATTERN);
+		if (matchIndex < 0) matchIndex = file.content.search(WEAK_CIPHER_ALGORITHM_PATTERN);
+		if (matchIndex < 0) matchIndex = file.content.search(DEPRECATED_CIPHER_API_PATTERN);
+		if (matchIndex < 0 && CIPHER_CONTEXT_PATTERN.test(file.content)) matchIndex = file.content.search(WEAK_CIPHER_NAME_PATTERN);
+		if (matchIndex < 0 && !TIMING_SAFE_COMPARISON_PATTERN.test(file.content) && !CLIENT_COMPONENT_FILE_PATTERN.test(file.relativePath)) {
+			const comparisonMatch = UNSAFE_SIGNATURE_COMPARISON_PATTERN.exec(file.content);
+			if (comparisonMatch !== null && !ENUM_MEMBER_COMPARAND_PATTERN.test(comparisonMatch[0]) && !SIGNATURE_METADATA_IDENTIFIER_PATTERN.test(comparisonMatch[0]) && !BOOLEAN_COMPARAND_PATTERN.test(comparisonMatch[0])) matchIndex = comparisonMatch.index;
+		}
+		if (matchIndex < 0) matchIndex = findRandomCallIndexWithSameLineContext(file.content, MATH_RANDOM_CALL_PATTERN, SECURITY_RANDOM_CONTEXT_PATTERN, UI_NONCE_CONTEXT_PATTERN);
+		if (matchIndex < 0) return [];
+		const location = getLocationAtIndex(file.content, matchIndex);
+		return [{
+			message: "Code uses weak hashes, deprecated ciphers, timing-unsafe comparisons, or Math.random in a security-shaped context.",
+			line: location.line,
+			column: location.column
+		}];
+	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/utils/find-matching-bracket.ts
+const findMatchingBracket = (content, openIndex) => {
+	const open = content[openIndex];
+	const close = open === "(" ? ")" : open === "{" ? "}" : open === "[" ? "]" : "";
+	if (close === "") return -1;
+	let depth = 0;
+	let stringDelimiter = null;
+	for (let index = openIndex; index < content.length; index += 1) {
+		const character = content[index];
+		if (stringDelimiter !== null) {
+			if (character === "\\") index += 1;
+			else if (character === stringDelimiter) stringDelimiter = null;
+			continue;
+		}
+		if (character === "\"" || character === "'" || character === "`") stringDelimiter = character;
+		else if (character === open) depth += 1;
+		else if (character === close) {
+			depth -= 1;
+			if (depth === 0) return index;
+		}
+	}
+	return -1;
+};
+//#endregion
+//#region src/plugin/rules/security-scan/insecure-session-cookie.ts
+const AUTH_COOKIE_NAME_TOKEN = `(?<![A-Za-z0-9])(?:session|sess|sid|connect\\.sid|auth|jwt|access[_-]?token|refresh[_-]?token|id[_-]?token)(?![A-Za-z0-9])`;
+const AUTH_COOKIE_NAME_LITERAL = `[\`"'][^\`"']*?${AUTH_COOKIE_NAME_TOKEN}[^\`"']*[\`"']`;
+const AUTH_COOKIE_SET_CALL_PATTERN = new RegExp(`(?:\\.cookies\\.set|cookies\\(\\s*\\)\\.set|\\.cookie)\\s*\\(\\s*${AUTH_COOKIE_NAME_LITERAL}`, "gi");
+const HTTP_ONLY_DISABLED_PATTERN = /httpOnly\s*:\s*false\b/i;
+const STRING_LITERAL_PATTERN = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
+const blankStringContents = (text) => {
+	const characters = text.split("");
+	let index = 0;
+	let stringDelimiter = null;
+	while (index < text.length) {
+		const character = text[index];
+		if (stringDelimiter !== null) {
+			if (character === "\\") {
+				index += 2;
+				continue;
+			}
+			if (character === stringDelimiter) stringDelimiter = null;
+			else if (character !== "\n") characters[index] = " ";
+			index += 1;
+			continue;
+		}
+		if (character === "\"" || character === "'" || character === "`") stringDelimiter = character;
+		index += 1;
+	}
+	return characters.join("");
+};
+const COOKIE_CONFIG_OPENER_PATTERN = /cookie\s*:\s*\{/gi;
+const CLIENT_AUTH_COOKIE_WRITE_PATTERN = new RegExp(`document\\.cookie\\s*=\\s*[\`"'][^\`"'=;]*?${AUTH_COOKIE_NAME_TOKEN}[^\`"'=;]*=`, "gi");
+const countTopLevelArguments = (argumentsSource) => {
+	if (argumentsSource.trim().length === 0) return 0;
+	let depth = 0;
+	let stringDelimiter = null;
+	let count = 1;
+	for (let index = 0; index < argumentsSource.length; index += 1) {
+		const character = argumentsSource[index];
+		if (stringDelimiter !== null) {
+			if (character === "\\") index += 1;
+			else if (character === stringDelimiter) stringDelimiter = null;
+			continue;
+		}
+		if (character === "\"" || character === "'" || character === "`") stringDelimiter = character;
+		else if (character === "(" || character === "[" || character === "{") depth += 1;
+		else if (character === ")" || character === "]" || character === "}") depth -= 1;
+		else if (character === "," && depth === 0) count += 1;
+	}
+	return count;
+};
+const addMatchFindings = (content, pattern, message, isInsecure, findings) => {
+	pattern.lastIndex = 0;
+	for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
+		if (!isInsecure(match.index, match[0])) continue;
+		const location = getLocationAtIndex(content, match.index);
+		findings.push({
+			message,
+			line: location.line,
+			column: location.column
+		});
+	}
+};
+const insecureSessionCookie = defineRule({
+	id: "insecure-session-cookie",
+	title: "Auth cookie missing HttpOnly protection",
+	severity: "warn",
+	recommendation: "Set auth/session cookies server-side with `httpOnly: true`, `secure: true`, and `sameSite`. Cookies set via `document.cookie` or with `httpOnly: false` are readable by any XSS payload and can be stolen.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		const content = getScannableContent(file);
+		if (!/cookie/i.test(content)) return [];
+		const findings = [];
+		const message = "An auth/session cookie is exposed to JavaScript (set via document.cookie, with httpOnly: false, or without cookie options), letting an XSS payload steal it.";
+		AUTH_COOKIE_SET_CALL_PATTERN.lastIndex = 0;
+		for (let match = AUTH_COOKIE_SET_CALL_PATTERN.exec(content); match !== null; match = AUTH_COOKIE_SET_CALL_PATTERN.exec(content)) {
+			const openParenIndex = match.index + match[0].lastIndexOf("(");
+			const closeParenIndex = findMatchingBracket(content, openParenIndex);
+			if (closeParenIndex < 0) continue;
+			const argumentsSource = content.slice(openParenIndex + 1, closeParenIndex);
+			const hasNoOptions = countTopLevelArguments(argumentsSource) < 3;
+			const argumentsWithoutStrings = argumentsSource.replace(STRING_LITERAL_PATTERN, "");
+			if (!hasNoOptions && !HTTP_ONLY_DISABLED_PATTERN.test(argumentsWithoutStrings)) continue;
+			const location = getLocationAtIndex(content, match.index);
+			findings.push({
+				message,
+				line: location.line,
+				column: location.column
+			});
+		}
+		const blankedContent = blankStringContents(content);
+		COOKIE_CONFIG_OPENER_PATTERN.lastIndex = 0;
+		for (let match = COOKIE_CONFIG_OPENER_PATTERN.exec(blankedContent); match !== null; match = COOKIE_CONFIG_OPENER_PATTERN.exec(blankedContent)) {
+			const braceIndex = match.index + match[0].length - 1;
+			const closeBraceIndex = findMatchingBracket(blankedContent, braceIndex);
+			const block = closeBraceIndex >= 0 ? blankedContent.slice(braceIndex, closeBraceIndex) : blankedContent.slice(braceIndex, braceIndex + 400);
+			if (!HTTP_ONLY_DISABLED_PATTERN.test(block)) continue;
+			const location = getLocationAtIndex(blankedContent, match.index);
+			findings.push({
+				message,
+				line: location.line,
+				column: location.column
+			});
+		}
+		addMatchFindings(content, CLIENT_AUTH_COOKIE_WRITE_PATTERN, message, () => true, findings);
+		return findings;
 	}
 });
 //#endregion
@@ -7737,14 +8895,6 @@ const isNonInteractiveElement = (elementType, openingElement) => {
 //#endregion
 //#region src/plugin/utils/is-non-interactive-role.ts
 const isNonInteractiveRole = (role) => NON_INTERACTIVE_ROLES.has(role);
-//#endregion
-//#region src/plugin/utils/is-presentation-role.ts
-const isPresentationRole = (openingElement) => {
-	const roleAttribute = hasJsxPropIgnoreCase(openingElement.attributes, "role");
-	if (!roleAttribute) return false;
-	const value = getJsxPropStringValue(roleAttribute);
-	return value !== null && PRESENTATION_ROLES$2.has(value);
-};
 //#endregion
 //#region src/plugin/rules/a11y/interactive-supports-focus.ts
 const buildTabbableMessage = (role) => `Keyboard users can't tab to this '${role}' because it isn't focusable, so add \`tabIndex={0}\`.`;
@@ -9520,6 +10670,24 @@ const hasJsxKeyAttribute = (openingElement) => {
 	return false;
 };
 //#endregion
+//#region src/plugin/utils/is-non-children-jsx-attribute-value.ts
+const ascendThroughJsxValueWrappers = (node) => {
+	let current = node;
+	while (current.parent) {
+		const parent = current.parent;
+		if (!(isNodeOfType(parent, "ChainExpression") || isNodeOfType(parent, "TSAsExpression") || isNodeOfType(parent, "TSSatisfiesExpression") || isNodeOfType(parent, "TSNonNullExpression") || isNodeOfType(parent, "LogicalExpression") || isNodeOfType(parent, "ConditionalExpression") && parent.test !== current)) break;
+		current = parent;
+	}
+	return current;
+};
+const isNonChildrenJsxAttributeValue = (node) => {
+	const container = ascendThroughJsxValueWrappers(node).parent;
+	if (!container || !isNodeOfType(container, "JSXExpressionContainer")) return false;
+	const attribute = container.parent;
+	if (!attribute || !isNodeOfType(attribute, "JSXAttribute")) return false;
+	return getJsxAttributeName(attribute.name) !== "children";
+};
+//#endregion
 //#region src/plugin/rules/react-builtins/jsx-key.ts
 const ITERATOR_METHOD_NAMES = new Set([
 	"map",
@@ -9558,6 +10726,7 @@ const findEnclosingIteratorContext = (jsxNode) => {
 			const arrayParent = parent.parent;
 			if (arrayParent && isNodeOfType(arrayParent, "Property")) return null;
 			if (arrayParent && isNodeOfType(arrayParent, "ArrayExpression")) return null;
+			if (isNonChildrenJsxAttributeValue(parent)) return null;
 			return { kind: "array" };
 		} else if (isNodeOfType(parent, "CallExpression")) {
 			const callee = parent.callee;
@@ -9570,10 +10739,13 @@ const findEnclosingIteratorContext = (jsxNode) => {
 			if (!targetArg) return null;
 			let walker = current;
 			while (walker && walker !== parent) {
-				if (walker === targetArg) return {
-					kind: "iterator",
-					callExpression: parent
-				};
+				if (walker === targetArg) {
+					if (isNonChildrenJsxAttributeValue(parent)) return null;
+					return {
+						kind: "iterator",
+						callExpression: parent
+					};
+				}
 				walker = walker.parent ?? null;
 			}
 			return null;
@@ -9812,7 +10984,7 @@ const jsxMaxDepth = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-comment-textnodes.ts
-const MESSAGE$41 = "Your users see this comment as text on the page because `//` & `/*` aren't hidden in JSX.";
+const MESSAGE$47 = "Your users see this comment as text on the page because `//` & `/*` aren't hidden in JSX.";
 const LITERAL_TEXT_TAGS = new Set([
 	"code",
 	"pre",
@@ -9848,7 +11020,7 @@ const jsxNoCommentTextnodes = defineRule({
 		if (isInsideLiteralTextTag(node)) return;
 		context.report({
 			node,
-			message: MESSAGE$41
+			message: MESSAGE$47
 		});
 	} })
 });
@@ -9879,7 +11051,7 @@ const isInsideFunctionScope = (node) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-constructed-context-values.ts
-const MESSAGE$40 = "Every reader of this context redraws on each render because you build its `value` inline.";
+const MESSAGE$46 = "Every reader of this context redraws on each render because you build its `value` inline.";
 const CONTEXT_MODULES$1 = [
 	"react",
 	"use-context-selector",
@@ -9977,7 +11149,7 @@ const jsxNoConstructedContextValues = defineRule({
 					if (!isConstructedValue(innerExpression)) continue;
 					context.report({
 						node: attribute,
-						message: MESSAGE$40
+						message: MESSAGE$46
 					});
 				}
 			}
@@ -10063,7 +11235,7 @@ const isJsxAttributeOnIntrinsicHtmlElement = (attribute) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-jsx-as-prop.ts
-const MESSAGE$39 = "This child redraws every render because the prop gets brand new JSX each time.";
+const MESSAGE$45 = "This child redraws every render because the prop gets brand new JSX each time.";
 const KNOWN_SLOT_PROP_NAMES = new Set([
 	"icon",
 	"Icon",
@@ -10332,7 +11504,7 @@ const jsxNoJsxAsProp = defineRule({
 				if (!isJsxProducingExpression(expressionNode) && !followsRenderLocalJsxBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$39
+					message: MESSAGE$45
 				});
 			}
 		};
@@ -10620,7 +11792,7 @@ const DATA_ARRAY_PROP_SUFFIXES = [
 ];
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-new-array-as-prop.ts
-const MESSAGE$38 = "This child redraws every render because the prop gets a brand new array each time.";
+const MESSAGE$44 = "This child redraws every render because the prop gets a brand new array each time.";
 const isDataArrayPropName = (propName) => {
 	if (DATA_ARRAY_PROP_NAMES.has(propName)) return true;
 	for (const suffix of DATA_ARRAY_PROP_SUFFIXES) if (propName.length > suffix.length && propName.endsWith(suffix)) return true;
@@ -10704,7 +11876,7 @@ const jsxNoNewArrayAsProp = defineRule({
 				if (!isArrayProducingExpression(expressionNode) && !followsRenderLocalArrayBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$38
+					message: MESSAGE$44
 				});
 			}
 		};
@@ -10962,7 +12134,7 @@ const SAFE_RECEIVER_NAMES = new Set([
 ]);
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-new-function-as-prop.ts
-const MESSAGE$37 = "This child redraws every render because the prop gets a brand new function each time.";
+const MESSAGE$43 = "This child redraws every render because the prop gets a brand new function each time.";
 const isAccessorPredicateName = (propName) => {
 	for (const prefix of ACCESSOR_PREDICATE_PREFIXES) {
 		if (propName.length <= prefix.length) continue;
@@ -11168,7 +12340,7 @@ const jsxNoNewFunctionAsProp = defineRule({
 				if (!isFunctionProducingExpression(expressionNode) && !followsRenderLocalFunctionBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$37
+					message: MESSAGE$43
 				});
 			}
 		};
@@ -11388,7 +12560,7 @@ const CONFIG_OBJECT_PROP_SUFFIXES = [
 ];
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-new-object-as-prop.ts
-const MESSAGE$36 = "This child redraws every render because the prop gets a brand new object each time.";
+const MESSAGE$42 = "This child redraws every render because the prop gets a brand new object each time.";
 const isConfigObjectPropName = (propName) => {
 	if (CONFIG_OBJECT_PROP_NAMES.has(propName)) return true;
 	for (const suffix of CONFIG_OBJECT_PROP_SUFFIXES) if (propName.length > suffix.length && propName.endsWith(suffix)) return true;
@@ -11476,7 +12648,7 @@ const jsxNoNewObjectAsProp = defineRule({
 				if (!isObjectProducingExpression(expressionNode) && !followsRenderLocalObjectBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$36
+					message: MESSAGE$42
 				});
 			}
 		};
@@ -11484,7 +12656,7 @@ const jsxNoNewObjectAsProp = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-no-script-url.ts
-const MESSAGE$35 = "A `javascript:` URL is an XSS hole that runs injected input as code.";
+const MESSAGE$41 = "A `javascript:` URL is an XSS hole that runs injected input as code.";
 const JAVASCRIPT_URL_PATTERN = /j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
 const resolveSettings$28 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
@@ -11525,7 +12697,7 @@ const jsxNoScriptUrl = defineRule({
 				if (!value || !isNodeOfType(value, "Literal") || typeof value.value !== "string") continue;
 				if (JAVASCRIPT_URL_PATTERN.test(value.value)) context.report({
 					node: attribute,
-					message: MESSAGE$35
+					message: MESSAGE$41
 				});
 			}
 		} };
@@ -11840,7 +13012,7 @@ const jsxPropsNoSpreadMulti = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/jsx-props-no-spreading.ts
-const MESSAGE$34 = "You can't tell what props reach this element when you spread them.";
+const MESSAGE$40 = "You can't tell what props reach this element when you spread them.";
 const resolveSettings$25 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.jsxPropsNoSpreading ?? {} : {};
@@ -11881,11 +13053,83 @@ const jsxPropsNoSpreading = defineRule({
 				}
 				context.report({
 					node: attribute,
-					message: MESSAGE$34
+					message: MESSAGE$40
 				});
 			}
 		} };
 	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/jwt-insecure-verification.ts
+const NONE_ALGORITHM_PATTERN = /\b(?:alg|algorithms?)\s*:\s*\[?\s*["'`]none["'`]/gi;
+const isIndexInsideStringLiteral = (content, index) => {
+	let stringDelimiter = null;
+	const templateExpressionDepths = [];
+	for (let cursor = 0; cursor < index; cursor += 1) {
+		const character = content[cursor];
+		if (stringDelimiter === "`") {
+			if (character === "\\") cursor += 1;
+			else if (character === "`") stringDelimiter = null;
+			else if (character === "$" && content[cursor + 1] === "{") {
+				templateExpressionDepths.push(0);
+				stringDelimiter = null;
+				cursor += 1;
+			}
+			continue;
+		}
+		if (stringDelimiter !== null) {
+			if (character === "\\") cursor += 1;
+			else if (character === stringDelimiter) stringDelimiter = null;
+			continue;
+		}
+		if (character === "\"" || character === "'" || character === "`") stringDelimiter = character;
+		else if (templateExpressionDepths.length > 0) {
+			const top = templateExpressionDepths.length - 1;
+			if (character === "{") templateExpressionDepths[top] += 1;
+			else if (character === "}") if (templateExpressionDepths[top] === 0) {
+				templateExpressionDepths.pop();
+				stringDelimiter = "`";
+			} else templateExpressionDepths[top] -= 1;
+		}
+	}
+	return stringDelimiter !== null;
+};
+const jwtInsecureVerification = defineRule({
+	id: "jwt-insecure-verification",
+	title: "JWT verified with the 'none' algorithm",
+	severity: "error",
+	recommendation: "Never accept the `none` algorithm; it disables signature verification and lets any forged token through. Pin the real algorithm(s) explicitly (`jwt.verify(token, key, { algorithms: ['RS256'] })`).",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		const content = getScannableContent(file);
+		if (!/\bjwt\b|jsonwebtoken|\bjose\b/i.test(content)) return [];
+		const findings = [];
+		NONE_ALGORITHM_PATTERN.lastIndex = 0;
+		for (let noneMatch = NONE_ALGORITHM_PATTERN.exec(content); noneMatch !== null; noneMatch = NONE_ALGORITHM_PATTERN.exec(content)) {
+			if (isIndexInsideStringLiteral(content, noneMatch.index)) continue;
+			const location = getLocationAtIndex(content, noneMatch.index);
+			findings.push({
+				message: "JWT is configured with the 'none' algorithm, which disables signature verification, so any forged token is accepted.",
+				line: location.line,
+				column: location.column
+			});
+		}
+		return findings;
+	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/key-lifecycle-risk.ts
+const keyLifecycleRisk = defineRule({
+	id: "key-lifecycle-risk",
+	title: "Long-lived key material in repository",
+	severity: "error",
+	committedFilesOnly: true,
+	recommendation: "Remove private keys from source, rotate exposed credentials, prefer short-lived deploy credentials, and document revocation/expiry for release keys.",
+	scan: scanByPattern({
+		shouldScan: (file) => !TEST_CONTEXT_PATTERN.test(file.relativePath) && !DOCUMENTATION_CONTEXT_PATTERN.test(file.relativePath),
+		pattern: /(?<!(?:placeholder|example|sample|dummy|fake)[\s\S]{0,40})-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----(?:\s|\\r|\\n)*[A-Za-z0-9+/=][A-Za-z0-9+/=\s]{38,}(?![^-]{0,160}\.\.\.)|\b(?:SSH_PRIVATE_KEY|GPG_PRIVATE_KEY|DEPLOY_KEY|SIGNING_KEY)\b\s*[:=]\s*["'][^"'\n]{16,}["']/i,
+		message: "Private or long-lived release key material appears in the repository."
+	})
 });
 //#endregion
 //#region src/plugin/rules/a11y/label-has-associated-control.ts
@@ -12037,7 +13281,7 @@ const labelHasAssociatedControl = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/lang.ts
-const MESSAGE$33 = "Screen readers can't pick the right voice because this `lang` isn't a real language code, so use a valid one like `en` or `en-US`.";
+const MESSAGE$39 = "Screen readers can't pick the right voice because this `lang` isn't a real language code, so use a valid one like `en` or `en-US`.";
 const COMMON_LANGUAGE_PRIMARY_TAGS = new Set([
 	"aa",
 	"ab",
@@ -12249,7 +13493,7 @@ const lang = defineRule({
 			if (expression.type === "Identifier" && expression.name === "undefined" || expression.type === "Literal" && expression.value === null) {
 				context.report({
 					node: langAttr,
-					message: MESSAGE$33
+					message: MESSAGE$39
 				});
 				return;
 			}
@@ -12258,13 +13502,52 @@ const lang = defineRule({
 		if (value === null) return;
 		if (!isValidLangTag(value)) context.report({
 			node: langAttr,
-			message: MESSAGE$33
+			message: MESSAGE$39
 		});
 	} })
 });
 //#endregion
+//#region src/plugin/rules/security-scan/local-rpc-native-bridge-risk.ts
+const localRpcNativeBridgeRisk = defineRule({
+	id: "local-rpc-native-bridge-risk",
+	title: "Weak localhost native bridge boundary",
+	severity: "warn",
+	recommendation: "Use exact origin allowlists after URL parsing, per-request nonces, narrow methods, and never expose install/update commands to arbitrary web pages.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: /\b(?:127\.0\.0\.1|localhost|Access-Control-Allow-Origin|websocket|WebSocket)\b[\s\S]{0,700}(?:\b(?:UpdateApp|InstallApp|child_process)\b|(?<![.\w$])(?:exec(?:File)?(?:Sync)?|spawn(?:Sync)?)\s*\()/i,
+		message: "Code appears to bridge browser code to localhost/native capabilities with weak origin or update/install checks."
+	})
+});
+const mcpToolCapabilityRisk = defineRule({
+	id: "mcp-tool-capability-risk",
+	title: "MCP tool exposes dangerous capability",
+	severity: "warn",
+	recommendation: "MCP tool calls run with the connecting client's authority. Validate inputs, enforce per-tool authorization, and avoid raw filesystem/shell/network access where possible.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: /\bserver\.\s*tool\s*\(|\bregisterTool\s*\(|\bsetRequestHandler\s*\(\s*CallToolRequestSchema/,
+		requireAll: [/\bfrom\s+["']@modelcontextprotocol\/sdk[^"']*["']|\bMcpServer\b|\bMcpAgent\b/, AGENT_TOOL_DANGEROUS_CAPABILITY_PATTERN],
+		ignoreStringLiterals: true,
+		message: "An MCP tool/resource/prompt handler appears to expose file, shell, network, or code-execution capability."
+	})
+});
+//#endregion
+//#region src/plugin/rules/security-scan/mdx-ssr-execution-risk.ts
+const mdxSsrExecutionRisk = defineRule({
+	id: "mdx-ssr-execution-risk",
+	title: "Server-rendered MDX can execute code",
+	severity: "warn",
+	recommendation: "Use a constrained compiler for untrusted content, disable expressions/raw HTML, sandbox renderers, and avoid caching attacker-controlled output across tenants.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: /(?:@mdx-js\/mdx|next-mdx-remote|\b(?:MDXRemote|compileMDX|evaluateMdx)\b)[\s\S]{0,700}\b(?:repo|customer|tenant|user[-_]?(?:content|markdown|mdx|input|provided|generated|submitted)|untrusted|searchParams|req\.|request\.|fetch\s*\(|prisma\.|db\.|database|rehypeRaw|allowDangerousHtml)/i,
+		message: "MDX/markdown rendering code may evaluate user or repository content during SSR or static generation."
+	})
+});
+//#endregion
 //#region src/plugin/rules/a11y/media-has-caption.ts
-const MESSAGE$32 = "Deaf and hard-of-hearing users need captions for this media. Add a `<track kind=\"captions\">` inside the `<audio>` or `<video>`.";
+const MESSAGE$38 = "Deaf and hard-of-hearing users need captions for this media. Add a `<track kind=\"captions\">` inside the `<audio>` or `<video>`.";
 const DEFAULT_AUDIO = ["audio"];
 const DEFAULT_VIDEO = ["video"];
 const DEFAULT_TRACK = ["track"];
@@ -12305,7 +13588,7 @@ const mediaHasCaption = defineRule({
 			if (!parent || !isNodeOfType(parent, "JSXElement")) {
 				context.report({
 					node: node.name,
-					message: MESSAGE$32
+					message: MESSAGE$38
 				});
 				return;
 			}
@@ -12322,7 +13605,7 @@ const mediaHasCaption = defineRule({
 				return kindValue.value.toLowerCase() === "captions";
 			})) context.report({
 				node: node.name,
-				message: MESSAGE$32
+				message: MESSAGE$38
 			});
 		} };
 	}
@@ -12543,6 +13826,64 @@ const nextjsInlineScriptMissingId = defineRule({
 	} })
 });
 //#endregion
+//#region src/plugin/utils/parse-export-specifiers.ts
+const getSpecifierName = (rawName) => rawName.replace(/^type\s+/, "").trim();
+const parseExportSpecifiers = (specifiersText, declarationIsTypeOnly) => specifiersText.split(",").map((specifierText) => specifierText.trim()).filter(Boolean).map((specifierText) => {
+	const isTypeOnly = declarationIsTypeOnly || specifierText.startsWith("type ");
+	const [rawLocalName, rawExportedName] = specifierText.split(/\s+as\s+/);
+	const localName = getSpecifierName(rawLocalName ?? "");
+	return {
+		localName,
+		exportedName: getSpecifierName(rawExportedName ?? localName),
+		isTypeOnly
+	};
+});
+//#endregion
+//#region src/plugin/utils/strip-js-comments.ts
+const BLOCK_COMMENT_PATTERN = /\/\*[\s\S]*?\*\//g;
+const LINE_COMMENT_PATTERN = /^\s*\/\/.*$/gm;
+const stripJsComments = (sourceText) => sourceText.replace(BLOCK_COMMENT_PATTERN, "").replace(LINE_COMMENT_PATTERN, "");
+//#endregion
+//#region src/plugin/utils/does-module-export-name.ts
+const DEFAULT_EXPORT_DECLARATION_PATTERN = /^\s*export\s+default\b/m;
+const NAMED_EXPORT_DECLARATION_PATTERN = /^\s*export\s+(?:declare\s+)?(?:(?:async\s+)?function|(?:abstract\s+)?class|const|let|var|enum|interface|type)\s+([\w$]+)/gm;
+const LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1 = /^\s*export\s+(?:type\s+)?\{([\s\S]*?)\}(?:\s+from\s+["'][^"']+["'])?\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
+const doesSourceTextExportName = (sourceText, exportedName) => {
+	const strippedSource = stripJsComments(sourceText);
+	if (exportedName === "default" && DEFAULT_EXPORT_DECLARATION_PATTERN.test(strippedSource)) return true;
+	for (const match of strippedSource.matchAll(NAMED_EXPORT_DECLARATION_PATTERN)) if (match[1] === exportedName) return true;
+	for (const match of strippedSource.matchAll(LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1)) if (parseExportSpecifiers(match[1] ?? "", false).map((specifier) => specifier.exportedName).includes(exportedName)) return true;
+	return false;
+};
+const doesModuleExportName = (filePath, exportedName) => {
+	try {
+		return doesSourceTextExportName(fs.readFileSync(filePath, "utf8"), exportedName);
+	} catch {
+		return false;
+	}
+};
+//#endregion
+//#region src/plugin/utils/has-ancestor-layout-matching.ts
+const hasAncestorLayoutMatching = (pageFilename, matchesLayout) => {
+	const normalizedPage = pageFilename.replaceAll("\\", "/");
+	let currentDirectory = path.dirname(normalizedPage);
+	for (let level = 0; level < 30; level++) {
+		for (const layoutFileName of LAYOUT_FILE_NAMES) {
+			const layoutPath = path.join(currentDirectory, layoutFileName);
+			if (layoutPath.replaceAll("\\", "/") === normalizedPage) continue;
+			if (matchesLayout(layoutPath)) return true;
+		}
+		const parentDirectory = path.dirname(currentDirectory);
+		if (path.basename(currentDirectory) === "app" && path.basename(parentDirectory) !== "app") break;
+		if (parentDirectory === currentDirectory) break;
+		currentDirectory = parentDirectory;
+	}
+	return false;
+};
+//#endregion
+//#region src/plugin/utils/find-ancestor-metadata-layout.ts
+const hasAncestorMetadataLayout = (pageFilename) => hasAncestorLayoutMatching(pageFilename, (layoutPath) => METADATA_EXPORT_NAMES.some((exportName) => doesModuleExportName(layoutPath, exportName)));
+//#endregion
 //#region src/plugin/rules/nextjs/nextjs-missing-metadata.ts
 const nextjsMissingMetadata = defineRule({
 	id: "nextjs-missing-metadata",
@@ -12555,13 +13896,15 @@ const nextjsMissingMetadata = defineRule({
 		const filename = normalizeFilename$1(context.filename ?? "");
 		if (!PAGE_FILE_PATTERN.test(filename)) return;
 		if (INTERNAL_PAGE_PATH_PATTERN.test(filename)) return;
-		if (!programNode.body?.some((statement) => {
+		if (programNode.body?.some((statement) => {
 			if (!isNodeOfType(statement, "ExportNamedDeclaration")) return false;
 			const declaration = statement.declaration;
-			if (isNodeOfType(declaration, "VariableDeclaration")) return declaration.declarations?.some((declarator) => isNodeOfType(declarator.id, "Identifier") && (declarator.id.name === "metadata" || declarator.id.name === "generateMetadata"));
+			if (isNodeOfType(declaration, "VariableDeclaration")) return declaration.declarations?.some((declarator) => isNodeOfType(declarator.id, "Identifier") && METADATA_EXPORT_NAMES.includes(declarator.id.name));
 			if (isNodeOfType(declaration, "FunctionDeclaration")) return declaration.id?.name === "generateMetadata";
-			return false;
-		})) context.report({
+			return (statement.specifiers ?? []).some((specifier) => isNodeOfType(specifier, "ExportSpecifier") && isNodeOfType(specifier.exported, "Identifier") && METADATA_EXPORT_NAMES.includes(specifier.exported.name));
+		})) return;
+		if (hasAncestorMetadataLayout(context.filename ?? "")) return;
+		context.report({
 			node: programNode,
 			message: "This page has no metadata, so search engines and social previews get no title or description."
 		});
@@ -13400,6 +14743,20 @@ const FILENAME_TO_LANG = {
 const resolveLang = (filename) => {
 	return FILENAME_TO_LANG[path.extname(filename).toLowerCase()] ?? "tsx";
 };
+const parseSourceText = (filename, sourceText) => {
+	try {
+		const result = parseSync(filename, sourceText, {
+			astType: "ts",
+			lang: resolveLang(filename)
+		});
+		if (result.errors.some((parseError) => parseError.severity === "Error")) return null;
+		const parsedProgram = result.program;
+		attachParentReferences(parsedProgram);
+		return parsedProgram;
+	} catch {
+		return null;
+	}
+};
 const parseCache = /* @__PURE__ */ new Map();
 const parseSourceFile = (absoluteFilePath) => {
 	let fileStat;
@@ -13431,62 +14788,13 @@ const parseSourceFile = (absoluteFilePath) => {
 		});
 		return null;
 	}
-	let parsedProgram = null;
-	try {
-		const result = parseSync(absoluteFilePath, sourceText, {
-			astType: "ts",
-			lang: resolveLang(absoluteFilePath)
-		});
-		if (!result.errors.some((parseError) => parseError.severity === "Error")) {
-			parsedProgram = result.program;
-			attachParentReferences(parsedProgram);
-		}
-	} catch {
-		parsedProgram = null;
-	}
+	const parsedProgram = parseSourceText(absoluteFilePath, sourceText);
 	parseCache.set(absoluteFilePath, {
 		mtimeMs: fileStat.mtimeMs,
 		size: fileStat.size,
 		program: parsedProgram
 	});
 	return parsedProgram;
-};
-//#endregion
-//#region src/plugin/utils/parse-export-specifiers.ts
-const getSpecifierName = (rawName) => rawName.replace(/^type\s+/, "").trim();
-const parseExportSpecifiers = (specifiersText, declarationIsTypeOnly) => specifiersText.split(",").map((specifierText) => specifierText.trim()).filter(Boolean).map((specifierText) => {
-	const isTypeOnly = declarationIsTypeOnly || specifierText.startsWith("type ");
-	const [rawLocalName, rawExportedName] = specifierText.split(/\s+as\s+/);
-	const localName = getSpecifierName(rawLocalName ?? "");
-	return {
-		localName,
-		exportedName: getSpecifierName(rawExportedName ?? localName),
-		isTypeOnly
-	};
-});
-//#endregion
-//#region src/plugin/utils/strip-js-comments.ts
-const BLOCK_COMMENT_PATTERN = /\/\*[\s\S]*?\*\//g;
-const LINE_COMMENT_PATTERN = /^\s*\/\/.*$/gm;
-const stripJsComments = (sourceText) => sourceText.replace(BLOCK_COMMENT_PATTERN, "").replace(LINE_COMMENT_PATTERN, "");
-//#endregion
-//#region src/plugin/utils/does-module-export-name.ts
-const DEFAULT_EXPORT_DECLARATION_PATTERN = /^\s*export\s+default\b/m;
-const NAMED_EXPORT_DECLARATION_PATTERN = /^\s*export\s+(?:declare\s+)?(?:(?:async\s+)?function|(?:abstract\s+)?class|const|let|var|enum|interface|type)\s+([\w$]+)/gm;
-const LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1 = /^\s*export\s+(?:type\s+)?\{([\s\S]*?)\}(?:\s+from\s+["'][^"']+["'])?\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
-const doesSourceTextExportName = (sourceText, exportedName) => {
-	const strippedSource = stripJsComments(sourceText);
-	if (exportedName === "default" && DEFAULT_EXPORT_DECLARATION_PATTERN.test(strippedSource)) return true;
-	for (const match of strippedSource.matchAll(NAMED_EXPORT_DECLARATION_PATTERN)) if (match[1] === exportedName) return true;
-	for (const match of strippedSource.matchAll(LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1)) if (parseExportSpecifiers(match[1] ?? "", false).map((specifier) => specifier.exportedName).includes(exportedName)) return true;
-	return false;
-};
-const doesModuleExportName = (filePath, exportedName) => {
-	try {
-		return doesSourceTextExportName(fs.readFileSync(filePath, "utf8"), exportedName);
-	} catch {
-		return false;
-	}
 };
 //#endregion
 //#region src/plugin/utils/is-barrel-index-module.ts
@@ -13972,29 +15280,10 @@ const astMentionsSuspense = (programNode) => {
 };
 //#endregion
 //#region src/plugin/utils/find-ancestor-suspense-layout.ts
-const LAYOUT_FILE_NAMES = [
-	"layout.tsx",
-	"layout.jsx",
-	"layout.ts",
-	"layout.js"
-];
-const hasAncestorSuspenseLayout = (pageFilename) => {
-	const normalizedPage = pageFilename.replaceAll("\\", "/");
-	let currentDirectory = path.dirname(normalizedPage);
-	for (let level = 0; level < 30; level++) {
-		for (const layoutFileName of LAYOUT_FILE_NAMES) {
-			const layoutPath = path.join(currentDirectory, layoutFileName);
-			if (layoutPath.replaceAll("\\", "/") === normalizedPage) continue;
-			const programRoot = parseSourceFile(layoutPath);
-			if (programRoot && astMentionsSuspense(programRoot)) return true;
-		}
-		if (path.basename(currentDirectory) === "app") break;
-		const parentDirectory = path.dirname(currentDirectory);
-		if (parentDirectory === currentDirectory) break;
-		currentDirectory = parentDirectory;
-	}
-	return false;
-};
+const hasAncestorSuspenseLayout = (pageFilename) => hasAncestorLayoutMatching(pageFilename, (layoutPath) => {
+	const programRoot = parseSourceFile(layoutPath);
+	return Boolean(programRoot && astMentionsSuspense(programRoot));
+});
 //#endregion
 //#region src/plugin/rules/nextjs/nextjs-no-use-search-params-without-suspense.ts
 const astContainsUseSearchParams = (root) => {
@@ -14117,7 +15406,7 @@ const nextjsNoVercelOgImport = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/no-access-key.ts
-const MESSAGE$31 = "Screen reader users can lose their shortcuts because `accessKey` clashes with them, so remove it.";
+const MESSAGE$37 = "Screen reader users can lose their shortcuts because `accessKey` clashes with them, so remove it.";
 const isUndefinedIdentifier = (expression) => isNodeOfType(expression, "Identifier") && expression.name === "undefined";
 const noAccessKey = defineRule({
 	id: "no-access-key",
@@ -14134,7 +15423,7 @@ const noAccessKey = defineRule({
 		if (isNodeOfType(attributeValue, "Literal") && typeof attributeValue.value === "string") {
 			context.report({
 				node: accessKey,
-				message: MESSAGE$31
+				message: MESSAGE$37
 			});
 			return;
 		}
@@ -14144,7 +15433,7 @@ const noAccessKey = defineRule({
 			if (isUndefinedIdentifier(expression)) return;
 			context.report({
 				node: accessKey,
-				message: MESSAGE$31
+				message: MESSAGE$37
 			});
 		}
 	} })
@@ -14627,7 +15916,7 @@ const noAdjustStateOnPropChange = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/no-aria-hidden-on-focusable.ts
-const MESSAGE$30 = "Screen reader users tab to this focusable element but hear nothing because `aria-hidden` skips it, so remove `aria-hidden` or stop it being focusable.";
+const MESSAGE$36 = "Screen reader users tab to this focusable element but hear nothing because `aria-hidden` skips it, so remove `aria-hidden` or stop it being focusable.";
 const noAriaHiddenOnFocusable = defineRule({
 	id: "no-aria-hidden-on-focusable",
 	title: "aria-hidden on focusable element",
@@ -14654,7 +15943,7 @@ const noAriaHiddenOnFocusable = defineRule({
 		const isImplicitlyFocusable = isInteractiveElement(tag, node);
 		if (isExplicitlyFocusable || isImplicitlyFocusable) context.report({
 			node: ariaHidden,
-			message: MESSAGE$30
+			message: MESSAGE$36
 		});
 	} })
 });
@@ -15022,7 +16311,7 @@ const noArrayIndexAsKey = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-array-index-key.ts
-const MESSAGE$29 = "Your users can see & submit the wrong data when this list reorders.";
+const MESSAGE$35 = "Your users can see & submit the wrong data when this list reorders.";
 const SECOND_INDEX_METHODS = new Set([
 	"every",
 	"filter",
@@ -15226,7 +16515,7 @@ const noArrayIndexKey = defineRule({
 			}
 			context.report({
 				node: keyAttribute,
-				message: MESSAGE$29
+				message: MESSAGE$35
 			});
 		},
 		CallExpression(node) {
@@ -15246,15 +16535,35 @@ const noArrayIndexKey = defineRule({
 				if (propName !== "key") continue;
 				if (expressionUsesIndex(property.value, indexBinding.name)) context.report({
 					node: property,
-					message: MESSAGE$29
+					message: MESSAGE$35
 				});
 			}
 		}
 	})
 });
 //#endregion
+//#region src/plugin/rules/state-and-effects/no-async-effect-callback.ts
+const MESSAGE$34 = "The `useEffect` callback is `async`, so it returns a Promise instead of a cleanup function. React calls that Promise as cleanup (a no-op) and the effect can race on unmount. Put the async work in an inner function and call it.";
+const noAsyncEffectCallback = defineRule({
+	id: "no-async-effect-callback",
+	title: "Async effect callback",
+	severity: "warn",
+	recommendation: "Don't make the effect callback `async`. Define an async function inside the effect and call it, then return a real cleanup function if you need one.",
+	create: (context) => ({ CallExpression(node) {
+		if (!isHookCall$1(node, EFFECT_HOOK_NAMES$1)) return;
+		const callback = getEffectCallback(node);
+		if (!callback) return;
+		if (!isNodeOfType(callback, "ArrowFunctionExpression") && !isNodeOfType(callback, "FunctionExpression")) return;
+		if (!callback.async) return;
+		context.report({
+			node: callback,
+			message: MESSAGE$34
+		});
+	} })
+});
+//#endregion
 //#region src/plugin/rules/a11y/no-autofocus.ts
-const MESSAGE$28 = "`autoFocus` moves focus on load, which can disrupt screen reader and keyboard users. Remove it and let users choose where to focus.";
+const MESSAGE$33 = "`autoFocus` moves focus on load, which can disrupt screen reader and keyboard users. Remove it and let users choose where to focus.";
 const resolveSettings$21 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { ignoreNonDOM: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noAutofocus ?? {} : {}).ignoreNonDOM ?? true };
@@ -15310,7 +16619,7 @@ const noAutofocus = defineRule({
 			}
 			context.report({
 				node: autoFocusAttribute,
-				message: MESSAGE$28
+				message: MESSAGE$33
 			});
 		} };
 	}
@@ -15323,6 +16632,182 @@ const createRelativeImportSource = (filename, targetFilePath) => {
 	const relativePath = path.relative(path.dirname(filename), targetModulePath).split(path.sep).join("/");
 	return relativePath.startsWith(".") ? relativePath : `./${relativePath}`;
 };
+//#endregion
+//#region src/react-native-dependency-names.ts
+const EXPO_MANAGED_DEPENDENCY_NAMES = new Set([
+	"expo",
+	"expo-router",
+	"@expo/cli",
+	"@expo/metro-config",
+	"@expo/metro-runtime"
+]);
+const REACT_NATIVE_DEPENDENCY_NAMES = new Set([
+	"react-native",
+	"react-native-tvos",
+	...EXPO_MANAGED_DEPENDENCY_NAMES,
+	"react-native-windows",
+	"react-native-macos"
+]);
+const REACT_NATIVE_DEPENDENCY_PREFIXES = ["@react-native/", "@react-native-"];
+const isExpoManagedDependencyName = (dependencyName) => EXPO_MANAGED_DEPENDENCY_NAMES.has(dependencyName);
+const isReactNativeDependencyName = (dependencyName) => {
+	if (REACT_NATIVE_DEPENDENCY_NAMES.has(dependencyName)) return true;
+	for (const prefix of REACT_NATIVE_DEPENDENCY_PREFIXES) if (dependencyName.startsWith(prefix)) return true;
+	return false;
+};
+//#endregion
+//#region src/plugin/utils/classify-package-platform.ts
+const WEB_FRAMEWORK_DEPENDENCY_NAMES = new Set([
+	"next",
+	"vite",
+	"react-scripts",
+	"gatsby",
+	"@remix-run/react",
+	"@remix-run/node",
+	"@docusaurus/core",
+	"@docusaurus/preset-classic",
+	"@storybook/react",
+	"@storybook/react-vite",
+	"@storybook/react-webpack5",
+	"@storybook/nextjs",
+	"@storybook/web-components",
+	"storybook",
+	"react-dom",
+	"@vitejs/plugin-react",
+	"@vitejs/plugin-react-swc"
+]);
+const cachedPlatformByPackageDirectory = /* @__PURE__ */ new Map();
+const cachedPackageDirectoryByFilename = /* @__PURE__ */ new Map();
+const findNearestPackageDirectory = (filename) => {
+	if (!filename) return null;
+	const fromCache = cachedPackageDirectoryByFilename.get(filename);
+	if (fromCache !== void 0) return fromCache;
+	let currentDirectory = path.dirname(filename);
+	while (true) {
+		const candidatePackageJsonPath = path.join(currentDirectory, "package.json");
+		let hasPackageJson = false;
+		try {
+			hasPackageJson = fs.statSync(candidatePackageJsonPath).isFile();
+		} catch {
+			hasPackageJson = false;
+		}
+		if (hasPackageJson) {
+			cachedPackageDirectoryByFilename.set(filename, currentDirectory);
+			return currentDirectory;
+		}
+		const parentDirectory = path.dirname(currentDirectory);
+		if (parentDirectory === currentDirectory) {
+			cachedPackageDirectoryByFilename.set(filename, null);
+			return null;
+		}
+		currentDirectory = parentDirectory;
+	}
+};
+const readPackageJsonSafe = (packageJsonPath) => {
+	let rawContents;
+	try {
+		rawContents = fs.readFileSync(packageJsonPath, "utf-8");
+	} catch {
+		return null;
+	}
+	try {
+		const parsed = JSON.parse(rawContents);
+		if (typeof parsed === "object" && parsed !== null) return parsed;
+		return null;
+	} catch {
+		return null;
+	}
+};
+const DEPENDENCY_SECTION_NAMES = [
+	"dependencies",
+	"devDependencies",
+	"peerDependencies",
+	"optionalDependencies"
+];
+const iterateDependencyNames = function* (packageJson) {
+	for (const sectionName of DEPENDENCY_SECTION_NAMES) {
+		const section = packageJson[sectionName];
+		if (!section) continue;
+		for (const dependencyName of Object.keys(section)) yield dependencyName;
+	}
+};
+const isReactNativeAware = (packageJson) => {
+	if (typeof packageJson["react-native"] === "string") return true;
+	for (const dependencyName of iterateDependencyNames(packageJson)) if (isReactNativeDependencyName(dependencyName)) return true;
+	return false;
+};
+const isExpoManaged = (packageJson) => {
+	for (const dependencyName of iterateDependencyNames(packageJson)) if (isExpoManagedDependencyName(dependencyName)) return true;
+	return false;
+};
+const isWebFrameworkOnly = (packageJson) => {
+	for (const dependencyName of iterateDependencyNames(packageJson)) if (WEB_FRAMEWORK_DEPENDENCY_NAMES.has(dependencyName)) return true;
+	return false;
+};
+const classifyPackagePlatform = (filename) => {
+	const packageDirectory = findNearestPackageDirectory(filename);
+	if (!packageDirectory) return "unknown";
+	const cached = cachedPlatformByPackageDirectory.get(packageDirectory);
+	if (cached !== void 0) return cached;
+	const packageJson = readPackageJsonSafe(path.join(packageDirectory, "package.json"));
+	if (!packageJson) {
+		cachedPlatformByPackageDirectory.set(packageDirectory, "unknown");
+		return "unknown";
+	}
+	let result;
+	if (isExpoManaged(packageJson)) result = "expo";
+	else if (isReactNativeAware(packageJson)) result = "react-native";
+	else if (isWebFrameworkOnly(packageJson)) result = "web";
+	else result = "unknown";
+	cachedPlatformByPackageDirectory.set(packageDirectory, result);
+	return result;
+};
+//#endregion
+//#region src/plugin/utils/get-react-doctor-setting.ts
+const readReactDoctorSettingsBag = (settings) => {
+	const reactDoctorSettings = settings?.["react-doctor"];
+	if (typeof reactDoctorSettings !== "object" || reactDoctorSettings === null || Array.isArray(reactDoctorSettings)) return null;
+	return reactDoctorSettings;
+};
+const readOwnPropertyValue = (bag, settingName) => Object.getOwnPropertyDescriptor(bag, settingName)?.value;
+const getReactDoctorStringSetting = (settings, settingName) => {
+	const bag = readReactDoctorSettingsBag(settings);
+	if (!bag) return void 0;
+	const settingValue = readOwnPropertyValue(bag, settingName);
+	return typeof settingValue === "string" ? settingValue : void 0;
+};
+const getReactDoctorNumberSetting = (settings, settingName) => {
+	const bag = readReactDoctorSettingsBag(settings);
+	if (!bag) return void 0;
+	const settingValue = readOwnPropertyValue(bag, settingName);
+	return typeof settingValue === "number" && Number.isFinite(settingValue) ? settingValue : void 0;
+};
+const getReactDoctorStringArraySetting = (settings, settingName) => {
+	const bag = readReactDoctorSettingsBag(settings);
+	if (!bag) return [];
+	const settingValue = readOwnPropertyValue(bag, settingName);
+	if (!Array.isArray(settingValue)) return [];
+	return settingValue.filter((entry) => typeof entry === "string" && entry.length > 0);
+};
+//#endregion
+//#region src/plugin/utils/is-react-native-file.ts
+const WEB_FILE_EXTENSION_PATTERN = /\.web\.[cm]?[jt]sx?$/;
+const NATIVE_FILE_EXTENSION_PATTERN = /\.(?:ios|android|native)\.[cm]?[jt]sx?$/;
+const classifyReactNativeFileTarget = (context) => {
+	const rawFilename = context.filename;
+	if (!rawFilename) return "unknown";
+	const filename = normalizeFilename$1(rawFilename);
+	if (NATIVE_FILE_EXTENSION_PATTERN.test(filename)) return "react-native";
+	if (WEB_FILE_EXTENSION_PATTERN.test(filename)) return "web";
+	const packagePlatform = classifyPackagePlatform(filename);
+	if (packagePlatform === "web") return "web";
+	if (packagePlatform === "expo" || packagePlatform === "react-native") return "react-native";
+	const framework = getReactDoctorStringSetting(context.settings, "framework");
+	if (framework === "react-native" || framework === "expo") return "react-native";
+	if (framework === "nextjs" || framework === "vite" || framework === "cra" || framework === "remix" || framework === "gatsby" || framework === "tanstack-start") return "web";
+	return "unknown";
+};
+const isReactNativeFileActive = (context) => classifyReactNativeFileTarget(context) !== "web";
 //#endregion
 //#region src/plugin/rules/bundle-size/no-barrel-import.ts
 const getLiteralName = (node) => {
@@ -15341,7 +16826,8 @@ const getRuntimeImportRequests = (node) => {
 		return [{ importedName: null }];
 	});
 };
-const buildReportMessage = (filename, barrelFilePath, importRequests) => {
+const buildReportMessage = (filename, barrelFilePath, importRequests, isReactNativeTarget) => {
+	const costSentence = isReactNativeTarget ? "This ships extra code in your app bundle & slows startup." : "This ships extra code to your users & slows page load.";
 	const directImportSources = /* @__PURE__ */ new Set();
 	for (const request of importRequests) {
 		if (!request.importedName) continue;
@@ -15350,9 +16836,9 @@ const buildReportMessage = (filename, barrelFilePath, importRequests) => {
 	}
 	if (directImportSources.size === 1) {
 		const [directImportSource] = directImportSources;
-		return `This ships extra code to your users & slows page load. Import directly from "${directImportSource}".`;
+		return `${costSentence} Import directly from "${directImportSource}".`;
 	}
-	if (directImportSources.size > 1) return `This ships extra code to your users & slows page load. Import directly from: ${[...directImportSources].map((source) => `"${source}"`).join(", ")}.`;
+	if (directImportSources.size > 1) return `${costSentence} Import directly from: ${[...directImportSources].map((source) => `"${source}"`).join(", ")}.`;
 	return "Importing from an index file pulls in extra code. Import directly from the source file instead.";
 };
 const noBarrelImport = defineRule({
@@ -15376,10 +16862,113 @@ const noBarrelImport = defineRule({
 				didReportForFile = true;
 				context.report({
 					node,
-					message: buildReportMessage(filename, resolvedImportPath, importRequests)
+					message: buildReportMessage(filename, resolvedImportPath, importRequests, classifyReactNativeFileTarget(context) === "react-native")
 				});
 			}
 		} };
+	}
+});
+//#endregion
+//#region src/plugin/utils/function-contains-react-render-output.ts
+const NESTED_RENDER_EVIDENCE_BOUNDARY_TYPES = new Set([
+	"FunctionDeclaration",
+	"FunctionExpression",
+	"ArrowFunctionExpression",
+	"ClassDeclaration",
+	"ClassExpression"
+]);
+const isReactImport$1 = (symbol) => {
+	let importDeclaration = symbol.declarationNode?.parent;
+	while (importDeclaration && !isNodeOfType(importDeclaration, "ImportDeclaration")) importDeclaration = importDeclaration.parent ?? null;
+	if (!importDeclaration || !isNodeOfType(importDeclaration, "ImportDeclaration")) return false;
+	return importDeclaration.source.value === "react";
+};
+const getImportedName = (symbol) => {
+	if (symbol.kind !== "import") return null;
+	if (!isReactImport$1(symbol)) return null;
+	return getImportedName$1(symbol.declarationNode) ?? null;
+};
+const isReactNamespaceImport = (symbol) => {
+	if (symbol.kind !== "import") return false;
+	if (!isReactImport$1(symbol)) return false;
+	return isNodeOfType(symbol.declarationNode, "ImportDefaultSpecifier") || isNodeOfType(symbol.declarationNode, "ImportNamespaceSpecifier");
+};
+const isReactCreateElementIdentifierCall = (callee, scopes) => {
+	if (!isNodeOfType(callee, "Identifier")) return false;
+	const symbol = scopes.symbolFor(callee);
+	return Boolean(symbol && getImportedName(symbol) === "createElement");
+};
+const isReactCreateElementMemberCall = (callee, scopes) => {
+	if (!isNodeOfType(callee, "MemberExpression")) return false;
+	if (callee.computed) return false;
+	if (!isNodeOfType(callee.object, "Identifier")) return false;
+	if (!isNodeOfType(callee.property, "Identifier")) return false;
+	if (callee.property.name !== "createElement") return false;
+	const symbol = scopes.symbolFor(callee.object);
+	return Boolean(symbol && isReactNamespaceImport(symbol));
+};
+const isReactCreateElementCall = (node, scopes) => {
+	if (!isNodeOfType(node, "CallExpression")) return false;
+	return isReactCreateElementIdentifierCall(node.callee, scopes) || isReactCreateElementMemberCall(node.callee, scopes);
+};
+const containsRenderOutput = (node, rootNode, scopes) => {
+	if (node !== rootNode && NESTED_RENDER_EVIDENCE_BOUNDARY_TYPES.has(node.type)) return false;
+	if (node.type === "JSXElement" || node.type === "JSXFragment") return true;
+	if (isReactCreateElementCall(node, scopes)) return true;
+	const nodeRecord = node;
+	for (const key of Object.keys(nodeRecord)) {
+		if (key === "parent") continue;
+		const child = nodeRecord[key];
+		if (Array.isArray(child)) {
+			for (const innerChild of child) if (isAstNode(innerChild) && containsRenderOutput(innerChild, rootNode, scopes)) return true;
+		} else if (isAstNode(child) && containsRenderOutput(child, rootNode, scopes)) return true;
+	}
+	return false;
+};
+const functionContainsReactRenderOutput = (functionNode, scopes) => containsRenderOutput(functionNode, functionNode, scopes);
+//#endregion
+//#region src/plugin/utils/is-component-declaration.ts
+const isComponentDeclaration = (node) => isNodeOfType(node, "FunctionDeclaration") && node.id !== null && Boolean(node.id?.name) && isUppercaseName(node.id.name);
+//#endregion
+//#region src/plugin/rules/react-builtins/no-call-component-as-function.ts
+const message = (name) => `\`${name}\` is a component, so calling it as a plain function (\`${name}(...)\`) runs it outside React: its hooks break, it gets no fiber/state, and memoization is lost. Render it as \`<${name} />\` instead.`;
+const symbolIsLocalComponent = (symbol, context) => {
+	const declaration = symbol.declarationNode;
+	if (isComponentDeclaration(declaration)) return functionContainsReactRenderOutput(declaration, context.scopes);
+	if (isComponentAssignment(declaration) && symbol.initializer) return functionContainsReactRenderOutput(symbol.initializer, context.scopes);
+	return false;
+};
+const noCallComponentAsFunction = defineRule({
+	id: "no-call-component-as-function",
+	title: "Component called as a function",
+	severity: "warn",
+	tags: ["test-noise"],
+	recommendation: "Render components as JSX (`<Component />`), never call them like functions (`Component(props)`). A direct call runs the component outside React and breaks hooks, state, and memoization.",
+	create: (context) => {
+		const renderedJsxNames = /* @__PURE__ */ new Set();
+		const candidateCalls = [];
+		return {
+			JSXOpeningElement(node) {
+				if (isNodeOfType(node.name, "JSXIdentifier") && isUppercaseName(node.name.name)) renderedJsxNames.add(node.name.name);
+			},
+			CallExpression(node) {
+				if (isNodeOfType(node.callee, "Identifier") && isUppercaseName(node.callee.name)) candidateCalls.push({
+					node,
+					callee: node.callee,
+					name: node.callee.name
+				});
+			},
+			"Program:exit"() {
+				for (const candidate of candidateCalls) {
+					const symbol = context.scopes.symbolFor(candidate.callee);
+					if (!symbol) continue;
+					if (symbolIsLocalComponent(symbol, context) || symbol.kind === "import" && renderedJsxNames.has(candidate.name)) context.report({
+						node: candidate.node,
+						message: message(candidate.name)
+					});
+				}
+			}
+		};
 	}
 });
 //#endregion
@@ -15534,7 +17123,7 @@ const noChainStateUpdates = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-children-prop.ts
-const MESSAGE$27 = "A `children` prop can override or hide nested children, so the component may render different content than the JSX shows.";
+const MESSAGE$32 = "A `children` prop can override or hide nested children, so the component may render different content than the JSX shows.";
 const noChildrenProp = defineRule({
 	id: "no-children-prop",
 	title: "Children passed as a prop",
@@ -15546,7 +17135,7 @@ const noChildrenProp = defineRule({
 			if (node.name.name !== "children") return;
 			context.report({
 				node: node.name,
-				message: MESSAGE$27
+				message: MESSAGE$32
 			});
 		},
 		CallExpression(node) {
@@ -15559,7 +17148,7 @@ const noChildrenProp = defineRule({
 				const propertyKey = property.key;
 				if (isNodeOfType(propertyKey, "Identifier") && propertyKey.name === "children" || isNodeOfType(propertyKey, "Literal") && propertyKey.value === "children") context.report({
 					node: propertyKey,
-					message: MESSAGE$27
+					message: MESSAGE$32
 				});
 			}
 		}
@@ -15567,7 +17156,7 @@ const noChildrenProp = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-clone-element.ts
-const MESSAGE$26 = "`React.cloneElement` couples the parent to the child's prop shape, so child prop changes can silently break injected behavior.";
+const MESSAGE$31 = "`React.cloneElement` couples the parent to the child's prop shape, so child prop changes can silently break injected behavior.";
 const noCloneElement = defineRule({
 	id: "no-clone-element",
 	title: "cloneElement makes child props fragile",
@@ -15580,7 +17169,7 @@ const noCloneElement = defineRule({
 		if (isNodeOfType(callee, "Identifier") && callee.name === "cloneElement") {
 			if (isImportedFromModule(node, "cloneElement", "react")) context.report({
 				node: callee,
-				message: MESSAGE$26
+				message: MESSAGE$31
 			});
 			return;
 		}
@@ -15593,7 +17182,7 @@ const noCloneElement = defineRule({
 			if (!isImportedFromModule(node, callee.object.name, "react")) return;
 			context.report({
 				node: callee,
-				message: MESSAGE$26
+				message: MESSAGE$31
 			});
 		}
 	} })
@@ -15642,7 +17231,7 @@ const enclosingComponentOrHookName = (node) => {
 };
 //#endregion
 //#region src/plugin/rules/state-and-effects/no-create-context-in-render.ts
-const MESSAGE$25 = "createContext() builds a new context every render, so every consumer gets cut off & resets.";
+const MESSAGE$30 = "createContext() builds a new context every render, so every consumer gets cut off & resets.";
 const CONTEXT_MODULES = [
 	"react",
 	"use-context-selector",
@@ -15678,7 +17267,32 @@ const noCreateContextInRender = defineRule({
 		if (!componentOrHookName) return;
 		context.report({
 			node,
-			message: `${MESSAGE$25} (called inside "${componentOrHookName}")`
+			message: `${MESSAGE$30} (called inside "${componentOrHookName}")`
+		});
+	} })
+});
+//#endregion
+//#region src/plugin/rules/react-builtins/no-create-ref-in-function-component.ts
+const MESSAGE$29 = "`createRef()` in a function component allocates a brand-new ref on every render, so it never holds a value between renders. Use the `useRef()` hook instead.";
+const noCreateRefInFunctionComponent = defineRule({
+	id: "no-create-ref-in-function-component",
+	title: "createRef in function component",
+	severity: "warn",
+	recommendation: "Replace `createRef()` with the `useRef()` hook inside function components and hooks. `createRef` is only for class components.",
+	create: (context) => ({ CallExpression(node) {
+		if (!isReactFunctionCall(node, "createRef")) return;
+		if (isNodeOfType(node.callee, "Identifier")) {
+			const symbol = context.scopes.symbolFor(node.callee);
+			if (symbol && symbol.kind !== "import") return;
+		}
+		const enclosingFunction = nearestEnclosingFunction(node);
+		if (!enclosingFunction) return;
+		const displayName = componentOrHookDisplayNameForFunction(enclosingFunction);
+		if (!displayName) return;
+		if (!(isReactHookName(displayName) || functionContainsReactRenderOutput(enclosingFunction, context.scopes))) return;
+		context.report({
+			node,
+			message: MESSAGE$29
 		});
 	} })
 });
@@ -15818,12 +17432,13 @@ const noCreateStoreInRender = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-danger.ts
-const MESSAGE$24 = "`dangerouslySetInnerHTML` is an XSS hole that runs attacker-controlled HTML in your users' browsers.";
+const MESSAGE$28 = "`dangerouslySetInnerHTML` is an XSS hole that runs attacker-controlled HTML in your users' browsers.";
 const noDanger = defineRule({
 	id: "no-danger",
 	title: "Raw HTML injection can run unsafe markup",
 	severity: "warn",
 	category: "Security",
+	defaultEnabled: false,
 	recommendation: "Render trusted content as React children so attacker-controlled HTML cannot run in users' browsers.",
 	create: (context) => ({
 		JSXOpeningElement(node) {
@@ -15831,7 +17446,7 @@ const noDanger = defineRule({
 			if (!propAttribute) return;
 			context.report({
 				node: propAttribute.name,
-				message: MESSAGE$24
+				message: MESSAGE$28
 			});
 		},
 		CallExpression(node) {
@@ -15843,7 +17458,7 @@ const noDanger = defineRule({
 				const propertyKey = property.key;
 				if (isNodeOfType(propertyKey, "Identifier") && propertyKey.name === "dangerouslySetInnerHTML" || isNodeOfType(propertyKey, "Literal") && propertyKey.value === "dangerouslySetInnerHTML") context.report({
 					node: propertyKey,
-					message: MESSAGE$24
+					message: MESSAGE$28
 				});
 			}
 		}
@@ -15851,7 +17466,7 @@ const noDanger = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-danger-with-children.ts
-const MESSAGE$23 = "React throws an error when you set both children & `dangerouslySetInnerHTML`.";
+const MESSAGE$27 = "React throws an error when you set both children & `dangerouslySetInnerHTML`.";
 const isLineBreak = (child) => {
 	if (!isNodeOfType(child, "JSXText")) return false;
 	return child.value.trim().length === 0 && child.value.includes("\n");
@@ -15921,7 +17536,7 @@ const noDangerWithChildren = defineRule({
 			if (!hasChildrenProp && !hasNestedChildren) return;
 			if (hasJsxPropIgnoreCase(opening.attributes, "dangerouslySetInnerHTML") || spreadPropsShape.hasDangerously) context.report({
 				node: opening,
-				message: MESSAGE$23
+				message: MESSAGE$27
 			});
 		},
 		CallExpression(node) {
@@ -15933,7 +17548,7 @@ const noDangerWithChildren = defineRule({
 			if (!propsShape.hasDangerously) return;
 			if (node.arguments.length >= 3 || propsShape.hasChildren) context.report({
 				node,
-				message: MESSAGE$23
+				message: MESSAGE$27
 			});
 		}
 	})
@@ -16510,7 +18125,7 @@ const isSetStateCallInLifecycle = (setStateCall, lifecycleNames, options = {}) =
 //#endregion
 //#region src/plugin/rules/react-builtins/no-did-mount-set-state.ts
 const LIFECYCLE_NAMES$2 = new Set(["componentDidMount"]);
-const MESSAGE$22 = "Your users see an extra render right after mount when you call `setState` in `componentDidMount`.";
+const MESSAGE$26 = "Your users see an extra render right after mount when you call `setState` in `componentDidMount`.";
 const resolveSettings$20 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { mode: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noDidMountSetState ?? {} : {}).mode ?? "allowed" };
@@ -16529,7 +18144,7 @@ const noDidMountSetState = defineRule({
 			if (!isSetStateCallInLifecycle(node, LIFECYCLE_NAMES$2, { disallowInNestedFunctions: mode === "disallow-in-func" })) return;
 			context.report({
 				node: node.callee,
-				message: MESSAGE$22
+				message: MESSAGE$26
 			});
 		} };
 	}
@@ -16537,7 +18152,7 @@ const noDidMountSetState = defineRule({
 //#endregion
 //#region src/plugin/rules/react-builtins/no-did-update-set-state.ts
 const LIFECYCLE_NAMES$1 = new Set(["componentDidUpdate"]);
-const MESSAGE$21 = "Calling setState in componentDidUpdate can trigger another update immediately, loop forever, and freeze the component.";
+const MESSAGE$25 = "Calling setState in componentDidUpdate can trigger another update immediately, loop forever, and freeze the component.";
 const resolveSettings$19 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { mode: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noDidUpdateSetState ?? {} : {}).mode ?? "allowed" };
@@ -16556,7 +18171,7 @@ const noDidUpdateSetState = defineRule({
 			if (!isSetStateCallInLifecycle(node, LIFECYCLE_NAMES$1, { disallowInNestedFunctions: mode === "disallow-in-func" })) return;
 			context.report({
 				node: node.callee,
-				message: MESSAGE$21
+				message: MESSAGE$25
 			});
 		} };
 	}
@@ -16579,7 +18194,7 @@ const isStateMemberExpression = (node) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/no-direct-mutation-state.ts
-const MESSAGE$20 = "Your users see stale data because mutating `this.state` by hand never redraws & gets overwritten.";
+const MESSAGE$24 = "Your users see stale data because mutating `this.state` by hand never redraws & gets overwritten.";
 const shouldIgnoreMutation = (node) => {
 	let isConstructor = false;
 	let isInsideCallExpression = false;
@@ -16601,7 +18216,7 @@ const reportIfStateMutation = (context, reportNode, target) => {
 	if (shouldIgnoreMutation(reportNode)) return;
 	context.report({
 		node: reportNode,
-		message: MESSAGE$20
+		message: MESSAGE$24
 	});
 };
 const noDirectMutationState = defineRule({
@@ -16807,6 +18422,26 @@ const noDocumentStartViewTransition = defineRule({
 		context.report({
 			node,
 			message: "Calling `document.startViewTransition()` directly can bypass React's `<ViewTransition>` animation lifecycle."
+		});
+	} })
+});
+//#endregion
+//#region src/plugin/rules/js-performance/no-document-write.ts
+const MESSAGE$23 = "`document.write()` blocks parsing, is ignored (or wipes the page) after load, and is flagged by browsers as a performance anti-pattern. Build DOM nodes or set `innerHTML`/`textContent` on a target element instead.";
+const WRITE_METHODS = new Set(["write", "writeln"]);
+const noDocumentWrite = defineRule({
+	id: "no-document-write",
+	title: "document.write/writeln",
+	severity: "warn",
+	recommendation: "Don't use `document.write()`/`document.writeln()`. Append DOM nodes or set `innerHTML`/`textContent` on a specific element instead.",
+	create: (context) => ({ CallExpression(node) {
+		const callee = node.callee;
+		if (!isNodeOfType(callee, "MemberExpression") || callee.computed) return;
+		if (!isNodeOfType(callee.object, "Identifier") || callee.object.name !== "document") return;
+		if (!isNodeOfType(callee.property, "Identifier") || !WRITE_METHODS.has(callee.property.name)) return;
+		context.report({
+			node,
+			message: MESSAGE$23
 		});
 	} })
 });
@@ -18189,7 +19824,7 @@ const ALLOWED_NAMESPACES = new Set([
 	"ReactDOM",
 	"ReactDom"
 ]);
-const MESSAGE$19 = "`findDOMNode` crashes your app in React 19 because it was removed.";
+const MESSAGE$22 = "`findDOMNode` crashes your app in React 19 because it was removed.";
 const noFindDomNode = defineRule({
 	id: "no-find-dom-node",
 	title: "findDOMNode breaks component encapsulation",
@@ -18200,7 +19835,7 @@ const noFindDomNode = defineRule({
 		if (isNodeOfType(callee, "Identifier") && callee.name === "findDOMNode") {
 			context.report({
 				node: callee,
-				message: MESSAGE$19
+				message: MESSAGE$22
 			});
 			return;
 		}
@@ -18211,7 +19846,7 @@ const noFindDomNode = defineRule({
 			if (callee.property.name !== "findDOMNode") return;
 			context.report({
 				node: callee.property,
-				message: MESSAGE$19
+				message: MESSAGE$22
 			});
 		}
 	} })
@@ -18273,64 +19908,6 @@ const noGenericHandlerNames = defineRule({
 		});
 	} })
 });
-//#endregion
-//#region src/plugin/utils/function-contains-react-render-output.ts
-const NESTED_RENDER_EVIDENCE_BOUNDARY_TYPES = new Set([
-	"FunctionDeclaration",
-	"FunctionExpression",
-	"ArrowFunctionExpression",
-	"ClassDeclaration",
-	"ClassExpression"
-]);
-const isReactImport$1 = (symbol) => {
-	let importDeclaration = symbol.declarationNode?.parent;
-	while (importDeclaration && !isNodeOfType(importDeclaration, "ImportDeclaration")) importDeclaration = importDeclaration.parent ?? null;
-	if (!importDeclaration || !isNodeOfType(importDeclaration, "ImportDeclaration")) return false;
-	return importDeclaration.source.value === "react";
-};
-const getImportedName = (symbol) => {
-	if (symbol.kind !== "import") return null;
-	if (!isReactImport$1(symbol)) return null;
-	return getImportedName$1(symbol.declarationNode) ?? null;
-};
-const isReactNamespaceImport = (symbol) => {
-	if (symbol.kind !== "import") return false;
-	if (!isReactImport$1(symbol)) return false;
-	return isNodeOfType(symbol.declarationNode, "ImportDefaultSpecifier") || isNodeOfType(symbol.declarationNode, "ImportNamespaceSpecifier");
-};
-const isReactCreateElementIdentifierCall = (callee, scopes) => {
-	if (!isNodeOfType(callee, "Identifier")) return false;
-	const symbol = scopes.symbolFor(callee);
-	return Boolean(symbol && getImportedName(symbol) === "createElement");
-};
-const isReactCreateElementMemberCall = (callee, scopes) => {
-	if (!isNodeOfType(callee, "MemberExpression")) return false;
-	if (callee.computed) return false;
-	if (!isNodeOfType(callee.object, "Identifier")) return false;
-	if (!isNodeOfType(callee.property, "Identifier")) return false;
-	if (callee.property.name !== "createElement") return false;
-	const symbol = scopes.symbolFor(callee.object);
-	return Boolean(symbol && isReactNamespaceImport(symbol));
-};
-const isReactCreateElementCall = (node, scopes) => {
-	if (!isNodeOfType(node, "CallExpression")) return false;
-	return isReactCreateElementIdentifierCall(node.callee, scopes) || isReactCreateElementMemberCall(node.callee, scopes);
-};
-const containsRenderOutput = (node, rootNode, scopes) => {
-	if (node !== rootNode && NESTED_RENDER_EVIDENCE_BOUNDARY_TYPES.has(node.type)) return false;
-	if (node.type === "JSXElement" || node.type === "JSXFragment") return true;
-	if (isReactCreateElementCall(node, scopes)) return true;
-	const nodeRecord = node;
-	for (const key of Object.keys(nodeRecord)) {
-		if (key === "parent") continue;
-		const child = nodeRecord[key];
-		if (Array.isArray(child)) {
-			for (const innerChild of child) if (isAstNode(innerChild) && containsRenderOutput(innerChild, rootNode, scopes)) return true;
-		} else if (isAstNode(child) && containsRenderOutput(child, rootNode, scopes)) return true;
-	}
-	return false;
-};
-const functionContainsReactRenderOutput = (functionNode, scopes) => containsRenderOutput(functionNode, functionNode, scopes);
 //#endregion
 //#region src/plugin/rules/architecture/no-giant-component.ts
 const noGiantComponent = defineRule({
@@ -18510,6 +20087,26 @@ const noGrayOnColoredBackground = defineRule({
 	} })
 });
 //#endregion
+//#region src/plugin/rules/performance/no-img-lazy-with-high-fetchpriority.ts
+const MESSAGE$21 = "`<img loading=\"lazy\">` defers the request while `fetchPriority=\"high\"` asks the browser to rush it, so the two directives contradict each other. Drop one: keep `fetchPriority=\"high\"` (and eager loading) for an LCP image, or `loading=\"lazy\"` for a below-the-fold one.";
+const noImgLazyWithHighFetchpriority = defineRule({
+	id: "no-img-lazy-with-high-fetchpriority",
+	title: "Lazy image with high fetchPriority",
+	severity: "warn",
+	recommendation: "Don't combine `loading=\"lazy\"` with `fetchPriority=\"high\"`. A high-priority image (usually the LCP) should load eagerly; a lazy image is by definition not high priority.",
+	create: (context) => ({ JSXOpeningElement(node) {
+		if (!isNodeOfType(node.name, "JSXIdentifier") || node.name.name !== "img") return;
+		const loadingAttribute = hasJsxPropIgnoreCase(node.attributes, "loading");
+		if (!loadingAttribute || getJsxPropStringValue(loadingAttribute)?.toLowerCase() !== "lazy") return;
+		const fetchPriorityAttribute = hasJsxPropIgnoreCase(node.attributes, "fetchPriority");
+		if (!fetchPriorityAttribute || getJsxPropStringValue(fetchPriorityAttribute)?.toLowerCase() !== "high") return;
+		context.report({
+			node: node.name,
+			message: MESSAGE$21
+		});
+	} })
+});
+//#endregion
 //#region src/plugin/rules/state-and-effects/no-initialize-state.ts
 const noInitializeState = defineRule({
 	id: "no-initialize-state",
@@ -18602,15 +20199,20 @@ const noInlineExhaustiveStyle = defineRule({
 	severity: "warn",
 	tags: ["test-noise", "react-jsx-only"],
 	recommendation: "Move the styles to a CSS class, CSS module, Tailwind utilities, or a styled component. Big inline objects are hard to read and rebuild on every update.",
-	create: (context) => ({ JSXAttribute(node) {
-		const expression = getInlineStyleExpression(node);
-		if (!expression) return;
-		const propertyCount = expression.properties?.filter((property) => isNodeOfType(property, "Property")).length ?? 0;
-		if (propertyCount >= 8) context.report({
-			node: expression,
-			message: `This inline style has ${propertyCount} properties, which is hard to read & rebuilds every render. Move it to a CSS class, CSS module, or styled component.`
-		});
-	} })
+	create: (context) => {
+		if (isGeneratedImageRenderContext(context)) return {};
+		return { JSXAttribute(node) {
+			const expression = getInlineStyleExpression(node);
+			if (!expression) return;
+			const propertyCount = expression.properties?.filter((property) => isNodeOfType(property, "Property")).length ?? 0;
+			if (propertyCount < 8) return;
+			if (isGeneratedImageRenderContext(context, node.parent ?? void 0)) return;
+			context.report({
+				node: expression,
+				message: `This inline style has ${propertyCount} properties, which is hard to read & rebuilds every render. Move it to a CSS class, CSS module, or styled component.`
+			});
+		} };
+	}
 });
 //#endregion
 //#region src/plugin/rules/performance/no-inline-prop-on-memo-component.ts
@@ -18739,8 +20341,31 @@ const noIsMounted = defineRule({
 	} })
 });
 //#endregion
+//#region src/plugin/rules/js-performance/no-json-parse-stringify-clone.ts
+const MESSAGE$20 = "`JSON.parse(JSON.stringify(x))` deep-clones by re-serializing: it is slow on large objects and silently drops `undefined`, functions, `Date`/`Map`/`Set`, and cyclic references. Use `structuredClone(x)`.";
+const isJsonMethodCall = (node, method) => {
+	if (!isNodeOfType(node, "CallExpression")) return false;
+	const callee = node.callee;
+	return isNodeOfType(callee, "MemberExpression") && !callee.computed && isNodeOfType(callee.object, "Identifier") && callee.object.name === "JSON" && isNodeOfType(callee.property, "Identifier") && callee.property.name === method;
+};
+const noJsonParseStringifyClone = defineRule({
+	id: "no-json-parse-stringify-clone",
+	title: "JSON parse/stringify deep clone",
+	severity: "warn",
+	recommendation: "Replace `JSON.parse(JSON.stringify(value))` with `structuredClone(value)`. It is faster and preserves Dates, Maps, Sets, and cyclic references.",
+	create: (context) => ({ CallExpression(node) {
+		if (!isJsonMethodCall(node, "parse")) return;
+		const firstArgument = node.arguments?.[0];
+		if (!firstArgument || !isJsonMethodCall(firstArgument, "stringify")) return;
+		context.report({
+			node,
+			message: MESSAGE$20
+		});
+	} })
+});
+//#endregion
 //#region src/plugin/rules/correctness/no-jsx-element-type.ts
-const MESSAGE$18 = "`JSX.Element` is too narrow: it excludes `null`, strings, numbers, and fragments that components commonly return. Use `React.ReactNode` instead.";
+const MESSAGE$19 = "`JSX.Element` is too narrow: it excludes `null`, strings, numbers, and fragments that components commonly return. Use `React.ReactNode` instead.";
 const isJsxElementTypeReference = (node) => {
 	if (!isNodeOfType(node, "TSTypeReference")) return false;
 	const typeName = node.typeName;
@@ -18757,7 +20382,7 @@ const checkReturnType = (context, returnType) => {
 	if (!typeAnnotation) return;
 	if (isJsxElementTypeReference(typeAnnotation)) context.report({
 		node: typeAnnotation,
-		message: MESSAGE$18
+		message: MESSAGE$19
 	});
 };
 const noJsxElementType = defineRule({
@@ -19061,9 +20686,6 @@ const noLongTransitionDuration = defineRule({
 const BOOLEAN_PROP_PREFIX_PATTERN = /^(?:is|has|should|can|show|hide|enable|disable|with)[A-Z]/;
 const isBooleanPrefixedPropName = (propName) => BOOLEAN_PROP_PREFIX_PATTERN.test(propName);
 //#endregion
-//#region src/plugin/utils/is-component-declaration.ts
-const isComponentDeclaration = (node) => isNodeOfType(node, "FunctionDeclaration") && node.id !== null && Boolean(node.id?.name) && isUppercaseName(node.id.name);
-//#endregion
 //#region src/plugin/rules/architecture/no-many-boolean-props.ts
 const collectBooleanLikePropsFromBody = (componentBody, propsParamName) => {
 	const found = /* @__PURE__ */ new Set();
@@ -19215,7 +20837,7 @@ const noMoment = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-multi-comp.ts
-const MESSAGE$17 = "This file declares several components, so each component is harder to find, test, and change.";
+const MESSAGE$18 = "This file declares several components, so each component is harder to find, test, and change.";
 const resolveSettings$16 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { ignoreStateless: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noMultiComp ?? {} : {}).ignoreStateless ?? false };
@@ -19537,7 +21159,7 @@ const noMultiComp = defineRule({
 			if (isSmallFeatureModule || isLargeFeatureModule || isVeryLargeFeatureModule) return;
 			for (const component of flagged.slice(1)) context.report({
 				node: component.reportNode,
-				message: MESSAGE$17
+				message: MESSAGE$18
 			});
 		} };
 	}
@@ -19705,7 +21327,7 @@ const resolveReducerFunction = (node, currentFilename) => {
 };
 //#endregion
 //#region src/plugin/rules/state-and-effects/no-mutating-reducer-state.ts
-const MESSAGE$16 = "This reducer changes state in place, so your update is silently skipped.";
+const MESSAGE$17 = "This reducer changes state in place, so your update is silently skipped.";
 const SAME_REFERENCE_ARRAY_RETURN_METHODS = new Set([
 	"copyWithin",
 	"fill",
@@ -19915,7 +21537,7 @@ const analyzeReactUseReducerFunctionForStateMutation = (context, functionNode, r
 			reportedNodes.add(options.crossFileConsumerCallSite);
 			context.report({
 				node: options.crossFileConsumerCallSite,
-				message: `${MESSAGE$16} (mutation in imported reducer at \`${options.crossFileSourceDisplay}\`)`
+				message: `${MESSAGE$17} (mutation in imported reducer at \`${options.crossFileSourceDisplay}\`)`
 			});
 			return;
 		}
@@ -19924,7 +21546,7 @@ const analyzeReactUseReducerFunctionForStateMutation = (context, functionNode, r
 			reportedNodes.add(mutation.node);
 			context.report({
 				node: mutation.node,
-				message: MESSAGE$16
+				message: MESSAGE$17
 			});
 		}
 	};
@@ -20196,7 +21818,7 @@ const noNoninteractiveElementToInteractiveRole = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/a11y/no-noninteractive-tabindex.ts
-const MESSAGE$15 = "Keyboard users get stuck focusing this element they can't act on because `tabIndex` makes it tabbable, so remove it.";
+const MESSAGE$16 = "Keyboard users get stuck focusing this element they can't act on because `tabIndex` makes it tabbable, so remove it.";
 const resolveSettings$14 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noNoninteractiveTabindex ?? {} : {};
@@ -20224,7 +21846,7 @@ const noNoninteractiveTabindex = defineRule({
 			if (numeric === null) {
 				if (isNodeOfType(tabIndexValue, "JSXExpressionContainer") && !settings.allowExpressionValues) context.report({
 					node: tabIndex,
-					message: MESSAGE$15
+					message: MESSAGE$16
 				});
 				return;
 			}
@@ -20237,7 +21859,7 @@ const noNoninteractiveTabindex = defineRule({
 			if (!roleAttribute) {
 				context.report({
 					node: tabIndex,
-					message: MESSAGE$15
+					message: MESSAGE$16
 				});
 				return;
 			}
@@ -20251,7 +21873,7 @@ const noNoninteractiveTabindex = defineRule({
 			}
 			context.report({
 				node: tabIndex,
-				message: MESSAGE$15
+				message: MESSAGE$16
 			});
 		} };
 	}
@@ -20669,33 +22291,6 @@ const noPolymorphicChildren = defineRule({
 	} })
 });
 //#endregion
-//#region src/plugin/utils/get-react-doctor-setting.ts
-const readReactDoctorSettingsBag = (settings) => {
-	const reactDoctorSettings = settings?.["react-doctor"];
-	if (typeof reactDoctorSettings !== "object" || reactDoctorSettings === null || Array.isArray(reactDoctorSettings)) return null;
-	return reactDoctorSettings;
-};
-const readOwnPropertyValue = (bag, settingName) => Object.getOwnPropertyDescriptor(bag, settingName)?.value;
-const getReactDoctorStringSetting = (settings, settingName) => {
-	const bag = readReactDoctorSettingsBag(settings);
-	if (!bag) return void 0;
-	const settingValue = readOwnPropertyValue(bag, settingName);
-	return typeof settingValue === "string" ? settingValue : void 0;
-};
-const getReactDoctorNumberSetting = (settings, settingName) => {
-	const bag = readReactDoctorSettingsBag(settings);
-	if (!bag) return void 0;
-	const settingValue = readOwnPropertyValue(bag, settingName);
-	return typeof settingValue === "number" && Number.isFinite(settingValue) ? settingValue : void 0;
-};
-const getReactDoctorStringArraySetting = (settings, settingName) => {
-	const bag = readReactDoctorSettingsBag(settings);
-	if (!bag) return [];
-	const settingValue = readOwnPropertyValue(bag, settingName);
-	if (!Array.isArray(settingValue)) return [];
-	return settingValue.filter((entry) => typeof entry === "string" && entry.length > 0);
-};
-//#endregion
 //#region src/plugin/rules/correctness/no-prevent-default.ts
 const PREVENT_DEFAULT_ELEMENTS = new Map([["form", ["onSubmit"]], ["a", ["onClick"]]]);
 const SERVER_CAPABLE_FRAMEWORKS = new Set([
@@ -20969,7 +22564,7 @@ const noRandomKey = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-react-children.ts
-const MESSAGE$14 = "`React.Children` traversal depends on the runtime child shape, so wrapping or unwrapping a child can silently change what gets visited.";
+const MESSAGE$15 = "`React.Children` traversal depends on the runtime child shape, so wrapping or unwrapping a child can silently change what gets visited.";
 const isChildrenIdentifier = (node, contextNode) => {
 	if (!isNodeOfType(node, "Identifier") || node.name !== "Children") return false;
 	return isImportedFromModule(contextNode, "Children", "react");
@@ -20995,13 +22590,13 @@ const noReactChildren = defineRule({
 		if (isChildrenIdentifier(memberObject, node)) {
 			context.report({
 				node: calleeOuter,
-				message: MESSAGE$14
+				message: MESSAGE$15
 			});
 			return;
 		}
 		if (isReactNamespaceMember(memberObject, node)) context.report({
 			node: calleeOuter,
-			message: MESSAGE$14
+			message: MESSAGE$15
 		});
 	} })
 });
@@ -21324,7 +22919,7 @@ const noRenderPropChildren = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-render-return-value.ts
-const MESSAGE$13 = "Your app breaks in React 19 because `ReactDOM.render` returns nothing there.";
+const MESSAGE$14 = "Your app breaks in React 19 because `ReactDOM.render` returns nothing there.";
 const isReactDomRenderCall = (node) => {
 	if (!isNodeOfType(node.callee, "MemberExpression")) return false;
 	if (!isNodeOfType(node.callee.object, "Identifier")) return false;
@@ -21348,7 +22943,7 @@ const noRenderReturnValue = defineRule({
 		if (!isUsedAsReturnValue(node.parent)) return;
 		context.report({
 			node: node.callee,
-			message: MESSAGE$13
+			message: MESSAGE$14
 		});
 	} })
 });
@@ -21358,7 +22953,7 @@ const isUndefinedNode = (node) => {
 	if (node === null || node === void 0) return true;
 	return isNodeOfType(node, "Identifier") && node.name === "undefined";
 };
-const getNodeText = (node) => {
+const getNodeText$1 = (node) => {
 	if (!node) return "";
 	return JSON.stringify(node, (key, value) => {
 		if (key === "parent" || key === "loc" || key === "range" || key === "start" || key === "end") return;
@@ -21376,7 +22971,7 @@ const isSetStateToInitialValue = (analysis, setterRef) => {
 	if (isUndefinedNode(setStateToValue) && isUndefinedNode(stateInitialValue)) return true;
 	if (setStateToValue == null && stateInitialValue == null) return true;
 	if (setStateToValue && !stateInitialValue || !setStateToValue && stateInitialValue) return false;
-	return getNodeText(setStateToValue) === getNodeText(stateInitialValue);
+	return getNodeText$1(setStateToValue) === getNodeText$1(stateInitialValue);
 };
 const countUseStates = (analysis, componentNode) => {
 	if (!componentNode) return 0;
@@ -21439,173 +23034,6 @@ const noScaleFromZero = defineRule({
 		}
 	} })
 });
-//#endregion
-//#region src/plugin/constants/security.ts
-const AUTH_FUNCTION_NAMES = new Set([
-	"auth",
-	"getSession",
-	"getServerSession",
-	"getUser",
-	"requireAuth",
-	"checkAuth",
-	"verifyAuth",
-	"authenticate",
-	"currentUser",
-	"getAuth",
-	"validateSession"
-]);
-const GENERIC_AUTH_METHOD_NAMES = new Set(["getUser"]);
-const AUTH_OBJECT_PATTERN = /(?:^|[._])(?:auth|authn|authz|clerk|session|jwt|firebase|supabase|nextauth|kinde|workos|stytch|descope|cognito|propelauth|lucia)/i;
-const SECRET_PATTERNS = [
-	/^sk_live_/,
-	/^sk_test_/,
-	/^AKIA[0-9A-Z]{16}$/,
-	/^ghp_[a-zA-Z0-9]{36}$/,
-	/^gho_[a-zA-Z0-9]{36}$/,
-	/^github_pat_/,
-	/^glpat-/,
-	/^xox[bporas]-/,
-	/^sk-[a-zA-Z0-9]{32,}$/
-];
-const PUBLIC_CLIENT_KEY_PATTERNS = [
-	/^appl_/,
-	/^goog_/,
-	/^amzn_/,
-	/^strp_/,
-	/^pk_(?:live|test)_/,
-	/^sb_publishable_/,
-	/^phc_/,
-	/^public-token-(?:live|test)-/,
-	/^pk\.eyJ/
-];
-const SECRET_UNAMBIGUOUS_PLACEHOLDER_VALUE_PATTERNS = [
-	/^[\s._\-*\u2022xX]{8,}$/,
-	/(?:\.{3,}|\u2026|[*\u2022]{3,})/,
-	/(?:^|[_\-\s])(?:your|redacted|masked|placeholder|replace[_\-\s]?me|changeme)(?:$|[_\-\s])/i,
-	/<[^>]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^>]*>/i,
-	/\[[^\]]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^\]]*\]/i,
-	/\{[^}]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^}]*\}/i
-];
-const SECRET_CONTEXTUAL_PLACEHOLDER_VALUE_PATTERNS = [/(?:^|[_\-\s])(?:example|sample|dummy)(?:$|[_\-\s])/i];
-const SECRET_PLACEHOLDER_CONTEXT_PATTERN = /(?:placeholder|example|sample|dummy|masked|redacted|mask)/i;
-const SECRET_VARIABLE_PATTERN = /(?:api_?key|secret|token|password|credential|auth)/i;
-const SECRET_TOOLING_FILE_PATTERN = /(?:^|\/)[^/]+\.config\.[cm]?[jt]s$/;
-const SECRET_TOOLING_RC_FILE_PATTERN = /(?:^|\/)(?:\.[a-z-]+rc|[a-z-]+\.rc)\.[cm]?[jt]s$/;
-const SECRET_TEST_FILE_PATTERN = /(?:^|\/)[^/]+\.(?:test|spec|stories|story|fixture|fixtures)\.[cm]?[jt]sx?$/;
-const SECRET_SERVER_FILE_SUFFIX_PATTERN = /(?:^|\/)[^/]+\.server\.[cm]?[jt]sx?$/;
-const SECRET_SERVER_ENTRY_FILE_PATTERN = /(?:^|\/)(?:middleware|proxy|route)\.[cm]?[jt]sx?$/;
-const SECRET_NEXT_PAGES_API_FILE_PATTERN = /(?:^|\/)pages\/api\/.+\.[cm]?[jt]sx?$/;
-const SECRET_CLIENT_FILE_SUFFIX_PATTERN = /(?:^|\/)[^/]+\.(?:client|browser|web)\.[cm]?[jt]sx?$/;
-const SECRET_CLIENT_ENTRY_FILE_PATTERN = /(?:^|\/)(?:src\/)?(?:main|index|[Aa]pp|client)\.[cm]?[jt]sx?$/;
-const SECRET_SERVER_DIRECTORY_NAMES = new Set([
-	"backend",
-	"functions",
-	"lambdas",
-	"lambda",
-	"middleware",
-	"server",
-	"servers"
-]);
-const SECRET_SERVER_SOURCE_ROOT_OWNER_NAMES = new Set([
-	"api",
-	"backend",
-	"edge",
-	"function",
-	"functions",
-	"lambda",
-	"lambdas",
-	"server",
-	"servers",
-	"worker",
-	"workers"
-]);
-const SECRET_TEST_DIRECTORY_NAMES = new Set([
-	"__fixtures__",
-	"__mocks__",
-	"__tests__",
-	"fixtures",
-	"mocks",
-	"test",
-	"tests"
-]);
-const SECRET_TOOLING_DIRECTORY_NAMES = new Set([
-	"bin",
-	"config",
-	"configs",
-	"script",
-	"scripts",
-	"tooling",
-	"tools"
-]);
-const SECRET_CLIENT_SOURCE_DIRECTORY_NAMES = new Set([
-	"components",
-	"features",
-	"hooks",
-	"pages",
-	"ui",
-	"views",
-	"widgets"
-]);
-const SECRET_FALSE_POSITIVE_SUFFIXES = new Set([
-	"modal",
-	"label",
-	"text",
-	"title",
-	"name",
-	"id",
-	"url",
-	"path",
-	"route",
-	"page",
-	"param",
-	"field",
-	"column",
-	"header",
-	"placeholder",
-	"prefix",
-	"description",
-	"type",
-	"icon",
-	"class",
-	"style",
-	"variant",
-	"event",
-	"action",
-	"status",
-	"state",
-	"mode",
-	"flag",
-	"option",
-	"config",
-	"message",
-	"error",
-	"display",
-	"view",
-	"component",
-	"element",
-	"container",
-	"wrapper",
-	"button",
-	"link",
-	"input",
-	"select",
-	"dialog",
-	"menu",
-	"form",
-	"step",
-	"index",
-	"count",
-	"length",
-	"role",
-	"scope",
-	"context",
-	"provider",
-	"ref",
-	"handler",
-	"query",
-	"schema",
-	"constant"
-]);
 //#endregion
 //#region src/plugin/utils/classify-secret-file-exposure.ts
 const SOURCE_FILE_EXTENSION_PATTERN = /\.[cm]?[jt]sx?$/;
@@ -21675,10 +23103,16 @@ const classifySecretFileExposure = (filename, options = {}) => {
 	return "unknown";
 };
 //#endregion
-//#region src/plugin/utils/get-identifier-trailing-word.ts
-const getIdentifierTrailingWord = (identifierName) => {
-	return identifierName.match(/[A-Z]+(?=[A-Z][a-z]|\b)|[A-Z]?[a-z]+|\d+/g)?.at(-1)?.toLowerCase() ?? identifierName.toLowerCase();
+//#region src/plugin/utils/tokenize-identifier-words.ts
+const IDENTIFIER_WORD_PATTERN = /[A-Z]+(?=[A-Z][a-z]|\b)|[A-Z]?[a-z]+|\d+/g;
+const tokenizeIdentifierWords = (identifierName) => {
+	const words = identifierName.match(IDENTIFIER_WORD_PATTERN);
+	if (!words) return [];
+	return words.map((word) => word.toLowerCase());
 };
+//#endregion
+//#region src/plugin/utils/get-identifier-trailing-word.ts
+const getIdentifierTrailingWord = (identifierName) => tokenizeIdentifierWords(identifierName).at(-1) ?? identifierName.toLowerCase();
 //#endregion
 //#region src/plugin/constants/tanstack.ts
 const TANSTACK_ROUTE_FILE_PATTERN = /\/routes\//;
@@ -21707,9 +23141,10 @@ const TANSTACK_ROUTE_CREATION_FUNCTIONS = new Set([
 	"createRootRouteWithContext"
 ]);
 const TANSTACK_SERVER_FN_NAMES = new Set(["createServerFn"]);
+const TANSTACK_INPUT_VALIDATOR_METHOD_NAMES = new Set(["validator", "inputValidator"]);
 const TANSTACK_MIDDLEWARE_METHOD_ORDER = [
 	"middleware",
-	"inputValidator",
+	"validator",
 	"client",
 	"server",
 	"handler"
@@ -22206,7 +23641,7 @@ const getParentComponent = (node) => {
 };
 //#endregion
 //#region src/plugin/rules/react-builtins/no-set-state.ts
-const MESSAGE$12 = "`this.setState` keeps local class state in a project that forbids it, so state ownership becomes harder to reason about.";
+const MESSAGE$13 = "`this.setState` keeps local class state in a project that forbids it, so state ownership becomes harder to reason about.";
 const noSetState = defineRule({
 	id: "no-set-state",
 	title: "Local class state forbidden",
@@ -22221,7 +23656,7 @@ const noSetState = defineRule({
 		if (!getParentComponent(node)) return;
 		context.report({
 			node: node.callee,
-			message: MESSAGE$12
+			message: MESSAGE$13
 		});
 	} })
 });
@@ -22383,7 +23818,7 @@ const isAbstractRole = (openingElement, settings) => {
 };
 //#endregion
 //#region src/plugin/rules/a11y/no-static-element-interactions.ts
-const MESSAGE$11 = "Screen reader users can't tell this click handler is interactive because it has no `role`, so add a `role` or use a button or link.";
+const MESSAGE$12 = "Screen reader users can't tell this click handler is interactive because it has no `role`, so add a `role` or use a button or link.";
 const DEFAULT_HANDLERS = [
 	"onClick",
 	"onMouseDown",
@@ -22443,7 +23878,7 @@ const noStaticElementInteractions = defineRule({
 			if (!roleAttribute || !roleAttribute.value) {
 				context.report({
 					node: node.name,
-					message: MESSAGE$11
+					message: MESSAGE$12
 				});
 				return;
 			}
@@ -22453,17 +23888,64 @@ const noStaticElementInteractions = defineRule({
 				if (firstRole && (isInteractiveRole(firstRole) || isNonInteractiveRole(firstRole))) return;
 				context.report({
 					node: node.name,
-					message: MESSAGE$11
+					message: MESSAGE$12
 				});
 				return;
 			}
 			if (isNodeOfType(attributeValue, "JSXExpressionContainer") && settings.allowExpressionValues) return;
 			context.report({
 				node: node.name,
-				message: MESSAGE$11
+				message: MESSAGE$12
 			});
 		} };
 	}
+});
+//#endregion
+//#region src/plugin/rules/react-builtins/no-string-false-on-boolean-attribute.ts
+const BOOLEAN_ATTRIBUTES = new Set([
+	"disabled",
+	"checked",
+	"readonly",
+	"required",
+	"selected",
+	"multiple",
+	"autofocus",
+	"autoplay",
+	"controls",
+	"loop",
+	"muted",
+	"open",
+	"reversed",
+	"default",
+	"novalidate",
+	"formnovalidate",
+	"playsinline",
+	"itemscope",
+	"allowfullscreen"
+]);
+const noStringFalseOnBooleanAttribute = defineRule({
+	id: "no-string-false-on-boolean-attribute",
+	title: "String true/false on a boolean attribute",
+	severity: "warn",
+	recommendation: "Use the boolean form on boolean attributes: `disabled` / `disabled={true}` / `disabled={false}`, not `disabled=\"false\"`. A non-empty string is truthy, so `=\"false\"` actually turns the attribute ON.",
+	create: (context) => ({ JSXOpeningElement(node) {
+		if (!isNodeOfType(node.name, "JSXIdentifier")) return;
+		const firstCharacter = node.name.name.charCodeAt(0);
+		if (firstCharacter < 97 || firstCharacter > 122) return;
+		for (const attribute of node.attributes) {
+			if (!isNodeOfType(attribute, "JSXAttribute")) continue;
+			if (!isNodeOfType(attribute.name, "JSXIdentifier")) continue;
+			if (!BOOLEAN_ATTRIBUTES.has(attribute.name.name.toLowerCase())) continue;
+			const value = getJsxPropStringValue(attribute);
+			if (value !== "false" && value !== "true") continue;
+			const attributeName = attribute.name.name;
+			const guidance = value === "false" ? `which React treats as truthy, so the attribute is applied even though you wrote "false". Use \`${attributeName}={false}\` (or omit the attribute) to keep it off` : `but a boolean attribute takes a boolean, not the string "true". Use \`${attributeName}\` or \`${attributeName}={true}\``;
+			context.report({
+				node: attribute,
+				message: `\`${attributeName}="${value}"\` passes the string "${value}", ${guidance}.`
+			});
+		}
+	} })
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-string-refs.ts
@@ -22514,6 +23996,27 @@ const noStringRefs = defineRule({
 			}
 		};
 	}
+});
+//#endregion
+//#region src/plugin/rules/js-performance/no-sync-xhr.ts
+const MESSAGE$11 = "A synchronous `XMLHttpRequest` (`.open(method, url, false)`) freezes the main thread until the request finishes, blocking all rendering and input. Use `fetch()` or an async XHR (`open(method, url, true)`).";
+const isFalseLiteral = (node) => isNodeOfType(node, "Literal") && node.value === false;
+const noSyncXhr = defineRule({
+	id: "no-sync-xhr",
+	title: "Synchronous XMLHttpRequest",
+	severity: "warn",
+	recommendation: "Never open an XMLHttpRequest synchronously (`async` = `false`). It blocks the main thread. Use `fetch()` or pass `true` and handle the response asynchronously.",
+	create: (context) => ({ CallExpression(node) {
+		const callee = node.callee;
+		if (!isNodeOfType(callee, "MemberExpression") || callee.computed) return;
+		if (!isNodeOfType(callee.property, "Identifier") || callee.property.name !== "open") return;
+		const asyncArgument = node.arguments?.[2];
+		if (!asyncArgument || !isFalseLiteral(stripParenExpression(asyncArgument))) return;
+		context.report({
+			node,
+			message: MESSAGE$11
+		});
+	} })
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/no-this-in-sfc.ts
@@ -23925,15 +25428,8 @@ const expressionContainsJsxOrCreateElement = (root) => {
 	visit(root);
 	return found;
 };
-const classExtendsReactComponent$1 = (classNode) => {
-	const superClass = classNode.superClass;
-	if (!superClass) return false;
-	if (isNodeOfType(superClass, "Identifier") && (superClass.name === "Component" || superClass.name === "PureComponent")) return true;
-	if (isNodeOfType(superClass, "MemberExpression") && isNodeOfType(superClass.object, "Identifier") && superClass.object.name === "React" && isNodeOfType(superClass.property, "Identifier") && (superClass.property.name === "Component" || superClass.property.name === "PureComponent")) return true;
-	return false;
-};
 const isReactClassComponent = (classNode) => {
-	if (classExtendsReactComponent$1(classNode)) return true;
+	if (isEs6Component(classNode)) return true;
 	return expressionContainsJsxOrCreateElement(classNode);
 };
 const findEnclosingComponent = (node) => {
@@ -24093,7 +25589,7 @@ const noUnstableNestedComponents = defineRule({
 	create: (context) => {
 		const settings = resolveSettings$8(context.settings);
 		const renderPropRegex = compileGlob(settings.propNamePattern);
-		const reportCandidate = (candidateNode, reportNode, candidateName) => {
+		const reportCandidate = (candidateNode, reportNode) => {
 			if (isFirstArgumentOfHocCall(candidateNode)) return;
 			if (isReturnOfMapCallback(candidateNode)) return;
 			const propInfo = isComponentDeclaredInProp(candidateNode);
@@ -24114,7 +25610,7 @@ const noUnstableNestedComponents = defineRule({
 			const inferredName = inferFunctionLikeName(node);
 			const propInfo = isComponentDeclaredInProp(node);
 			if (!(inferredName !== null && isReactComponentName(inferredName) || propInfo !== null || isObjectCallbackCandidate(node))) return;
-			reportCandidate(node, node, inferredName);
+			reportCandidate(node, node);
 		};
 		return {
 			FunctionDeclaration: checkFunctionLike,
@@ -24124,18 +25620,18 @@ const noUnstableNestedComponents = defineRule({
 				if (!node.id) return;
 				if (!isReactComponentName(node.id.name)) return;
 				if (!isReactClassComponent(node)) return;
-				reportCandidate(node, node, node.id.name);
+				reportCandidate(node, node);
 			},
 			ClassExpression(node) {
 				const inferredName = node.id?.name ?? inferFunctionLikeName(node);
 				if (!inferredName || !isReactComponentName(inferredName)) return;
 				if (!isReactClassComponent(node)) return;
-				reportCandidate(node, node, inferredName);
+				reportCandidate(node, node);
 			},
 			CallExpression(node) {
 				if (!isHocCallee$1(node)) return;
 				if (!hocCallContainsComponent(node)) return;
-				reportCandidate(node, node, null);
+				reportCandidate(node, node);
 			}
 		};
 	}
@@ -24343,6 +25839,32 @@ const noZIndex9999 = defineRule({
 		}
 	})
 });
+const nosqlInjectionRisk = defineRule({
+	id: "nosql-injection-risk",
+	title: "NoSQL query accepts operator-shaped input",
+	severity: "warn",
+	recommendation: "Coerce scalar fields before querying, reject operator keys from client input, and avoid `$where` or request-derived regexes.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionFilePath(file.relativePath, DATABASE_SOURCE_FILE_PATTERN),
+		pattern: /\$where\s*['"]?\s*:\s*(?:f?['"`][^'"`]{0,200}\$\{|function|f['"])|\.find\s*\(\s*JSON\.parse\s*\(\s*(?:req|request)\.|\.aggregate\s*\(\s*\[?\s*\{[^}]{0,400}\$where|\bnew\s+RegExp\s*\(\s*(?:req|request)\.|\$regex['"]?\s*:\s*(?:req|request)\./i,
+		message: "Code appears to pass raw JSON, regex, or `$where` style input into a NoSQL query."
+	})
+});
+//#endregion
+//#region src/plugin/utils/is-framework-route-or-special-filename.ts
+const sourceFileExtensionGroup = NEXTJS_SOURCE_FILE_EXTENSION_GROUP;
+const FRAMEWORK_ROUTE_FILE_PATTERNS = [
+	new RegExp(`^(page|layout|loading|error|not-found|template|default|global-error|route|_app|_document|_error)\\.${sourceFileExtensionGroup}$`),
+	new RegExp(`^(_layout|\\+html|\\+not-found|\\+native-intent)\\.${sourceFileExtensionGroup}$`),
+	new RegExp(`(?:^__root|\\.lazy)\\.${sourceFileExtensionGroup}$`),
+	new RegExp(`^(root|entry\\.client|entry\\.server)\\.${sourceFileExtensionGroup}$`)
+];
+const isFrameworkRouteOrSpecialFilename = (rawFilename) => {
+	if (!rawFilename) return false;
+	if (isNextjsMetadataImageRouteFilename(rawFilename)) return true;
+	const basename = path.basename(rawFilename);
+	return FRAMEWORK_ROUTE_FILE_PATTERNS.some((pattern) => pattern.test(basename));
+};
 //#endregion
 //#region src/plugin/rules/react-builtins/only-export-components-tables.ts
 const NOT_REACT_COMPONENT_EXPRESSION_TYPES = new Set([
@@ -24395,32 +25917,6 @@ const ENTRY_POINT_BASENAMES = new Set([
 	"client.jsx",
 	"server.tsx",
 	"server.jsx",
-	"page.tsx",
-	"page.jsx",
-	"layout.tsx",
-	"layout.jsx",
-	"loading.tsx",
-	"loading.jsx",
-	"error.tsx",
-	"error.jsx",
-	"not-found.tsx",
-	"not-found.jsx",
-	"template.tsx",
-	"template.jsx",
-	"default.tsx",
-	"default.jsx",
-	"global-error.tsx",
-	"global-error.jsx",
-	"route.tsx",
-	"route.jsx",
-	"_layout.tsx",
-	"_layout.jsx",
-	"_app.tsx",
-	"_app.jsx",
-	"_document.tsx",
-	"_document.jsx",
-	"_error.tsx",
-	"_error.jsx",
 	"app.tsx",
 	"app.jsx",
 	"App.tsx",
@@ -24575,13 +26071,6 @@ const skipTsExpression = (expression) => {
 	if (expression.type === "TSAsExpression" || expression.type === "TSSatisfiesExpression" || expression.type === "TSNonNullExpression") return skipTsExpression(expression.expression);
 	return expression;
 };
-const classExtendsReactComponent = (classNode) => {
-	const superClass = classNode.superClass;
-	if (!superClass) return false;
-	if (isNodeOfType(superClass, "Identifier") && (superClass.name === "Component" || superClass.name === "PureComponent")) return true;
-	if (isNodeOfType(superClass, "MemberExpression") && isNodeOfType(superClass.object, "Identifier") && superClass.object.name === "React" && isNodeOfType(superClass.property, "Identifier") && (superClass.property.name === "Component" || superClass.property.name === "PureComponent")) return true;
-	return false;
-};
 const isReactCreateContext = (initializer) => {
 	if (!initializer) return false;
 	const expression = skipTsExpression(initializer);
@@ -24713,6 +26202,7 @@ const isFileNameAllowed = (filename, checkJS) => {
 	if (filename.includes(".test.") || filename.includes(".spec.") || filename.includes(".cy.") || filename.includes(".stories.")) return false;
 	for (const segment of NON_FAST_REFRESH_PATH_SEGMENTS) if (filename.includes(segment)) return false;
 	if (isEntryPointFile(filename)) return false;
+	if (isFrameworkRouteOrSpecialFilename(filename)) return false;
 	if (isAssetOrUtilityFile(filename)) return false;
 	if (filename.endsWith(".tsx") || filename.endsWith(".jsx")) return true;
 	if (checkJS && filename.endsWith(".js")) return true;
@@ -24771,7 +26261,7 @@ const onlyExportComponents = defineRule({
 						if (stripped.id) {
 							const idNode = stripped.id;
 							isExportedNodeIds.add(stripped);
-							if (isReactComponentName(idNode.name) && classExtendsReactComponent(stripped)) hasReactExport = true;
+							if (isReactComponentName(idNode.name) && isEs6Component(stripped)) hasReactExport = true;
 							else exports.push({
 								kind: "non-component",
 								reportNode: idNode
@@ -24831,7 +26321,7 @@ const onlyExportComponents = defineRule({
 							exports.push(classifyExport(declaration.id.name, declaration.id, true, null, state));
 						} else if (isNodeOfType(declaration, "ClassDeclaration") && declaration.id) {
 							isExportedNodeIds.add(declaration);
-							if (isReactComponentName(declaration.id.name) && classExtendsReactComponent(declaration)) exports.push({ kind: "react-component" });
+							if (isReactComponentName(declaration.id.name) && isEs6Component(declaration)) exports.push({ kind: "react-component" });
 							else exports.push({
 								kind: "non-component",
 								reportNode: declaration.id
@@ -24902,6 +26392,116 @@ const onlyExportComponents = defineRule({
 				message: NO_EXPORT_MESSAGE
 			});
 		} };
+	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/package-metadata-secret.ts
+const packageMetadataSecret = defineRule({
+	id: "package-metadata-secret",
+	title: "Secret-like package metadata",
+	severity: "warn",
+	recommendation: "Keep secrets out of package metadata and generated reports; they are often published to registries, logs, or browser artifacts.",
+	scan: (file) => {
+		if (!file.relativePath.endsWith("package.json")) return [];
+		const pattern = findSuspiciousPublicEnvSecretNamePattern(file.content) ?? SECRET_VALUE_PATTERNS.find((candidate) => candidate.test(file.content));
+		if (pattern === void 0) return [];
+		const location = getMatchLocation(file.content, pattern);
+		return [{
+			message: "Package metadata contains secret-like values or public env secret names.",
+			line: location.line,
+			column: location.column
+		}];
+	}
+});
+const pathTraversalRisk = defineRule({
+	id: "path-traversal-risk",
+	title: "Filesystem path uses caller input",
+	severity: "warn",
+	recommendation: "Resolve paths against a fixed base directory, reject traversal after normalization, and map user-visible identifiers to server-owned paths.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath) && !isDevToolingPath(file.relativePath),
+		pattern: /\b(?:readFile|readFileSync|writeFile|writeFileSync)\s*\(\s*(?:req\.|request\.|params\.|query\.|body\.|parsed\.|`[^`]*(?<![-.\w$'"])(?:req\.|request\.|params\.|query\.|body\.))|\bpath\.(?:join|resolve)\s*\([^)]*(?<![-.\w$'"])(?:req\.|request\.|params\.|query\.|body\.|parsed\.)/,
+		message: "Filesystem access appears to use request, query, params, or body data as part of the path."
+	})
+});
+//#endregion
+//#region src/plugin/rules/security-scan/plugin-update-trust-risk.ts
+const UPDATER_TRUST_PATTERN = /\b(?:repoUrl|updateUrl|UpdateApp|InstallApp|auto.?updater?|installer|curl(?!\s+(?:-T\b|--upload-file\b))|wget)\b[\s\S]{0,250}(?:\.(?:zip|exe|dmg|appimage|msi|deb|rpm)\b|\.tar\.gz\b|\|\s*(?:bash|sh)\b)/i;
+const CHECKSUM_VERIFICATION_PATTERN = /sha(?:256|512|1)sum|--checksum|checksum=|EXPECTED_SHA|gpg\s+--verify|\.sha(?:256|512)\b/i;
+const EXECUTION_CONTEXT_PATTERN = /\b(?:child_process|childProcess|execa|os\.system|subprocess\.|Deno\.run|autoUpdater|electron-updater)\b|\b(?:exec(?:File)?(?:Sync)?|spawn(?:Sync)?)\s*\(/;
+const pluginUpdateTrustRisk = defineRule({
+	id: "plugin-update-trust-risk",
+	title: "Plugin or updater trust boundary risk",
+	severity: "warn",
+	recommendation: "Require signed updates/plugins, pin trusted repositories, verify hashes before execution, and keep custom repository installs behind explicit warnings.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath) && !isConfigOrCiPath(file.relativePath)) return [];
+		const content = getScannableContent(file);
+		if (!UPDATER_TRUST_PATTERN.test(content)) return [];
+		if (CHECKSUM_VERIFICATION_PATTERN.test(content)) return [];
+		if (SOURCE_FILE_PATTERN.test(file.relativePath) && !EXECUTION_CONTEXT_PATTERN.test(content)) return [];
+		const location = getMatchLocation(content, UPDATER_TRUST_PATTERN);
+		return [{
+			message: "Code appears to download, install, update, or execute plugin/updater content across a trust boundary.",
+			line: location.line,
+			column: location.column
+		}];
+	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/postmessage-origin-risk.ts
+const POSTMESSAGE_ORIGIN_CHECK_PATTERN = /origin(?!al)|\.source\s*[!=]==?/i;
+const MESSAGE_DATA_READ_PATTERN = /\b(?:event|e|evt|msg|message)\.data\b/;
+const SAME_APPLICATION_CHANNEL_TARGET_PATTERN = /port\d?\b|worker|channel|broadcast|socket|\bws\b|\bsse\b|eventsource|^self\.|^source\./i;
+const WORKER_FILE_PATH_PATTERN = /worker/i;
+const getNodeStartIndex = (node) => "start" in node && typeof node.start === "number" ? node.start : -1;
+const getNodeText = (content, node) => {
+	const startIndex = getNodeStartIndex(node);
+	const endIndex = "end" in node && typeof node.end === "number" ? node.end : -1;
+	if (startIndex < 0 || endIndex < 0) return "";
+	return content.slice(startIndex, endIndex);
+};
+const getMessageHandlerTarget = (content, node) => {
+	if (node.type === "CallExpression") {
+		const calleeText = isAstNode(node.callee) ? getNodeText(content, node.callee) : "";
+		if (!calleeText.endsWith("addEventListener")) return null;
+		const firstArgument = node.arguments[0];
+		return isAstNode(firstArgument) && firstArgument.type === "Literal" && firstArgument.value === "message" ? calleeText : null;
+	}
+	if (node.type === "AssignmentExpression" && isAstNode(node.left)) {
+		const leftText = getNodeText(content, node.left);
+		return leftText.endsWith(".onmessage") ? leftText : null;
+	}
+	return null;
+};
+const postmessageOriginRisk = defineRule({
+	id: "postmessage-origin-risk",
+	title: "postMessage handler without origin check",
+	severity: "warn",
+	recommendation: "Validate `event.origin` against an exact allowlist before using `event.data`, especially when an iframe or parent window can be attacker-controlled.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		if (WORKER_FILE_PATH_PATTERN.test(file.relativePath)) return [];
+		const ast = parseSourceText(file.absolutePath, file.content);
+		if (ast === null) return [];
+		const findings = [];
+		walkAst(ast, (node) => {
+			const targetText = getMessageHandlerTarget(file.content, node);
+			if (targetText === null) return;
+			if (SAME_APPLICATION_CHANNEL_TARGET_PATTERN.test(targetText)) return;
+			const nodeText = getNodeText(file.content, node);
+			const messageDataIndex = nodeText.search(MESSAGE_DATA_READ_PATTERN);
+			if (messageDataIndex < 0) return;
+			const originCheckIndex = nodeText.search(POSTMESSAGE_ORIGIN_CHECK_PATTERN);
+			if (originCheckIndex >= 0 && originCheckIndex < messageDataIndex) return;
+			const location = getLocationAtIndex(file.content, getNodeStartIndex(node));
+			findings.push({
+				message: "A message event handler reads cross-window messages without an obvious origin check.",
+				line: location.line,
+				column: location.column
+			});
+		});
+		return findings;
 	}
 });
 //#endregion
@@ -26025,7 +27625,54 @@ const preferUseReducer = defineRule({
 	}
 });
 //#endregion
+//#region src/plugin/rules/security-scan/utils/is-public-debug-artifact-path.ts
+const LOCALE_DIRECTORY_PATTERN = /(?:^|\/)(?:locales?|i18n|lang|langs|translations?)\//i;
+const isPublicDebugArtifactPath = (relativePath) => isBrowserArtifactPath(relativePath, GENERATED_BUNDLE_FILE_PATTERN.test(relativePath)) && !LOCALE_DIRECTORY_PATTERN.test(relativePath) && /(?:^|\/)(?:\.env(?:\.[^/]*)?|[^/]*(?:debug|crash|trace|stack|report|dump|phpinfo)[^/]*\.(?:txt|log|json|html?)|[^/]+\.log)$/i.test(relativePath);
+//#endregion
+//#region src/plugin/rules/security-scan/public-debug-artifact.ts
+const publicDebugArtifact = defineRule({
+	id: "public-debug-artifact",
+	title: "Public debug artifact",
+	severity: "warn",
+	recommendation: "Remove debug artifacts from public output; logs and dumps often reveal source paths, internal routes, tokens, or environment snapshots.",
+	scan: (file) => {
+		if (!isPublicDebugArtifactPath(file.relativePath)) return [];
+		const finding = {
+			message: "A browser-reachable debug, log, dump, report, or env artifact is present.",
+			line: 1,
+			column: 1
+		};
+		return [SECRET_VALUE_PATTERNS.some((pattern) => pattern.test(file.content)) ? {
+			...finding,
+			severity: "error"
+		} : finding];
+	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/public-env-secret-name.ts
+const DOCS_DIRECTORY_PATTERN = /(?:^|\/)docs?\//i;
+const publicEnvSecretName = defineRule({
+	id: "public-env-secret-name",
+	title: "Secret-like public env variable",
+	severity: "warn",
+	recommendation: "Public env prefixes are inlined into browser bundles. Rename public values to non-secret names, and keep tokens, passwords, private keys, and service-role credentials server-only.",
+	scan: (file) => {
+		if (!isClientSourcePath(file.relativePath)) return [];
+		if (DOCS_DIRECTORY_PATTERN.test(file.relativePath)) return [];
+		const pattern = findSuspiciousPublicEnvSecretNamePattern(file.content);
+		if (pattern === void 0) return [];
+		const location = getMatchLocation(file.content, pattern);
+		return [{
+			message: "Client code references a public env variable whose name looks like a secret or privileged credential.",
+			line: location.line,
+			column: location.column
+		}];
+	}
+});
+//#endregion
 //#region src/plugin/rules/tanstack-query/query-destructure-result.ts
+const TANSTACK_QUERY_PACKAGE_PATTERN = /^@tanstack\/[\w-]*query[\w-]*$/;
+const isTanstackQuerySource = (source) => TANSTACK_QUERY_PACKAGE_PATTERN.test(source) || source === "react-query";
 const queryDestructureResult = defineRule({
 	id: "query-destructure-result",
 	title: "Whole query result subscribes to every field",
@@ -26038,6 +27685,8 @@ const queryDestructureResult = defineRule({
 		if (!node.init || !isNodeOfType(node.init, "CallExpression")) return;
 		const calleeName = isNodeOfType(node.init.callee, "Identifier") ? node.init.callee.name : null;
 		if (!calleeName || !TANSTACK_QUERY_HOOKS.has(calleeName)) return;
+		const importSource = getImportSourceForName(node, calleeName);
+		if (importSource !== null && !isTanstackQuerySource(importSource)) return;
 		context.report({
 			node: node.id,
 			message: `Destructure ${calleeName}() results instead of assigning the whole query object, so TanStack Query only subscribes to the fields you use.`
@@ -26216,6 +27865,30 @@ const queryStableQueryClient = defineRule({
 			}
 		};
 	}
+});
+const rawSqlInjectionRisk = defineRule({
+	id: "raw-sql-injection-risk",
+	title: "Raw SQL built outside parameter binding",
+	severity: "warn",
+	recommendation: "Keep user input in driver parameters or ORM bind variables. Avoid unsafe/raw SQL helpers and string interpolation for queries.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionScriptSourcePath(file.relativePath),
+		pattern: [
+			/\$queryRawUnsafe\s*\(/,
+			/\$executeRawUnsafe\s*\(/,
+			/\bPrisma\.raw\s*\((?!\s*(?:["'][^"'\n]*["']\s*[,)]|`[^`$]*`))/,
+			/\bsql\.\s*(?:raw|unsafe)\s*\((?!\s*(?:["'][^"'\n]*["']\s*[,)]|`[^`$]*`))/,
+			/\b(?:client|pool|conn)\.query\s*\(\s*['"`]\s*(?:SELECT|INSERT|UPDATE|DELETE)\b[^)]{0,400}\$\{(?!\s*[\w$.]*(?:sanitiz|escape|quote)[\w$]*\s*\()/i,
+			/\.query\s*\(\s*['"`][^'"`]{0,200}['"`]\s*\+/,
+			/\.(?:where|orderBy|having)Raw\s*\((?!\s*(?:["'][^"'\n]*["']\s*[,)]|`[^`$]*`))/,
+			/\bcursor\.execute\s*\(\s*f['"]/,
+			/\bcursor\.execute\s*\(\s*(?:"[^"]{0,400}"|'[^']{0,400}')\s*(?:%|\.format\s*\(|\+)/,
+			/\b(?:engine|session)\.execute\s*\(\s*(?:text\s*\(\s*)?f['"]/,
+			/\$[\w]+->(?:query|exec|prepare|executeQuery|executeStatement|createQuery|createNativeQuery)\s*\(\s*(?:"[^"]{0,400}"|'[^']{0,400}')\s*\.\s*\$/,
+			/mysqli_query\s*\(\s*[^,]+,\s*(?:"[^"]{0,400}"|'[^']{0,400}')\s*\.\s*\$/
+		],
+		message: "Code uses a raw SQL escape hatch or string-built query shape that can bypass parameter binding."
+	})
 });
 //#endregion
 //#region src/plugin/rules/architecture/react-compiler-no-manual-memoization.ts
@@ -26845,6 +28518,46 @@ const renderingUsetransitionLoading = defineRule({
 			message: `This adds an extra render because useState for "${stateVariableName}" re-renders just for the loading flag, so if it's a state change & not a data fetch, use useTransition instead`
 		});
 	} })
+});
+//#endregion
+//#region src/plugin/rules/security-scan/utils/is-repository-secret-file-path.ts
+const isRepositorySecretFilePath = (relativePath) => DOTENV_FILE_PATTERN.test(relativePath) || /(?:^|\/)\.npmrc$/.test(relativePath) || /(?:^|\/)[^/]*(?:credential|credentials|service-account|serviceAccount|firebase-admin|google-service-account|gcp-service-account)[^/]*\.(?:json|env|pem|key)$/i.test(relativePath);
+//#endregion
+//#region src/plugin/rules/security-scan/repository-secret-file.ts
+const isRepositorySecretExamplePath = (relativePath) => /(?:^|\/)\.env\.(?:example|sample|template|dist|defaults?)$|(?:^|\/)[^/]*(?:example|sample|template)[^/]*\.(?:env|json|pem|key)$/i.test(relativePath);
+const repositorySecretFile = defineRule({
+	id: "repository-secret-file",
+	title: "Secret file checked into repository",
+	severity: "error",
+	committedFilesOnly: true,
+	recommendation: "Remove committed env files, service-account credentials, npm auth tokens, and webhook URLs; rotate exposed values and keep only redacted examples in source.",
+	scan: (file) => {
+		if (!isRepositorySecretFilePath(file.relativePath)) return [];
+		if (isRepositorySecretExamplePath(file.relativePath)) return [];
+		if (TEST_CONTEXT_PATTERN.test(file.relativePath)) return [];
+		const pattern = SECRET_VALUE_PATTERNS.find((candidate) => candidate.test(file.content)) ?? findSuspiciousPublicEnvSecretNamePattern(file.content);
+		if (pattern === void 0) return [];
+		const location = getMatchLocation(file.content, pattern);
+		return [{
+			message: "A repository credential/config file contains secret-looking values.",
+			line: location.line,
+			column: location.column
+		}];
+	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/request-body-mass-assignment.ts
+const REQUEST_INPUT_SOURCE = "(?:req|request|ctx\\.req|ctx\\.request)\\.(?:body|query|params)|await\\s+(?:req|request)\\.json\\(\\s*\\)";
+const requestBodyMassAssignment = defineRule({
+	id: "request-body-mass-assignment",
+	title: "Request input spread without field allowlist",
+	severity: "warn",
+	recommendation: "Assign explicit, allowlisted fields (or validate with a strict schema and no `.passthrough()`) instead of spreading/merging request input. Otherwise the client can set ownership, role, or price columns (mass assignment) or pollute the prototype.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: [new RegExp(`\\.\\.\\.\\s*(?:${REQUEST_INPUT_SOURCE})`, "i"), new RegExp(`(?:Object\\.assign\\s*\\(|_\\.(?:merge|mergeWith|defaultsDeep)\\s*\\(|(?:^|[^.\\w])(?:merge|defaultsDeep)\\s*\\()[\\s\\S]{0,80}?(?:${REQUEST_INPUT_SOURCE})`, "i")],
+		message: "Request input is spread or merged into an object without a field allowlist, enabling mass assignment (client-set owner/role/price fields) or prototype pollution."
+	})
 });
 //#endregion
 //#region src/plugin/utils/function-body-has-return-with-value.ts
@@ -28585,29 +30298,236 @@ const isInsidePlatformOsWebBranch = (node) => {
 //#endregion
 //#region src/plugin/rules/react-native/utils/collect-text-wrapper-components.ts
 const isFunctionNode = (node) => isNodeOfType(node, "ArrowFunctionExpression") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "FunctionDeclaration");
-const resolveReturnedRootElementName = (functionNode) => {
+const COMPONENT_WRAPPER_CALLEE_NAMES = new Set(["memo", "forwardRef"]);
+const resolveCalleeName = (callee) => {
+	if (isNodeOfType(callee, "Identifier")) return callee.name;
+	if (isNodeOfType(callee, "MemberExpression") && isNodeOfType(callee.property, "Identifier")) return callee.property.name;
+	return null;
+};
+const unwrapComponentDefinition = (node) => {
+	let current = stripParenExpression(node);
+	while (isNodeOfType(current, "CallExpression")) {
+		const calleeName = resolveCalleeName(current.callee);
+		const firstArgument = current.arguments?.[0];
+		if (!calleeName || !COMPONENT_WRAPPER_CALLEE_NAMES.has(calleeName) || !firstArgument) break;
+		current = stripParenExpression(firstArgument);
+	}
+	return current;
+};
+const resolveChildrenPropertyLocalName = (property) => {
+	if (!isNodeOfType(property, "Property")) return null;
+	if (!isNodeOfType(property.key, "Identifier") || property.key.name !== "children") return null;
+	const value = property.value;
+	if (isNodeOfType(value, "Identifier")) return value.name;
+	if (isNodeOfType(value, "AssignmentPattern") && isNodeOfType(value.left, "Identifier")) return value.left.name;
+	return null;
+};
+const resolveParamChildrenBindings = (functionNode) => {
+	const bindings = {
+		childrenNames: /* @__PURE__ */ new Set(),
+		propsObjectNames: /* @__PURE__ */ new Set()
+	};
+	const firstParam = functionNode.params?.[0];
+	if (!firstParam) return bindings;
+	if (isNodeOfType(firstParam, "Identifier")) {
+		bindings.propsObjectNames.add(firstParam.name);
+		return bindings;
+	}
+	if (!isNodeOfType(firstParam, "ObjectPattern")) return bindings;
+	let didDestructureChildren = false;
+	let restName = null;
+	for (const property of firstParam.properties ?? []) {
+		if (isNodeOfType(property, "RestElement") && isNodeOfType(property.argument, "Identifier")) {
+			restName = property.argument.name;
+			continue;
+		}
+		const localName = resolveChildrenPropertyLocalName(property);
+		if (localName) {
+			didDestructureChildren = true;
+			bindings.childrenNames.add(localName);
+		}
+	}
+	if (restName && !didDestructureChildren) bindings.propsObjectNames.add(restName);
+	return bindings;
+};
+const MAX_CHILDREN_ALIAS_PASSES = 3;
+const isPropsObjectExpression = (expression, bindings) => {
+	if (!expression) return false;
+	const value = stripParenExpression(expression);
+	if (isNodeOfType(value, "Identifier")) return bindings.propsObjectNames.has(value.name);
+	return isNodeOfType(value, "MemberExpression") && isNodeOfType(value.object, "ThisExpression") && isNodeOfType(value.property, "Identifier") && value.property.name === "props";
+};
+const isChildrenValueExpression = (expression, bindings) => {
+	if (!expression) return false;
+	const value = stripParenExpression(expression);
+	if (isNodeOfType(value, "Identifier")) return bindings.childrenNames.has(value.name);
+	return isNodeOfType(value, "MemberExpression") && isNodeOfType(value.property, "Identifier") && value.property.name === "children" && isPropsObjectExpression(value.object, bindings);
+};
+const collectChildrenAliases = (functionNode, bindings) => {
 	const { body } = functionNode;
-	if (!body) return null;
-	if (!isNodeOfType(body, "BlockStatement")) return isNodeOfType(body, "JSXElement") ? resolveJsxElementName(body.openingElement) : null;
-	for (const statement of body.body) {
-		if (!isNodeOfType(statement, "ReturnStatement")) continue;
-		const argument = statement.argument;
-		if (argument && isNodeOfType(argument, "JSXElement")) return resolveJsxElementName(argument.openingElement);
+	if (!body || !isNodeOfType(body, "BlockStatement")) return;
+	for (let pass = 0; pass < MAX_CHILDREN_ALIAS_PASSES; pass += 1) {
+		const sizeBeforePass = bindings.childrenNames.size;
+		walkAst(body, (node) => {
+			if (isFunctionNode(node)) return false;
+			if (!isNodeOfType(node, "VariableDeclarator") || !node.init) return void 0;
+			if (isNodeOfType(node.id, "Identifier")) {
+				if (isChildrenValueExpression(node.init, bindings)) bindings.childrenNames.add(node.id.name);
+				return;
+			}
+			if (isNodeOfType(node.id, "ObjectPattern") && isPropsObjectExpression(node.init, bindings)) for (const property of node.id.properties ?? []) {
+				const localName = resolveChildrenPropertyLocalName(property);
+				if (localName) bindings.childrenNames.add(localName);
+			}
+		});
+		if (bindings.childrenNames.size === sizeBeforePass) break;
+	}
+};
+const collectJsxRootsFromExpression = (expression, roots) => {
+	const value = stripParenExpression(expression);
+	if (isNodeOfType(value, "JSXElement") || isNodeOfType(value, "JSXFragment")) {
+		roots.push(value);
+		return;
+	}
+	if (isNodeOfType(value, "ConditionalExpression")) {
+		if (value.consequent) collectJsxRootsFromExpression(value.consequent, roots);
+		if (value.alternate) collectJsxRootsFromExpression(value.alternate, roots);
+		return;
+	}
+	if (isNodeOfType(value, "LogicalExpression")) {
+		if (value.left) collectJsxRootsFromExpression(value.left, roots);
+		if (value.right) collectJsxRootsFromExpression(value.right, roots);
+	}
+};
+const collectReturnedJsxRoots = (functionNode) => {
+	const roots = [];
+	const { body } = functionNode;
+	if (!body) return roots;
+	if (!isNodeOfType(body, "BlockStatement")) {
+		collectJsxRootsFromExpression(body, roots);
+		return roots;
+	}
+	walkAst(body, (node) => {
+		if (isFunctionNode(node) && node !== functionNode) return false;
+		if (isNodeOfType(node, "ReturnStatement") && node.argument) {
+			collectJsxRootsFromExpression(node.argument, roots);
+			return false;
+		}
+	});
+	return roots;
+};
+const isChildrenForwardingJsxChild = (child, bindings) => isNodeOfType(child, "JSXExpressionContainer") && isChildrenValueExpression(child.expression, bindings);
+const isChildrenForwardingAttribute = (attribute, bindings) => {
+	if (isNodeOfType(attribute, "JSXSpreadAttribute")) return isPropsObjectExpression(attribute.argument, bindings);
+	return isNodeOfType(attribute, "JSXAttribute") && isNodeOfType(attribute.name, "JSXIdentifier") && attribute.name.name === "children" && isNodeOfType(attribute.value, "JSXExpressionContainer") && isChildrenValueExpression(attribute.value.expression, bindings);
+};
+const jsxRootForwardsChildrenIntoText = (jsxRoot, bindings, isTextHandlingElement) => {
+	let didForwardIntoText = false;
+	walkAst(jsxRoot, (node) => {
+		if (didForwardIntoText || isFunctionNode(node)) return false;
+		if (!isNodeOfType(node, "JSXElement")) return void 0;
+		const elementName = resolveJsxElementName(node.openingElement);
+		if (!elementName || !isTextHandlingElement(elementName)) return;
+		didForwardIntoText = (node.children ?? []).some((child) => isChildrenForwardingJsxChild(child, bindings)) || (node.openingElement.attributes ?? []).some((attribute) => isChildrenForwardingAttribute(attribute, bindings));
+	});
+	return didForwardIntoText;
+};
+const isMeaningfulJsxChild = (child) => !isNodeOfType(child, "JSXText") || Boolean(child.value?.trim());
+const jsxRootRendersChildrenOutsideText = (jsxRoot, bindings, isTextHandlingElement) => {
+	let didRenderOutsideText = false;
+	walkAst(jsxRoot, (node) => {
+		if (didRenderOutsideText || isFunctionNode(node)) return false;
+		if (!isNodeOfType(node, "JSXElement") && !isNodeOfType(node, "JSXFragment")) return;
+		if (isNodeOfType(node, "JSXElement")) {
+			const elementName = resolveJsxElementName(node.openingElement);
+			if (elementName && isTextHandlingElement(elementName)) return false;
+			if (!(node.children ?? []).some(isMeaningfulJsxChild) && (node.openingElement.attributes ?? []).some((attribute) => isChildrenForwardingAttribute(attribute, bindings))) {
+				didRenderOutsideText = true;
+				return;
+			}
+		}
+		didRenderOutsideText = (node.children ?? []).some((child) => isChildrenForwardingJsxChild(child, bindings));
+	});
+	return didRenderOutsideText;
+};
+const resolveStyledFactoryBaseName = (definitionNode) => {
+	let current = stripParenExpression(definitionNode);
+	while (current) {
+		if (isNodeOfType(current, "TaggedTemplateExpression")) {
+			current = stripParenExpression(current.tag);
+			continue;
+		}
+		if (isNodeOfType(current, "CallExpression")) {
+			const callee = stripParenExpression(current.callee);
+			if (isNodeOfType(callee, "Identifier") && callee.name === "styled") {
+				const baseArgument = current.arguments?.[0];
+				if (!baseArgument) return null;
+				const base = stripParenExpression(baseArgument);
+				return isNodeOfType(base, "Identifier") ? base.name : null;
+			}
+			current = callee;
+			continue;
+		}
+		if (isNodeOfType(current, "MemberExpression")) {
+			if (isNodeOfType(current.object, "Identifier") && current.object.name === "styled" && isNodeOfType(current.property, "Identifier")) return current.property.name;
+			current = stripParenExpression(current.object);
+			continue;
+		}
+		return null;
 	}
 	return null;
 };
-const recordWrapperFromDeclaration = (componentName, functionNode, isTextHandlingRoot, wrappers) => {
-	if (!componentName || !isReactComponentName(componentName)) return;
-	if (!functionNode || !isFunctionNode(functionNode)) return;
-	const rootName = resolveReturnedRootElementName(functionNode);
-	if (rootName && isTextHandlingRoot(rootName)) wrappers.add(componentName);
+const resolveClassRenderFunction = (classNode) => {
+	if (!isNodeOfType(classNode, "ClassDeclaration") && !isNodeOfType(classNode, "ClassExpression")) return null;
+	for (const member of classNode.body?.body ?? []) {
+		if (!isNodeOfType(member, "MethodDefinition")) continue;
+		if (!isNodeOfType(member.key, "Identifier") || member.key.name !== "render") continue;
+		return member.value && isFunctionNode(member.value) ? member.value : null;
+	}
+	return null;
 };
+const recordWrapperFromDeclaration = (componentName, definitionNode, isTextHandlingElement, wrappers) => {
+	if (!componentName || !isReactComponentName(componentName)) return;
+	if (wrappers.has(componentName)) return;
+	if (!definitionNode) return;
+	const unwrapped = unwrapComponentDefinition(definitionNode);
+	const styledBaseName = resolveStyledFactoryBaseName(unwrapped);
+	if (styledBaseName && isTextHandlingElement(styledBaseName)) {
+		wrappers.add(componentName);
+		return;
+	}
+	const functionNode = resolveClassRenderFunction(unwrapped) ?? (isFunctionNode(unwrapped) ? unwrapped : null);
+	if (!functionNode) return;
+	const bindings = resolveParamChildrenBindings(functionNode);
+	collectChildrenAliases(functionNode, bindings);
+	const jsxRoots = collectReturnedJsxRoots(functionNode);
+	if (jsxRoots.some((jsxRoot) => jsxRootRendersChildrenOutsideText(jsxRoot, bindings, isTextHandlingElement))) return;
+	for (const jsxRoot of jsxRoots) {
+		if (isNodeOfType(jsxRoot, "JSXElement")) {
+			const rootName = resolveJsxElementName(jsxRoot.openingElement);
+			if (rootName && isTextHandlingElement(rootName)) {
+				wrappers.add(componentName);
+				return;
+			}
+		}
+		if (jsxRootForwardsChildrenIntoText(jsxRoot, bindings, isTextHandlingElement)) {
+			wrappers.add(componentName);
+			return;
+		}
+	}
+};
+const MAX_TRANSITIVE_WRAPPER_PASSES = 3;
 const collectTextWrapperComponents = (programNode, isTextHandlingRoot) => {
 	const wrappers = /* @__PURE__ */ new Set();
-	walkAst(programNode, (node) => {
-		if (isNodeOfType(node, "VariableDeclarator")) recordWrapperFromDeclaration(node.id && isNodeOfType(node.id, "Identifier") ? node.id.name : null, node.init, isTextHandlingRoot, wrappers);
-		else if (isNodeOfType(node, "FunctionDeclaration")) recordWrapperFromDeclaration(node.id && isNodeOfType(node.id, "Identifier") ? node.id.name : null, node, isTextHandlingRoot, wrappers);
-	});
+	const isTextHandlingElement = (elementName) => isTextHandlingRoot(elementName) || wrappers.has(elementName);
+	for (let pass = 0; pass < MAX_TRANSITIVE_WRAPPER_PASSES; pass += 1) {
+		const sizeBeforePass = wrappers.size;
+		walkAst(programNode, (node) => {
+			if (isNodeOfType(node, "VariableDeclarator")) recordWrapperFromDeclaration(node.id && isNodeOfType(node.id, "Identifier") ? node.id.name : null, node.init, isTextHandlingElement, wrappers);
+			else if (isNodeOfType(node, "FunctionDeclaration") || isNodeOfType(node, "ClassDeclaration")) recordWrapperFromDeclaration(node.id && isNodeOfType(node.id, "Identifier") ? node.id.name : null, node, isTextHandlingElement, wrappers);
+		});
+		if (wrappers.size === sizeBeforePass) break;
+	}
 	return wrappers;
 };
 //#endregion
@@ -28675,6 +30595,7 @@ const rnNoRawText = defineRule({
 	title: "Raw text outside a Text component",
 	requires: ["react-native"],
 	severity: "error",
+	tags: ["test-noise"],
 	recommendation: "Text outside a `<Text>` component crashes on React Native. Wrap it like `<Text>{value}</Text>`.",
 	create: (context) => {
 		let isDomComponentFile = false;
@@ -28919,136 +30840,6 @@ const rnPreferContentInsetAdjustment = defineRetiredRule({
 	severity: "warn",
 	recommendation: "Retired: SafeAreaView wrappers are valid; prefer native content inset adjustment only when manual inset plumbing causes scroll jumps or duplicated safe-area offsets."
 });
-//#endregion
-//#region src/react-native-dependency-names.ts
-const EXPO_MANAGED_DEPENDENCY_NAMES = new Set([
-	"expo",
-	"expo-router",
-	"@expo/cli",
-	"@expo/metro-config",
-	"@expo/metro-runtime"
-]);
-const REACT_NATIVE_DEPENDENCY_NAMES = new Set([
-	"react-native",
-	"react-native-tvos",
-	...EXPO_MANAGED_DEPENDENCY_NAMES,
-	"react-native-windows",
-	"react-native-macos"
-]);
-const REACT_NATIVE_DEPENDENCY_PREFIXES = ["@react-native/", "@react-native-"];
-const isExpoManagedDependencyName = (dependencyName) => EXPO_MANAGED_DEPENDENCY_NAMES.has(dependencyName);
-const isReactNativeDependencyName = (dependencyName) => {
-	if (REACT_NATIVE_DEPENDENCY_NAMES.has(dependencyName)) return true;
-	for (const prefix of REACT_NATIVE_DEPENDENCY_PREFIXES) if (dependencyName.startsWith(prefix)) return true;
-	return false;
-};
-//#endregion
-//#region src/plugin/utils/classify-package-platform.ts
-const WEB_FRAMEWORK_DEPENDENCY_NAMES = new Set([
-	"next",
-	"vite",
-	"react-scripts",
-	"gatsby",
-	"@remix-run/react",
-	"@remix-run/node",
-	"@docusaurus/core",
-	"@docusaurus/preset-classic",
-	"@storybook/react",
-	"@storybook/react-vite",
-	"@storybook/react-webpack5",
-	"@storybook/nextjs",
-	"@storybook/web-components",
-	"storybook",
-	"react-dom",
-	"@vitejs/plugin-react",
-	"@vitejs/plugin-react-swc"
-]);
-const cachedPlatformByPackageDirectory = /* @__PURE__ */ new Map();
-const cachedPackageDirectoryByFilename = /* @__PURE__ */ new Map();
-const findNearestPackageDirectory = (filename) => {
-	if (!filename) return null;
-	const fromCache = cachedPackageDirectoryByFilename.get(filename);
-	if (fromCache !== void 0) return fromCache;
-	let currentDirectory = path.dirname(filename);
-	while (true) {
-		const candidatePackageJsonPath = path.join(currentDirectory, "package.json");
-		let hasPackageJson = false;
-		try {
-			hasPackageJson = fs.statSync(candidatePackageJsonPath).isFile();
-		} catch {
-			hasPackageJson = false;
-		}
-		if (hasPackageJson) {
-			cachedPackageDirectoryByFilename.set(filename, currentDirectory);
-			return currentDirectory;
-		}
-		const parentDirectory = path.dirname(currentDirectory);
-		if (parentDirectory === currentDirectory) {
-			cachedPackageDirectoryByFilename.set(filename, null);
-			return null;
-		}
-		currentDirectory = parentDirectory;
-	}
-};
-const readPackageJsonSafe = (packageJsonPath) => {
-	let rawContents;
-	try {
-		rawContents = fs.readFileSync(packageJsonPath, "utf-8");
-	} catch {
-		return null;
-	}
-	try {
-		const parsed = JSON.parse(rawContents);
-		if (typeof parsed === "object" && parsed !== null) return parsed;
-		return null;
-	} catch {
-		return null;
-	}
-};
-const DEPENDENCY_SECTION_NAMES = [
-	"dependencies",
-	"devDependencies",
-	"peerDependencies",
-	"optionalDependencies"
-];
-const iterateDependencyNames = function* (packageJson) {
-	for (const sectionName of DEPENDENCY_SECTION_NAMES) {
-		const section = packageJson[sectionName];
-		if (!section) continue;
-		for (const dependencyName of Object.keys(section)) yield dependencyName;
-	}
-};
-const isReactNativeAware = (packageJson) => {
-	if (typeof packageJson["react-native"] === "string") return true;
-	for (const dependencyName of iterateDependencyNames(packageJson)) if (isReactNativeDependencyName(dependencyName)) return true;
-	return false;
-};
-const isExpoManaged = (packageJson) => {
-	for (const dependencyName of iterateDependencyNames(packageJson)) if (isExpoManagedDependencyName(dependencyName)) return true;
-	return false;
-};
-const isWebFrameworkOnly = (packageJson) => {
-	for (const dependencyName of iterateDependencyNames(packageJson)) if (WEB_FRAMEWORK_DEPENDENCY_NAMES.has(dependencyName)) return true;
-	return false;
-};
-const classifyPackagePlatform = (filename) => {
-	const packageDirectory = findNearestPackageDirectory(filename);
-	if (!packageDirectory) return "unknown";
-	const cached = cachedPlatformByPackageDirectory.get(packageDirectory);
-	if (cached !== void 0) return cached;
-	const packageJson = readPackageJsonSafe(path.join(packageDirectory, "package.json"));
-	if (!packageJson) {
-		cachedPlatformByPackageDirectory.set(packageDirectory, "unknown");
-		return "unknown";
-	}
-	let result;
-	if (isExpoManaged(packageJson)) result = "expo";
-	else if (isReactNativeAware(packageJson)) result = "react-native";
-	else if (isWebFrameworkOnly(packageJson)) result = "web";
-	else result = "unknown";
-	cachedPlatformByPackageDirectory.set(packageDirectory, result);
-	return result;
-};
 //#endregion
 //#region src/plugin/utils/is-expo-managed-file.ts
 const isExpoManagedFileActive = (context) => {
@@ -32949,7 +34740,7 @@ const findEnclosingFunctionInfo = (node) => {
 				name: displayName,
 				hasResolvedName: resolvedName !== null,
 				isAsync: Boolean(current.async),
-				isComponentOrHook: resolvedName === null ? false : isReactComponentOrHookName(displayName)
+				isComponentOrHook: isReactHocCallbackArgument(current) || (resolvedName === null ? false : isReactComponentOrHookName(displayName))
 			};
 		}
 		current = current.parent ?? null;
@@ -33008,6 +34799,7 @@ const findEnclosingComponentOrHookFunction = (node) => {
 	let current = node.parent;
 	while (current) {
 		if (isFunctionLike$2(current)) {
+			if (isReactHocCallbackArgument(current)) return current;
 			const resolvedName = inferFunctionName(current);
 			if (resolvedName !== null && isReactComponentOrHookName(resolvedName)) return current;
 		}
@@ -33107,26 +34899,26 @@ const rulesOfHooks = defineRule({
 					});
 					return;
 				}
-				if (!enclosing.hasResolvedName) {
-					let outerWalker = enclosing.node;
-					let outerIsComponentOrHook = false;
-					while (outerWalker) {
-						const outerInfo = findEnclosingFunctionInfo(outerWalker);
-						if (!outerInfo) break;
-						if (outerInfo.isComponentOrHook) {
-							outerIsComponentOrHook = true;
-							break;
-						}
-						outerWalker = outerInfo.node;
-					}
-					if (!outerIsComponentOrHook) return;
-					context.report({
-						node: node.callee,
-						message: buildConditionalMessage(hookName)
-					});
-					return;
-				}
 				if (!enclosing.isComponentOrHook) {
+					if (!enclosing.hasResolvedName) {
+						let outerWalker = enclosing.node;
+						let outerIsComponentOrHook = false;
+						while (outerWalker) {
+							const outerInfo = findEnclosingFunctionInfo(outerWalker);
+							if (!outerInfo) break;
+							if (outerInfo.isComponentOrHook) {
+								outerIsComponentOrHook = true;
+								break;
+							}
+							outerWalker = outerInfo.node;
+						}
+						if (!outerIsComponentOrHook) return;
+						context.report({
+							node: node.callee,
+							message: buildConditionalMessage(hookName)
+						});
+						return;
+					}
 					context.report({
 						node: node.callee,
 						message: buildNonComponentMessage(hookName, enclosing.name)
@@ -33192,6 +34984,17 @@ const scope = defineRule({
 			message: MESSAGE$3
 		});
 	} })
+});
+const secretInFallback = defineRule({
+	id: "secret-in-fallback",
+	title: "Hardcoded secret fallback for env var",
+	severity: "error",
+	recommendation: "Remove the literal fallback and fail closed (throw when the variable is unset). The hardcoded value is a committed secret, and the `??`/`||` default makes the app run with it in any environment that forgot to set the var.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: /\bprocess\.env\.(?![A-Z0-9_]*(?:PUBLIC|PUBLISHABLE|ANON)\b)[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_?KEY|APIKEY|ACCESS_KEY|CLIENT_SECRET|CREDENTIAL|SIGNING_KEY|ENCRYPTION_KEY|WEBHOOK_SECRET|SERVICE_ROLE)[A-Z0-9_]*(?<!_(?:NAME|HEADER|ENDPOINT|URL|URI|ID|PREFIX|SUFFIX|PARAM|PARAMS|FIELD|ISSUER|AUDIENCE|ALGORITHM|ALG|REGION|BUCKET|HOST|HOSTNAME|PORT|PATH|VERSION|SCOPE|TYPE|FORMAT|EXPIRY|TTL))\s*(?:\?\?|\|\|)\s*(["'`])(?!(?:changeme|change[_-]?me|placeholder|your[_-]|example|sample|dummy|development|local|todo|replace[_-]?me|https?:\/\/|x{3,}|\*{3,}))[^"'`\n]{8,}\1/i,
+		message: "A secret env var has a hardcoded string fallback: the literal is a committed secret and the app fails open (uses it) when the variable is unset."
+	})
 });
 //#endregion
 //#region src/plugin/rules/react-builtins/self-closing-comp.ts
@@ -33311,6 +35114,47 @@ const serverAfterNonblocking = defineRule({
 	}
 });
 //#endregion
+//#region src/plugin/utils/is-auth-guard-name.ts
+const SIGNED_IN_HEAD_TOKENS = new Set([
+	"signed",
+	"logged",
+	"sign"
+]);
+const mergeSignedInTokens = (tokens) => {
+	const mergedTokens = [];
+	for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex += 1) {
+		const currentToken = tokens[tokenIndex];
+		if (SIGNED_IN_HEAD_TOKENS.has(currentToken) && tokens[tokenIndex + 1] === "in") {
+			mergedTokens.push(`${currentToken}in`);
+			tokenIndex += 1;
+			continue;
+		}
+		mergedTokens.push(currentToken);
+	}
+	return mergedTokens;
+};
+const isAuthGuardName = (calleeName) => {
+	const tokens = mergeSignedInTokens(tokenizeIdentifierWords(calleeName));
+	if (tokens.length === 0) return false;
+	let hasAssertiveVerb = false;
+	let hasGetterVerb = false;
+	let hasQualifier = false;
+	let hasStrongNoun = false;
+	let hasWeakNoun = false;
+	for (const token of tokens) {
+		if (AUTH_STRONG_TOKEN_PATTERN.test(token) || AUTH_STANDALONE_NOUN_TOKENS.has(token)) return true;
+		if (AUTH_ASSERTIVE_VERB_TOKENS.has(token)) hasAssertiveVerb = true;
+		if (AUTH_GETTER_VERB_TOKENS.has(token)) hasGetterVerb = true;
+		if (AUTH_QUALIFIER_TOKENS.has(token)) hasQualifier = true;
+		if (AUTH_STRONG_NOUN_TOKENS.has(token)) hasStrongNoun = true;
+		if (AUTH_WEAK_NOUN_TOKENS.has(token)) hasWeakNoun = true;
+	}
+	if (hasAssertiveVerb && (hasStrongNoun || hasWeakNoun)) return true;
+	if (hasGetterVerb && hasStrongNoun) return true;
+	if (hasQualifier && hasWeakNoun) return true;
+	return false;
+};
+//#endregion
 //#region src/plugin/rules/server/server-auth-actions.ts
 const isAsyncFunctionLikeNode = (node) => {
 	if (!node) return false;
@@ -33353,9 +35197,13 @@ const isMemberCallAuthRelated = (receiverNode, methodName, genericMethodNames) =
 const getAuthCallName = (callExpression, allowedFunctionNames, genericMethodNames) => {
 	const calleeNode = unwrapTypeWrappedCallee(callExpression.callee);
 	if (!calleeNode) return null;
-	if (isNodeOfType(calleeNode, "Identifier")) return allowedFunctionNames.has(calleeNode.name) ? calleeNode.name : null;
+	if (isNodeOfType(calleeNode, "Identifier")) {
+		const calleeName = calleeNode.name;
+		return allowedFunctionNames.has(calleeName) || isAuthGuardName(calleeName) ? calleeName : null;
+	}
 	if (isNodeOfType(calleeNode, "MemberExpression") && isNodeOfType(calleeNode.property, "Identifier")) {
 		const methodName = calleeNode.property.name;
+		if (isAuthGuardName(methodName)) return methodName;
 		if (!allowedFunctionNames.has(methodName)) return null;
 		if (!isMemberCallAuthRelated(calleeNode.object, methodName, genericMethodNames)) return null;
 		return methodName;
@@ -33577,6 +35425,7 @@ const serverFetchWithoutRevalidate = defineRule({
 			CallExpression(node) {
 				if (!isServerSideFile) return;
 				if (!isFetchCall(node)) return;
+				if (isMutatingFetchCall(node)) return;
 				const optionsArg = node.arguments?.[1];
 				if (optionsArg && objectExpressionHasNextRevalidate(optionsArg)) return;
 				const urlArg = node.arguments?.[0];
@@ -33732,13 +35581,7 @@ const serverNoMutableModuleState = defineRule({
 const collectDeclaredNames = (declaration) => {
 	const names = /* @__PURE__ */ new Set();
 	if (!isNodeOfType(declaration, "VariableDeclaration")) return names;
-	for (const declarator of declaration.declarations ?? []) if (isNodeOfType(declarator.id, "Identifier")) names.add(declarator.id.name);
-	else if (isNodeOfType(declarator.id, "ObjectPattern")) {
-		for (const property of declarator.id.properties ?? []) if (isNodeOfType(property, "Property") && isNodeOfType(property.value, "Identifier")) names.add(property.value.name);
-		else if (isNodeOfType(property, "RestElement") && isNodeOfType(property.argument, "Identifier")) names.add(property.argument.name);
-	} else if (isNodeOfType(declarator.id, "ArrayPattern")) {
-		for (const element of declarator.id.elements ?? []) if (isNodeOfType(element, "Identifier")) names.add(element.name);
-	}
+	for (const declarator of declaration.declarations ?? []) collectPatternNames(declarator.id, names);
 	return names;
 };
 const declarationStartsWithAwait = (declaration) => {
@@ -33748,11 +35591,15 @@ const declarationStartsWithAwait = (declaration) => {
 };
 const declarationReadsAnyName = (declaration, names) => {
 	if (names.size === 0) return false;
+	if (!isNodeOfType(declaration, "VariableDeclaration")) return false;
 	let didRead = false;
-	walkAst(declaration, (child) => {
-		if (didRead) return;
-		if (isNodeOfType(child, "Identifier") && names.has(child.name)) didRead = true;
-	});
+	for (const declarator of declaration.declarations ?? []) {
+		if (!declarator.init) continue;
+		walkAst(declarator.init, (child) => {
+			if (didRead) return;
+			if (isNodeOfType(child, "Identifier") && names.has(child.name)) didRead = true;
+		});
+	}
 	return didRead;
 };
 const serverSequentialIndependentAwait = defineRule({
@@ -33989,6 +35836,257 @@ const stylePropObject = defineRule({
 		};
 	}
 });
+const supabaseClientOwnedAuthzField = defineRule({
+	id: "supabase-client-owned-authz-field",
+	title: "Client writes Supabase authorization field",
+	severity: "error",
+	recommendation: "Use RLS policies based on `auth.uid()` and server-owned membership rows; do not trust client-provided owner, org, or role columns.",
+	scan: scanByPattern({
+		shouldScan: (file) => isClientSourcePath(file.relativePath),
+		pattern: /\b(?:ownerId|ownerID|creatorId|creatorID|userId|userID|uid|providerId|providerID|orgId|orgID|tenantId|tenantID|teamId|teamID|workspaceId|workspaceID|ghostOrg|role|roles|isAdmin|admin)\b/,
+		requireAll: [/\b(?:supabase\b|\.from\s*\(\s*["'][^"']+["']\s*\))[\s\S]{0,700}\b(?:insert|upsert|update)\s*\(\s*(?:\{|\[?\s*\{)[\s\S]{0,700}\b(?:ownerId|creatorId|userId|orgId|tenantId|role|isAdmin)\b/i],
+		message: "Client Supabase code appears to write user, tenant, owner, or role fields that should be enforced by RLS."
+	})
+});
+//#endregion
+//#region src/plugin/rules/security-scan/utils/is-supabase-migration-path.ts
+const isSupabaseMigrationPath = (relativePath) => /(?:^|\/)supabase\/(?:migrations|schemas)\//.test(relativePath);
+//#endregion
+//#region src/plugin/rules/security-scan/utils/is-sql-path.ts
+const isSqlPath = (relativePath) => relativePath.endsWith(".sql") || isSupabaseMigrationPath(relativePath);
+const supabaseRlsPolicyRisk = defineRule({
+	id: "supabase-rls-policy-risk",
+	title: "Permissive Supabase RLS policy",
+	severity: "error",
+	recommendation: "Keep public-read policies explicit, but gate inserts, updates, deletes, and service-role bypasses behind `auth.uid()` plus trusted tenant membership.",
+	scan: scanByPattern({
+		shouldScan: (file) => isSqlPath(file.relativePath),
+		pattern: [
+			/disable\s+row\s+level\s+security/i,
+			/create\s+policy[\s\S]{0,700}auth\.role\(\)\s*=\s*["']service_role["']/i,
+			/create\s+policy[\s\S]{0,700}\bfor\s+(?:all|insert|update|delete)\b[\s\S]{0,500}\b(?:using|with\s+check)\s*\(\s*true\s*\)/i,
+			/create\s+policy(?:(?!\bfor\s+select\b)[\s\S]){0,700}\b(?:using|with\s+check)\s*\(\s*true\s*\)/i
+		],
+		message: "Supabase policy SQL disables RLS, permits writes broadly, or references a service-role bypass."
+	})
+});
+//#endregion
+//#region src/plugin/rules/security-scan/utils/sanitize-sql-for-scan.ts
+const DOLLAR_QUOTE_TAG_PATTERN = /^\$[A-Za-z_]?\w*\$/;
+const CODE_BODY_KEYWORDS = new Set([
+	"do",
+	"plpgsql",
+	"sql",
+	"plpython3u",
+	"plpythonu",
+	"plperl",
+	"plperlu",
+	"plv8"
+]);
+const precedingKeyword = (content, beforeIndex) => {
+	let lookBack = beforeIndex - 1;
+	while (lookBack >= 0 && /\s/.test(content[lookBack] ?? "")) lookBack -= 1;
+	let wordStart = lookBack;
+	while (wordStart >= 0 && /[A-Za-z0-9_]/.test(content[wordStart] ?? "")) wordStart -= 1;
+	return content.slice(wordStart + 1, lookBack + 1).toLowerCase();
+};
+const blankCodeBodyInterior = (content, characters, start, end) => {
+	let index = start;
+	let inExecuteStatement = false;
+	while (index < end) {
+		const character = content[index];
+		if (character === ";") {
+			inExecuteStatement = false;
+			index += 1;
+			continue;
+		}
+		if (/[A-Za-z_]/.test(character)) {
+			let wordEnd = index;
+			while (wordEnd < end && /[A-Za-z0-9_]/.test(content[wordEnd] ?? "")) wordEnd += 1;
+			if (content.slice(index, wordEnd).toLowerCase() === "execute") inExecuteStatement = true;
+			index = wordEnd;
+			continue;
+		}
+		if (character === "'") {
+			const keepVisible = inExecuteStatement;
+			if (!keepVisible) characters[index] = " ";
+			index += 1;
+			while (index < end) {
+				if (content[index] === "'") {
+					if (content[index + 1] === "'") {
+						if (!keepVisible) {
+							characters[index] = " ";
+							characters[index + 1] = " ";
+						}
+						index += 2;
+						continue;
+					}
+					if (!keepVisible) characters[index] = " ";
+					index += 1;
+					break;
+				}
+				if (!keepVisible && content[index] !== "\n") characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "\"") {
+			index += 1;
+			while (index < end) {
+				if (content[index] === "\"") {
+					if (content[index + 1] === "\"") {
+						index += 2;
+						continue;
+					}
+					index += 1;
+					break;
+				}
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "-" && content[index + 1] === "-") {
+			while (index < end && content[index] !== "\n") {
+				characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "/" && content[index + 1] === "*") {
+			while (index < end) {
+				if (content[index] === "*" && content[index + 1] === "/") {
+					characters[index] = " ";
+					characters[index + 1] = " ";
+					index += 2;
+					break;
+				}
+				if (content[index] !== "\n") characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		index += 1;
+	}
+};
+const sanitizeSqlForScan = (content) => {
+	const characters = content.split("");
+	let index = 0;
+	while (index < content.length) {
+		const character = content[index];
+		if (character === "-" && content[index + 1] === "-") {
+			while (index < content.length && content[index] !== "\n") {
+				characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "/" && content[index + 1] === "*") {
+			while (index < content.length) {
+				if (content[index] === "*" && content[index + 1] === "/") {
+					characters[index] = " ";
+					characters[index + 1] = " ";
+					index += 2;
+					break;
+				}
+				if (content[index] !== "\n") characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "'") {
+			characters[index] = " ";
+			index += 1;
+			while (index < content.length) {
+				if (content[index] === "'") {
+					if (content[index + 1] === "'") {
+						characters[index] = " ";
+						characters[index + 1] = " ";
+						index += 2;
+						continue;
+					}
+					characters[index] = " ";
+					index += 1;
+					break;
+				}
+				if (content[index] !== "\n") characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "$") {
+			const tagMatch = DOLLAR_QUOTE_TAG_PATTERN.exec(content.slice(index));
+			if (tagMatch !== null) {
+				const tag = tagMatch[0];
+				const closeIndex = content.indexOf(tag, index + tag.length);
+				const endIndex = closeIndex < 0 ? content.length : closeIndex + tag.length;
+				const keyword = precedingKeyword(content, index);
+				if (CODE_BODY_KEYWORDS.has(keyword)) blankCodeBodyInterior(content, characters, index + tag.length, endIndex);
+				else for (let blankIndex = index; blankIndex < endIndex; blankIndex += 1) if (content[blankIndex] !== "\n") characters[blankIndex] = " ";
+				index = endIndex;
+				continue;
+			}
+		}
+		if (character === "\"") {
+			index += 1;
+			while (index < content.length) {
+				if (content[index] === "\"") {
+					if (content[index + 1] === "\"") {
+						index += 2;
+						continue;
+					}
+					index += 1;
+					break;
+				}
+				index += 1;
+			}
+			continue;
+		}
+		index += 1;
+	}
+	return characters.join("");
+};
+//#endregion
+//#region src/plugin/rules/security-scan/supabase-table-missing-rls.ts
+const CREATE_PUBLIC_TABLE_PATTERN = /create\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?(?!(?:auth|storage|realtime|vault|extensions|graphql|graphql_public|pgbouncer|net|supabase_functions|supabase_migrations|cron|pgsodium|pgmq|information_schema|pg_catalog|pg_temp|private|internal)\s*\.)(?:public\s*\.\s*)?["`]?([A-Za-z_][\w$]*)["`]?(?:\s*\(|\s+as\b)/gi;
+const enableRlsForTablePattern = (tableName) => new RegExp(`alter\\s+table\\s+(?:if\\s+exists\\s+)?(?:only\\s+)?(?:public\\s*\\.\\s*)?["\`]?${escapeRegExp(tableName)}["\`]?\\s+(?:force\\s+)?enable\\s+row\\s+level\\s+security`, "i");
+const supabaseTableMissingRls = defineRule({
+	id: "supabase-table-missing-rls",
+	title: "Supabase table created without Row Level Security",
+	severity: "error",
+	recommendation: "Enable RLS in the same migration (`alter table <name> enable row level security;`) and add `auth.uid()`-scoped policies for select/insert/update/delete. A public table without RLS is fully readable and writable with the public anon key.",
+	scan: (file) => {
+		if (!isSupabaseMigrationPath(file.relativePath)) return [];
+		const content = sanitizeSqlForScan(file.content);
+		if (!/create\s+(?:unlogged\s+)?table/i.test(content)) return [];
+		const findings = [];
+		CREATE_PUBLIC_TABLE_PATTERN.lastIndex = 0;
+		for (let match = CREATE_PUBLIC_TABLE_PATTERN.exec(content); match !== null; match = CREATE_PUBLIC_TABLE_PATTERN.exec(content)) {
+			const tableName = match[1];
+			if (tableName === void 0) continue;
+			if (enableRlsForTablePattern(tableName).test(content.slice(match.index))) continue;
+			const location = getLocationAtIndex(content, match.index);
+			findings.push({
+				message: "Supabase migration creates a public table but never enables Row Level Security, leaving every row exposed to the anon key.",
+				line: location.line,
+				column: location.column
+			});
+		}
+		return findings;
+	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/svg-filter-clickjacking-risk.ts
+const svgFilterClickjackingRisk = defineRule({
+	id: "svg-filter-clickjacking-risk",
+	title: "SVG-filtered iframe clickjacking primitive",
+	severity: "warn",
+	recommendation: "Avoid filtering cross-origin iframes. Use `frame-ancestors` on sensitive pages and keep SVG filters away from embedded privileged UI.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: /<iframe\b[\s\S]{0,700}\bfilter\s*:\s*["']?url\(#|filter\s*:\s*url\(#.*[\s\S]{0,700}<iframe\b|<fe(?:DisplacementMap|ColorMatrix|Composite|Tile|Morphology)\b[\s\S]{0,700}<iframe\b/i,
+		message: "An iframe is rendered through an SVG/CSS filter, which can support advanced clickjacking or visual exfiltration tricks."
+	})
+});
 //#endregion
 //#region src/plugin/rules/a11y/tabindex-no-positive.ts
 const MESSAGE = "Keyboard users get jumped out of the normal order by a positive `tabIndex`, so use `0` or `-1`.";
@@ -34020,7 +36118,7 @@ const walkServerFnChain = (outerNode) => {
 	const result = {
 		isServerFnChain: false,
 		specifiedMethod: null,
-		hasInputValidator: false
+		hasInputValidation: false
 	};
 	if (!isNodeOfType(outerNode, "CallExpression")) return result;
 	if (!isNodeOfType(outerNode.callee, "MemberExpression")) return result;
@@ -34034,7 +36132,7 @@ const walkServerFnChain = (outerNode) => {
 				for (const property of optionsArgument.properties ?? []) if (isNodeOfType(property, "Property") && isNodeOfType(property.key, "Identifier") && property.key.name === "method" && isNodeOfType(property.value, "Literal") && typeof property.value.value === "string") result.specifiedMethod = property.value.value;
 			}
 		}
-		if (calleeName === "inputValidator") result.hasInputValidator = true;
+		if (calleeName && TANSTACK_INPUT_VALIDATOR_METHOD_NAMES.has(calleeName)) result.hasInputValidation = true;
 		if (isNodeOfType(currentNode.callee, "MemberExpression")) currentNode = currentNode.callee.object;
 		else break;
 	}
@@ -34588,13 +36686,14 @@ const tanstackStartRoutePropertyOrder = defineRule({
 });
 //#endregion
 //#region src/plugin/rules/tanstack-start/tanstack-start-server-fn-method-order.ts
+const toMethodOrderToken = (methodName) => TANSTACK_INPUT_VALIDATOR_METHOD_NAMES.has(methodName) ? "validator" : methodName;
 const tanstackStartServerFnMethodOrder = defineRule({
 	id: "tanstack-start-server-fn-method-order",
 	title: "Server function method order breaks type inference",
 	tags: ["test-noise"],
 	requires: ["tanstack-start"],
 	severity: "error",
-	recommendation: "Chain methods in order: .middleware() → .inputValidator() → .client() → .server() → .handler(). Types depend on this sequence.",
+	recommendation: "Chain methods in order: .middleware() → .validator() → .client() → .server() → .handler(). Types depend on this sequence.",
 	create: (context) => ({ CallExpression(node) {
 		if (!isNodeOfType(node.callee, "MemberExpression")) return;
 		const methodNames = [];
@@ -34609,10 +36708,10 @@ const tanstackStartServerFnMethodOrder = defineRule({
 		} else return;
 		const ownMethodName = isNodeOfType(node.callee.property, "Identifier") ? node.callee.property.name : null;
 		if (methodNames[methodNames.length - 1] !== ownMethodName) return;
-		const orderSensitiveMethods = methodNames.filter((name) => TANSTACK_MIDDLEWARE_METHOD_ORDER.includes(name));
+		const orderSensitiveMethods = methodNames.filter((name) => TANSTACK_MIDDLEWARE_METHOD_ORDER.includes(toMethodOrderToken(name)));
 		let lastIndex = -1;
 		for (const methodName of orderSensitiveMethods) {
-			const currentIndex = TANSTACK_MIDDLEWARE_METHOD_ORDER.indexOf(methodName);
+			const currentIndex = TANSTACK_MIDDLEWARE_METHOD_ORDER.indexOf(toMethodOrderToken(methodName));
 			if (currentIndex < lastIndex) {
 				const expectedBefore = TANSTACK_MIDDLEWARE_METHOD_ORDER[lastIndex];
 				context.report({
@@ -34633,7 +36732,7 @@ const tanstackStartServerFnValidateInput = defineRule({
 	tags: ["test-noise"],
 	requires: ["tanstack-start"],
 	severity: "warn",
-	recommendation: "Add `.inputValidator(schema)` before `.handler()`. This data crosses the network and must be validated at runtime.",
+	recommendation: "Add `.validator(schema)` before `.handler()`. This data crosses the network and must be validated at runtime.",
 	create: (context) => ({ CallExpression(node) {
 		if (!isNodeOfType(node.callee, "MemberExpression")) return;
 		if (!isNodeOfType(node.callee.property, "Identifier")) return;
@@ -34647,11 +36746,122 @@ const tanstackStartServerFnValidateInput = defineRule({
 			if (isNodeOfType(child, "MemberExpression") && isNodeOfType(child.property, "Identifier") && child.property.name === "data") accessesData = true;
 			if (isNodeOfType(child, "ObjectPattern") && child.properties?.some((property) => isNodeOfType(property, "Property") && isNodeOfType(property.key, "Identifier") && property.key.name === "data")) accessesData = true;
 		});
-		if (accessesData && !chainInfo.hasInputValidator) context.report({
+		if (accessesData && !chainInfo.hasInputValidation) context.report({
 			node,
-			message: "This server function reads network data with no inputValidator(), so anyone can send unvalidated input."
+			message: "This server function reads network data with no validator(), so anyone can send unvalidated input."
 		});
 	} })
+});
+//#endregion
+//#region src/plugin/rules/security-scan/utils/is-server-route-source-path.ts
+const isServerRouteSourcePath = (relativePath) => {
+	if (!isProductionSourcePath(relativePath)) return false;
+	if (SERVER_CONTEXT_PATTERN.test(relativePath)) return true;
+	return /(?:^|\/)(?:middleware|route)\.[cm]?[jt]sx?$/.test(relativePath);
+};
+//#endregion
+//#region src/plugin/rules/security-scan/tenant-static-proxy-risk.ts
+const tenantStaticProxyRisk = defineRule({
+	id: "tenant-static-proxy-risk",
+	title: "Tenant-controlled static asset proxy",
+	severity: "warn",
+	recommendation: "Bind tenant identity to the trusted host or authenticated org, canonicalize after decoding, reject traversal, and never let one tenant choose another tenant's asset prefix.",
+	scan: scanByPattern({
+		shouldScan: (file) => isServerRouteSourcePath(file.relativePath),
+		pattern: /\b(?:fetch|path\.join|getObject\w*|GetObjectCommand|getSignedUrl|createReadStream)\s*\([^;]{0,200}(?:\$\{[^}]{0,100}\b(?:tenant|subdomain|workspace|hostPattern|(?<!\.)organization(?:Id|Slug)?)\b|\b(?:tenant|subdomain|workspace)(?:Id|Slug|Name)?\b\s*[,)+\].])/i,
+		message: "Route code appears to compose tenant or subdomain input into a static/CDN/object-store fetch path."
+	})
+});
+//#endregion
+//#region src/plugin/rules/security-scan/unsafe-json-in-html.ts
+const SINK_JSON_STRINGIFY_PATTERNS = [/dangerouslySetInnerHTML\s*=\s*\{\{\s*__html\s*:[\s\S]{0,300}?\bJSON\.stringify\s*\(/gi, /<script\b[^>]*>(?:(?!<\/script>)[\s\S]){0,300}?\bJSON\.stringify\s*\(/gi];
+const RETURN_ESCAPE_PATTERN = /^[\s)]*\.replace\s*\([^)]*(?:\\u003[cC]|&lt;|<)/;
+const ESCAPE_WRAPPER_PATTERN = /(?:\b(?:escapeHtml|escapeJSON|escapeJson|htmlEscape|jsesc)|(?<![.\w])(?:serialize|serializeJavascript|devalue|uneval|superjson))\s*\(\s*$/i;
+const JSON_STRINGIFY_TOKEN_PATTERN = /\bJSON\.stringify\s*\($/i;
+const RETURN_LOOKAHEAD_CHARS = 160;
+const unsafeJsonInHtml = defineRule({
+	id: "unsafe-json-in-html",
+	title: "Unescaped JSON in HTML or script sink",
+	severity: "warn",
+	recommendation: "JSON.stringify does not HTML-escape, so a `<\/script>` (or `<`) in the data breaks out and becomes XSS. Use an HTML-safe serializer (serialize-javascript, devalue) or escape `<`, `>`, and `&`, or pass data via a JSON `<script type=\"application/json\">` read with JSON.parse.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		const content = getScannableContent(file);
+		if (!content.includes("JSON.stringify")) return [];
+		const findings = [];
+		const seenIndices = /* @__PURE__ */ new Set();
+		for (const pattern of SINK_JSON_STRINGIFY_PATTERNS) {
+			pattern.lastIndex = 0;
+			for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
+				const beforeStringify = match[0].replace(JSON_STRINGIFY_TOKEN_PATTERN, "");
+				if (ESCAPE_WRAPPER_PATTERN.test(beforeStringify)) continue;
+				const closeParenIndex = findMatchingBracket(content, match.index + match[0].length - 1);
+				if (closeParenIndex >= 0) {
+					const afterReturn = content.slice(closeParenIndex + 1, closeParenIndex + 1 + RETURN_LOOKAHEAD_CHARS);
+					if (RETURN_ESCAPE_PATTERN.test(afterReturn)) continue;
+				}
+				if (seenIndices.has(match.index)) continue;
+				seenIndices.add(match.index);
+				const location = getLocationAtIndex(content, match.index);
+				findings.push({
+					message: "JSON.stringify is embedded in HTML/script markup without HTML-escaping; data containing `<\/script>` or `<` breaks out and becomes XSS.",
+					line: location.line,
+					column: location.column
+				});
+			}
+		}
+		return findings;
+	}
+});
+//#endregion
+//#region src/plugin/rules/security-scan/untrusted-redirect-following.ts
+const OUTBOUND_FETCH_CALL_PATTERN = /(?:(?<![.\w$])fetch|\baxios\.\s*(?:get|post|put|delete|head)|\bgot|\bgot\.\s*(?:get|post))\s*\(\s*([^,)]+)/;
+const CALLER_STYLE_URL_NAME_PATTERN = /\b(?:url|targetUrl|callbackUrl|redirectUrl|webhookUrl|companyUrl|websiteUrl|domainUrl|imageUrl|fetchUrl|next|return_to|returnTo|destination|location)\b/i;
+const REQUEST_INPUT_EXPRESSION_PATTERN = /\breq\.|\brequest\.(?:query|body|params|nextUrl)|\bsearchParams\b|\bparams\.|\bbody\.|\bquery\./;
+const SAFE_REDIRECT_MODE_PATTERN = /\bredirect\s*:\s*["'](?:manual|error)["']/;
+const isRequestSourcedUrlExpression = (urlExpression, fileContent) => {
+	if (REQUEST_INPUT_EXPRESSION_PATTERN.test(urlExpression)) return true;
+	const identifierMatch = /^[\w$]+$/.exec(urlExpression.trim());
+	if (identifierMatch === null) return false;
+	return new RegExp(`(?:const|let|var)[^=;\\n]{0,80}\\b${identifierMatch[0]}\\b[^=;\\n]{0,80}=[^;\\n]*(?:\\breq\\.|\\brequest\\.|\\bsearchParams\\b|\\bparams\\.|\\bbody\\.|\\bquery\\.|\\$_(?:GET|POST|REQUEST))`).test(fileContent);
+};
+const untrustedRedirectFollowing = defineRule({
+	id: "untrusted-redirect-following",
+	title: "Server fetch follows redirects for caller-shaped URL",
+	severity: "warn",
+	recommendation: "Use `redirect: \"manual\"` or equivalent and re-validate every redirect target before following it to avoid SSRF redirect bypasses.",
+	scan: (file) => {
+		if (!isServerRouteSourcePath(file.relativePath)) return [];
+		if (!OUTBOUND_FETCH_CALL_PATTERN.test(file.content)) return [];
+		const findings = [];
+		const lines = file.content.split("\n");
+		for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+			const line = lines[lineIndex] ?? "";
+			const fetchMatch = line.match(OUTBOUND_FETCH_CALL_PATTERN);
+			const urlExpression = fetchMatch?.[1] ?? "";
+			if (!fetchMatch || !CALLER_STYLE_URL_NAME_PATTERN.test(urlExpression)) continue;
+			if (!isRequestSourcedUrlExpression(urlExpression, file.content)) continue;
+			const fetchWindow = lines.slice(lineIndex, lineIndex + 5).join("\n");
+			if (SAFE_REDIRECT_MODE_PATTERN.test(fetchWindow)) continue;
+			findings.push({
+				message: "Server-side fetch code appears to follow redirects for a URL shaped like caller-controlled input.",
+				line: lineIndex + 1,
+				column: line.search(/\S/) + 1
+			});
+		}
+		return findings;
+	}
+});
+const urlPrefilledPrivilegedAction = defineRule({
+	id: "url-prefilled-privileged-action",
+	title: "URL pre-fills a privileged action",
+	severity: "warn",
+	recommendation: "Require server-side validation and explicit confirmation for URL-sourced invite, role, permission, redirect, or sharing parameters.",
+	scan: scanByPattern({
+		shouldScan: (file) => isClientSourcePath(file.relativePath),
+		pattern: /(?<!(?:safe|valid|sanitiz|relativ|allowlist|whitelist)[\w$]*\(\s*(?:new\s+)?(?:[\w$]+\s*\.\s*){0,4})\b(?:searchParams|useSearchParams\s*\(\s*\)|URLSearchParams\s*\([^)]{0,120}\))(?:[?!])?\.get(?:All)?\s*\(\s*["'](?:userstoinvite|role|permission|sharingaction|invite|admin|next|continue|returnTo|redirect_uri|callbackUrl)["']|\bsearchParams\.(?:userstoinvite|role|permission|sharingaction|invite|admin|returnTo|redirect_uri|callbackUrl)\b/i,
+		message: "Client code reads sensitive action state from the URL, which can pre-fill invites, roles, redirects, or sharing flows with attacker values."
+	})
 });
 //#endregion
 //#region src/plugin/rules/bundle-size/use-lazy-motion.ts
@@ -34745,6 +36955,33 @@ const voidDomElementsNoChildren = defineRule({
 				message: buildMessage(tagName)
 			});
 		}
+	})
+});
+//#endregion
+//#region src/plugin/rules/security-scan/webhook-signature-risk.ts
+const WEBHOOK_HANDLER_PATTERN = /(?:^|\/)[^/]*webhook[^/]*\/|(?:^|\/)[^/]*webhook[^/]*\.[cm]?[jt]s$|\bwebhook\b/i;
+const WEBHOOK_ENTRYPOINT_PATTERN = /\b(?:export\s+(?:async\s+)?function\s+POST|export\s+const\s+(?:POST|handler|webhook)|webhookHandler|webhookRoute)\b/i;
+const WEBHOOK_SIGNATURE_VERIFICATION_PATTERN = new RegExp(`${/verifySignature|verify.*signature|verify\w*(?:Webhook|Auth)|constructEvent|createHmac|timingSafeEqual|svix|webhookSecret|stripe\.webhooks|["'][\w-]*signature["']/.source}|${/\b[A-Za-z]{0,40}(?:verif|valid|check|assert|authenticat|compare|guard)[A-Za-z]{0,40}(?:secret|signature|hmac|webhook|digest)[A-Za-z]{0,40}\s*\(/.source}`, "i");
+const OUTBOUND_WEBHOOK_URL_MENTION_PATTERN = /webhook[\s_-]?ur[il]\w*/gi;
+const OUTBOUND_WEBHOOK_CONFIG_PATTERN = /process\.env\.\w*WEBHOOK_URL|\b(?:send|post|dispatch|publish|notify)\w*Webhook/;
+const REQUEST_READ_PATTERN = /\b(?:req|request)\b/;
+const COMMENT_OR_STRING_PATTERN = /\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`/g;
+const webhookSignatureRisk = defineRule({
+	id: "webhook-signature-risk",
+	title: "Webhook handler lacks signature verification",
+	severity: "warn",
+	recommendation: "Verify provider signatures before parsing or acting on webhook bodies. Use provider SDK helpers or HMAC verification with timing-safe comparison.",
+	scan: scanByPattern({
+		shouldScan: (file) => {
+			if (!isProductionSourcePath(file.relativePath)) return false;
+			if (OUTBOUND_WEBHOOK_CONFIG_PATTERN.test(file.content)) return false;
+			const judgeableContent = file.content.replace(COMMENT_OR_STRING_PATTERN, "").replace(OUTBOUND_WEBHOOK_URL_MENTION_PATTERN, "");
+			return WEBHOOK_HANDLER_PATTERN.test(file.relativePath) || WEBHOOK_HANDLER_PATTERN.test(judgeableContent);
+		},
+		pattern: WEBHOOK_ENTRYPOINT_PATTERN,
+		requireAll: [REQUEST_READ_PATTERN],
+		suppressWhen: WEBHOOK_SIGNATURE_VERIFICATION_PATTERN,
+		message: "Webhook handler code does not show an obvious signature verification step."
 	})
 });
 //#endregion
@@ -35159,6 +37396,18 @@ const zodV4PreferTopLevelStringFormats = defineRule({
 //#region src/plugin/rule-registry.ts
 const reactDoctorRules = [
 	{
+		key: "react-doctor/active-static-asset",
+		id: "active-static-asset",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...activeStaticAsset,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...activeStaticAsset.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/activity-wraps-effect-heavy-subtree",
 		id: "activity-wraps-effect-heavy-subtree",
 		source: "react-doctor",
@@ -35180,6 +37429,18 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Performance",
 			requires: [...new Set(["react", ...advancedEventHandlerRefs.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/agent-tool-capability-risk",
+		id: "agent-tool-capability-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...agentToolCapabilityRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...agentToolCapabilityRisk.tags ?? []])]
 		}
 	},
 	{
@@ -35291,6 +37552,42 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/artifact-baas-authority-surface",
+		id: "artifact-baas-authority-surface",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...artifactBaasAuthoritySurface,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...artifactBaasAuthoritySurface.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/artifact-env-leak",
+		id: "artifact-env-leak",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...artifactEnvLeak,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...artifactEnvLeak.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/artifact-secret-leak",
+		id: "artifact-secret-leak",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...artifactSecretLeak,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...artifactSecretLeak.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/async-await-in-loop",
 		id: "async-await-in-loop",
 		source: "react-doctor",
@@ -35325,6 +37622,17 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/auth-token-in-web-storage",
+		id: "auth-token-in-web-storage",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...authTokenInWebStorage,
+			framework: "global",
+			category: "Security"
+		}
+	},
+	{
 		key: "react-doctor/autocomplete-valid",
 		id: "autocomplete-valid",
 		source: "react-doctor",
@@ -35334,6 +37642,18 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Accessibility",
 			requires: [...new Set(["react", ...autocompleteValid.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/build-pipeline-secret-boundary",
+		id: "build-pipeline-secret-boundary",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...buildPipelineSecretBoundary,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...buildPipelineSecretBoundary.tags ?? []])]
 		}
 	},
 	{
@@ -35373,6 +37693,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/clickjacking-redirect-risk",
+		id: "clickjacking-redirect-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...clickjackingRedirectRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...clickjackingRedirectRisk.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/client-localstorage-no-version",
 		id: "client-localstorage-no-version",
 		source: "react-doctor",
@@ -35397,6 +37729,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/command-execution-input-risk",
+		id: "command-execution-input-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...commandExecutionInputRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...commandExecutionInputRisk.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/control-has-associated-label",
 		id: "control-has-associated-label",
 		source: "react-doctor",
@@ -35406,6 +37750,30 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Accessibility",
 			requires: [...new Set(["react", ...controlHasAssociatedLabel.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/cors-cookie-trust-risk",
+		id: "cors-cookie-trust-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...corsCookieTrustRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...corsCookieTrustRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/dangerous-html-sink",
+		id: "dangerous-html-sink",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...dangerousHtmlSink,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...dangerousHtmlSink.tags ?? []])]
 		}
 	},
 	{
@@ -35481,6 +37849,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/dialog-has-accessible-name",
+		id: "dialog-has-accessible-name",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...dialogHasAccessibleName,
+			framework: "global",
+			category: "Accessibility",
+			requires: [...new Set(["react", ...dialogHasAccessibleName.requires ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/display-name",
 		id: "display-name",
 		source: "react-doctor",
@@ -35529,6 +37909,42 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/firebase-client-owned-authz-field",
+		id: "firebase-client-owned-authz-field",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...firebaseClientOwnedAuthzField,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...firebaseClientOwnedAuthzField.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/firebase-permissive-rules",
+		id: "firebase-permissive-rules",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...firebasePermissiveRules,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...firebasePermissiveRules.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/firebase-query-filter-as-auth",
+		id: "firebase-query-filter-as-auth",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...firebaseQueryFilterAsAuth,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...firebaseQueryFilterAsAuth.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/forbid-component-props",
 		id: "forbid-component-props",
 		source: "react-doctor",
@@ -35574,6 +37990,18 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Maintainability",
 			requires: [...new Set(["react", ...forwardRefUsesRef.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/git-provider-url-injection-risk",
+		id: "git-provider-url-injection-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...gitProviderUrlInjectionRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...gitProviderUrlInjectionRisk.tags ?? []])]
 		}
 	},
 	{
@@ -35691,6 +38119,42 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Accessibility",
 			requires: [...new Set(["react", ...imgRedundantAlt.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/import-metadata-execution-risk",
+		id: "import-metadata-execution-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...importMetadataExecutionRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...importMetadataExecutionRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/insecure-crypto-risk",
+		id: "insecure-crypto-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...insecureCryptoRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...insecureCryptoRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/insecure-session-cookie",
+		id: "insecure-session-cookie",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...insecureSessionCookie,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...insecureSessionCookie.tags ?? []])]
 		}
 	},
 	{
@@ -36136,6 +38600,30 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/jwt-insecure-verification",
+		id: "jwt-insecure-verification",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...jwtInsecureVerification,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...jwtInsecureVerification.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/key-lifecycle-risk",
+		id: "key-lifecycle-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...keyLifecycleRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...keyLifecycleRisk.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/label-has-associated-control",
 		id: "label-has-associated-control",
 		source: "react-doctor",
@@ -36157,6 +38645,42 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Accessibility",
 			requires: [...new Set(["react", ...lang.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/local-rpc-native-bridge-risk",
+		id: "local-rpc-native-bridge-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...localRpcNativeBridgeRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...localRpcNativeBridgeRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/mcp-tool-capability-risk",
+		id: "mcp-tool-capability-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...mcpToolCapabilityRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...mcpToolCapabilityRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/mdx-ssr-execution-risk",
+		id: "mdx-ssr-execution-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...mdxSsrExecutionRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...mdxSsrExecutionRisk.tags ?? []])]
 		}
 	},
 	{
@@ -36496,6 +39020,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/no-async-effect-callback",
+		id: "no-async-effect-callback",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noAsyncEffectCallback,
+			framework: "global",
+			category: "Bugs",
+			requires: [...new Set(["react", ...noAsyncEffectCallback.requires ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/no-autofocus",
 		id: "no-autofocus",
 		source: "react-doctor",
@@ -36516,6 +39052,18 @@ const reactDoctorRules = [
 			...noBarrelImport,
 			framework: "global",
 			category: "Performance"
+		}
+	},
+	{
+		key: "react-doctor/no-call-component-as-function",
+		id: "no-call-component-as-function",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noCallComponentAsFunction,
+			framework: "global",
+			category: "Bugs",
+			requires: [...new Set(["react", ...noCallComponentAsFunction.requires ?? []])]
 		}
 	},
 	{
@@ -36576,6 +39124,18 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...noCreateContextInRender.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/no-create-ref-in-function-component",
+		id: "no-create-ref-in-function-component",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noCreateRefInFunctionComponent,
+			framework: "global",
+			category: "Bugs",
+			requires: [...new Set(["react", ...noCreateRefInFunctionComponent.requires ?? []])]
 		}
 	},
 	{
@@ -36753,6 +39313,17 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...noDocumentStartViewTransition.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/no-document-write",
+		id: "no-document-write",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noDocumentWrite,
+			framework: "global",
+			category: "Performance"
 		}
 	},
 	{
@@ -36953,6 +39524,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/no-img-lazy-with-high-fetchpriority",
+		id: "no-img-lazy-with-high-fetchpriority",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noImgLazyWithHighFetchpriority,
+			framework: "global",
+			category: "Performance",
+			requires: [...new Set(["react", ...noImgLazyWithHighFetchpriority.requires ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/no-initialize-state",
 		id: "no-initialize-state",
 		source: "react-doctor",
@@ -37020,6 +39603,17 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...noIsMounted.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/no-json-parse-stringify-clone",
+		id: "no-json-parse-stringify-clone",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noJsonParseStringifyClone,
+			framework: "global",
+			category: "Performance"
 		}
 	},
 	{
@@ -37542,6 +40136,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/no-string-false-on-boolean-attribute",
+		id: "no-string-false-on-boolean-attribute",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noStringFalseOnBooleanAttribute,
+			framework: "global",
+			category: "Bugs",
+			requires: [...new Set(["react", ...noStringFalseOnBooleanAttribute.requires ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/no-string-refs",
 		id: "no-string-refs",
 		source: "react-doctor",
@@ -37551,6 +40157,17 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...noStringRefs.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/no-sync-xhr",
+		id: "no-sync-xhr",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noSyncXhr,
+			framework: "global",
+			category: "Performance"
 		}
 	},
 	{
@@ -37705,6 +40322,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/nosql-injection-risk",
+		id: "nosql-injection-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...nosqlInjectionRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...nosqlInjectionRisk.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/only-export-components",
 		id: "only-export-components",
 		source: "react-doctor",
@@ -37714,6 +40343,54 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Maintainability",
 			requires: [...new Set(["react", ...onlyExportComponents.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/package-metadata-secret",
+		id: "package-metadata-secret",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...packageMetadataSecret,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...packageMetadataSecret.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/path-traversal-risk",
+		id: "path-traversal-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...pathTraversalRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...pathTraversalRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/plugin-update-trust-risk",
+		id: "plugin-update-trust-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...pluginUpdateTrustRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...pluginUpdateTrustRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/postmessage-origin-risk",
+		id: "postmessage-origin-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...postmessageOriginRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...postmessageOriginRisk.tags ?? []])]
 		}
 	},
 	{
@@ -37912,6 +40589,30 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/public-debug-artifact",
+		id: "public-debug-artifact",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...publicDebugArtifact,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...publicDebugArtifact.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/public-env-secret-name",
+		id: "public-env-secret-name",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...publicEnvSecretName,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...publicEnvSecretName.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/query-destructure-result",
 		id: "query-destructure-result",
 		source: "react-doctor",
@@ -37986,6 +40687,18 @@ const reactDoctorRules = [
 			...queryStableQueryClient,
 			framework: "tanstack-query",
 			category: "Bugs"
+		}
+	},
+	{
+		key: "react-doctor/raw-sql-injection-risk",
+		id: "raw-sql-injection-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...rawSqlInjectionRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...rawSqlInjectionRisk.tags ?? []])]
 		}
 	},
 	{
@@ -38127,6 +40840,30 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Performance",
 			requires: [...new Set(["react", ...renderingUsetransitionLoading.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/repository-secret-file",
+		id: "repository-secret-file",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...repositorySecretFile,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...repositorySecretFile.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/request-body-mass-assignment",
+		id: "request-body-mass-assignment",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...requestBodyMassAssignment,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...requestBodyMassAssignment.tags ?? []])]
 		}
 	},
 	{
@@ -38718,6 +41455,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/secret-in-fallback",
+		id: "secret-in-fallback",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...secretInFallback,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...secretInFallback.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/self-closing-comp",
 		id: "self-closing-comp",
 		source: "react-doctor",
@@ -38847,6 +41596,54 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...stylePropObject.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/supabase-client-owned-authz-field",
+		id: "supabase-client-owned-authz-field",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...supabaseClientOwnedAuthzField,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...supabaseClientOwnedAuthzField.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/supabase-rls-policy-risk",
+		id: "supabase-rls-policy-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...supabaseRlsPolicyRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...supabaseRlsPolicyRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/supabase-table-missing-rls",
+		id: "supabase-table-missing-rls",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...supabaseTableMissingRls,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...supabaseTableMissingRls.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/svg-filter-clickjacking-risk",
+		id: "svg-filter-clickjacking-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...svgFilterClickjackingRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...svgFilterClickjackingRisk.tags ?? []])]
 		}
 	},
 	{
@@ -39016,6 +41813,54 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/tenant-static-proxy-risk",
+		id: "tenant-static-proxy-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...tenantStaticProxyRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...tenantStaticProxyRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/unsafe-json-in-html",
+		id: "unsafe-json-in-html",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...unsafeJsonInHtml,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...unsafeJsonInHtml.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/untrusted-redirect-following",
+		id: "untrusted-redirect-following",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...untrustedRedirectFollowing,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...untrustedRedirectFollowing.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/url-prefilled-privileged-action",
+		id: "url-prefilled-privileged-action",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...urlPrefilledPrivilegedAction,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...urlPrefilledPrivilegedAction.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/use-lazy-motion",
 		id: "use-lazy-motion",
 		source: "react-doctor",
@@ -39036,6 +41881,18 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...voidDomElementsNoChildren.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/webhook-signature-risk",
+		id: "webhook-signature-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...webhookSignatureRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...webhookSignatureRisk.tags ?? []])]
 		}
 	},
 	{
@@ -39084,24 +41941,6 @@ const reactDoctorRules = [
 	}
 ];
 const ruleRegistry = Object.fromEntries(reactDoctorRules.map((rule) => [rule.id, rule.rule]));
-//#endregion
-//#region src/plugin/utils/is-react-native-file.ts
-const WEB_FILE_EXTENSION_PATTERN = /\.web\.[cm]?[jt]sx?$/;
-const NATIVE_FILE_EXTENSION_PATTERN = /\.(?:ios|android|native)\.[cm]?[jt]sx?$/;
-const isReactNativeFileActive = (context) => {
-	const rawFilename = context.filename;
-	if (!rawFilename) return true;
-	const filename = normalizeFilename$1(rawFilename);
-	if (NATIVE_FILE_EXTENSION_PATTERN.test(filename)) return true;
-	if (WEB_FILE_EXTENSION_PATTERN.test(filename)) return false;
-	const packagePlatform = classifyPackagePlatform(filename);
-	if (packagePlatform === "web") return false;
-	if (packagePlatform === "expo" || packagePlatform === "react-native") return true;
-	const framework = getReactDoctorStringSetting(context.settings, "framework");
-	if (framework === "react-native" || framework === "expo") return true;
-	if (framework === "nextjs" || framework === "vite" || framework === "cra" || framework === "remix" || framework === "gatsby" || framework === "tanstack-start") return false;
-	return true;
-};
 //#endregion
 //#region src/plugin/utils/wrap-react-native-rule.ts
 const EMPTY_VISITORS = {};
@@ -39439,32 +42278,6 @@ const computeUnconditionalSet = (cfg) => {
 	}
 	return unconditional;
 };
-const computeDominatesExit = (cfg) => {
-	const reachableToExit = /* @__PURE__ */ new Set();
-	const queue = [cfg.exit];
-	while (queue.length > 0) {
-		const block = queue.shift();
-		if (reachableToExit.has(block)) continue;
-		reachableToExit.add(block);
-		for (const edge of block.predecessors) queue.push(edge.from);
-	}
-	const dominatesExit = /* @__PURE__ */ new Set();
-	const visit = (block) => {
-		if (block === cfg.exit) return true;
-		if (dominatesExit.has(block)) return true;
-		if (block.successors.length === 0) return false;
-		dominatesExit.add(block);
-		let allReach = true;
-		for (const edge of block.successors) if (!visit(edge.to)) {
-			allReach = false;
-			break;
-		}
-		if (!allReach) dominatesExit.delete(block);
-		return allReach;
-	};
-	for (const block of cfg.blocks) visit(block);
-	return dominatesExit;
-};
 const analyzeControlFlow = (program) => {
 	nextBlockId = 0;
 	const functionCfgs = /* @__PURE__ */ new Map();
@@ -39472,8 +42285,7 @@ const analyzeControlFlow = (program) => {
 		const cfg = buildFunctionCfg(functionNode, body);
 		functionCfgs.set(functionNode, {
 			cfg,
-			unconditionalSet: computeUnconditionalSet(cfg),
-			dominatesExitSet: computeDominatesExit(cfg)
+			unconditionalSet: computeUnconditionalSet(cfg)
 		});
 	};
 	if (isNodeOfType(program, "Program")) buildFor(program, {
@@ -39516,20 +42328,10 @@ const analyzeControlFlow = (program) => {
 		if (!block) return true;
 		return entry.unconditionalSet.has(block);
 	};
-	const dominatesExit = (node) => {
-		const owner = enclosingFunction(node);
-		if (!owner) return true;
-		const entry = functionCfgs.get(owner);
-		if (!entry) return true;
-		const block = entry.cfg.blockOf(node);
-		if (!block) return true;
-		return entry.dominatesExitSet.has(block);
-	};
 	return {
 		cfgFor,
 		enclosingFunction,
-		isUnconditionalFromEntry,
-		dominatesExit
+		isUnconditionalFromEntry
 	};
 };
 //#endregion
@@ -39554,8 +42356,7 @@ const buildFallbackScopes = () => ({
 const FALLBACK_CFG = {
 	cfgFor: () => null,
 	enclosingFunction: () => null,
-	isUnconditionalFromEntry: () => false,
-	dominatesExit: () => false
+	isUnconditionalFromEntry: () => false
 };
 const wrapWithSemanticContext = (rule) => ({
 	...rule,
@@ -39626,7 +42427,8 @@ const toKeyedSeverity = (entries) => entries.map((entry) => ({
 	severity: entry.rule.severity
 }));
 const isRecommendedByDefault = (entry) => entry.rule.defaultEnabled !== false;
-const collectReactDoctorRulesByFramework = (frameworkName) => reactDoctorRules.filter((entry) => entry.rule.framework === frameworkName && isRecommendedByDefault(entry));
+const isScanRule = (entry) => entry.rule.scan !== void 0;
+const collectReactDoctorRulesByFramework = (frameworkName) => reactDoctorRules.filter((entry) => entry.rule.framework === frameworkName && isRecommendedByDefault(entry) && !isScanRule(entry));
 const collectExternalRulesBySource = (source) => EXTERNAL_RULES.filter((rule) => rule.source === source);
 const collectFrameworkSpecificRuleKeys = () => {
 	const collected = /* @__PURE__ */ new Set();
@@ -39723,14 +42525,45 @@ const REACT_NATIVE_RULES = toRuleMap(toKeyedSeverity(collectReactDoctorRulesByFr
 const TANSTACK_START_RULES = toRuleMap(toKeyedSeverity(collectReactDoctorRulesByFramework("tanstack-start")));
 const TANSTACK_QUERY_RULES = toRuleMap(toKeyedSeverity(collectReactDoctorRulesByFramework("tanstack-query")));
 const PREACT_RULES = toRuleMap(toKeyedSeverity(collectReactDoctorRulesByFramework("preact")));
-const ALL_REACT_DOCTOR_RULES = toRuleMap(toKeyedSeverity(REACT_DOCTOR_RULES));
+const ALL_REACT_DOCTOR_RULES = toRuleMap(toKeyedSeverity(REACT_DOCTOR_RULES.filter((entry) => !isScanRule(entry))));
 const ALL_REACT_DOCTOR_RULE_KEYS = new Set(REACT_DOCTOR_RULES.map((rule) => rule.key));
 const FRAMEWORK_SPECIFIC_RULE_KEYS = collectFrameworkSpecificRuleKeys();
 const REACT_COMPILER_RULES = toRuleMap(collectExternalRulesBySource("react-compiler"));
 //#endregion
+//#region src/plugin/constants/cross-file-rule-ids.ts
+const CROSS_FILE_RULE_IDS = new Set([
+	"no-barrel-import",
+	"nextjs-missing-metadata",
+	"nextjs-no-use-search-params-without-suspense",
+	"no-mutating-reducer-state",
+	"rn-prefer-expo-image"
+]);
+//#endregion
+//#region src/plugin/rules/security-scan/utils/is-probably-text-file.ts
+const isProbablyTextFile = (relativePath) => TEXT_FILE_PATTERN.test(relativePath) || DOTENV_FILE_PATTERN.test(relativePath);
+//#endregion
+//#region src/plugin/rules/security-scan/utils/classify-security-scan-file.ts
+const classifySecurityScanFile = (relativePath) => {
+	const isGeneratedBundleByName = GENERATED_BUNDLE_FILE_PATTERN.test(relativePath);
+	if (isRepositorySecretFilePath(relativePath) || isSqlPath(relativePath) || isFirebaseRulesPath(relativePath) || isConfigOrCiPath(relativePath)) return {
+		bucket: "priority",
+		isGeneratedBundleByName
+	};
+	if (isBrowserArtifactPath(relativePath, isGeneratedBundleByName)) return {
+		bucket: "artifact",
+		isGeneratedBundleByName
+	};
+	if (isProbablyTextFile(relativePath)) return {
+		bucket: "other",
+		isGeneratedBundleByName
+	};
+	return null;
+};
+const shouldReadSecurityScanContent = (relativePath, isGeneratedBundle) => isGeneratedBundle || isProbablyTextFile(relativePath) || isConfigOrCiPath(relativePath) || isRepositorySecretFilePath(relativePath);
+//#endregion
 //#region src/index.ts
 var src_default = plugin;
 //#endregion
-export { ALL_REACT_DOCTOR_RULES, ALL_REACT_DOCTOR_RULE_KEYS, EXTERNAL_RULES, FRAMEWORK_SPECIFIC_RULE_KEYS, MOTION_LIBRARY_PACKAGES, NEXTJS_RULES, PREACT_RULES, REACT_COMPILER_RULES, REACT_DOCTOR_RULES, REACT_NATIVE_DEPENDENCY_NAMES, REACT_NATIVE_DEPENDENCY_PREFIXES, REACT_NATIVE_RULES, RECOMMENDED_RULES, RULES, TANSTACK_QUERY_RULES, TANSTACK_START_RULES, src_default as default, isReactNativeDependencyName };
+export { ALL_REACT_DOCTOR_RULES, ALL_REACT_DOCTOR_RULE_KEYS, CROSS_FILE_RULE_IDS, EXTERNAL_RULES, FRAMEWORK_SPECIFIC_RULE_KEYS, MOTION_LIBRARY_PACKAGES, NEXTJS_RULES, PREACT_RULES, REACT_COMPILER_RULES, REACT_DOCTOR_RULES, REACT_NATIVE_DEPENDENCY_NAMES, REACT_NATIVE_DEPENDENCY_PREFIXES, REACT_NATIVE_RULES, RECOMMENDED_RULES, RULES, TANSTACK_QUERY_RULES, TANSTACK_START_RULES, classifySecurityScanFile, src_default as default, isReactNativeDependencyName, shouldReadSecurityScanContent };
 
 //# sourceMappingURL=index.js.map

@@ -1,20 +1,19 @@
 import { defineRule } from "../../utils/define-rule.js";
 import { walkAst } from "../../utils/walk-ast.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
-import type { Rule } from "../../utils/rule.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { walkServerFnChain } from "./utils/walk-server-fn-chain.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import type { EsTreeNodeOfType } from "../../utils/es-tree-node-of-type.js";
 
-export const tanstackStartServerFnValidateInput = defineRule<Rule>({
+export const tanstackStartServerFnValidateInput = defineRule({
   id: "tanstack-start-server-fn-validate-input",
   title: "Server function without input validation",
   tags: ["test-noise"],
   requires: ["tanstack-start"],
   severity: "warn",
   recommendation:
-    "Add `.inputValidator(schema)` before `.handler()`. This data crosses the network and must be validated at runtime.",
+    "Add `.validator(schema)` before `.handler()`. This data crosses the network and must be validated at runtime.",
   create: (context: RuleContext) => ({
     CallExpression(node: EsTreeNodeOfType<"CallExpression">) {
       if (!isNodeOfType(node.callee, "MemberExpression")) return;
@@ -49,11 +48,11 @@ export const tanstackStartServerFnValidateInput = defineRule<Rule>({
         }
       });
 
-      if (accessesData && !chainInfo.hasInputValidator) {
+      if (accessesData && !chainInfo.hasInputValidation) {
         context.report({
           node,
           message:
-            "This server function reads network data with no inputValidator(), so anyone can send unvalidated input.",
+            "This server function reads network data with no validator(), so anyone can send unvalidated input.",
         });
       }
     },

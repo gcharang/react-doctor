@@ -8,7 +8,6 @@ import { isEs5Component } from "../../utils/is-es5-component.js";
 import { isEs6Component } from "../../utils/is-es6-component.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 import { isReactComponentName } from "../../utils/is-react-component-name.js";
-import type { Rule } from "../../utils/rule.js";
 
 const MESSAGE =
   "This component shows up as Anonymous in React DevTools because it has no `displayName`.";
@@ -367,7 +366,7 @@ const hasDisplayNameAssignmentForProperty = (
 // legacy factories that take a config object — those need a
 // `displayName` property in the config when the assigned binding
 // isn't PascalCase.
-export const displayName = defineRule<Rule>({
+export const displayName = defineRule({
   id: "display-name",
   title: "Component missing display name",
   severity: "warn",
@@ -380,7 +379,7 @@ export const displayName = defineRule<Rule>({
   category: "Architecture",
   create: (context) => {
     const settings = resolveSettings(context.settings);
-    const ignoreNamed = settings.ignoreTranspilerName ? false : true;
+    const ignoreNamed = !settings.ignoreTranspilerName;
 
     const reportAt = (node: EsTreeNode): void => {
       context.report({ node, message: MESSAGE });
@@ -541,8 +540,6 @@ export const displayName = defineRule<Rule>({
             return;
           }
         }
-        // Suppress unused warning.
-        void isCreateElementCall;
         reportAt(node as EsTreeNode);
       },
     };

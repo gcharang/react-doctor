@@ -35,6 +35,14 @@ describe("rule tag registration", () => {
     }
   });
 
+  it('tags every security scan rule (every rule carrying a scan) with "security-scan"', () => {
+    const securityScanRuleIds = collectRuleIdsMatching((rule) => rule.scan !== undefined);
+    expect(securityScanRuleIds.length).toBeGreaterThan(0);
+    for (const ruleId of securityScanRuleIds) {
+      expect(getRuleTags(ruleId)).toContain("security-scan");
+    }
+  });
+
   it('tags the four migration-hint rules with "migration-hint"', () => {
     const migrationHintRuleIds = [
       "no-react19-deprecated-apis",
@@ -48,11 +56,13 @@ describe("rule tag registration", () => {
   });
 
   it("preserves rule-authored tags alongside bucket auto-tags (e.g. test-noise stays on react-native rules that opted in)", () => {
-    // `rn-no-raw-text` is in the react-native bucket; its only auto-tag
-    // is "react-native". `no-react19-deprecated-apis` is in architecture
-    // and authors both "test-noise" and "migration-hint" — no auto-tag
-    // overwrites those.
-    expect(getRuleTags("rn-no-raw-text")).toEqual(["react-native"]);
+    // `rn-no-raw-text` is in the react-native bucket and authors
+    // "test-noise"; the bucket auto-tag is added alongside it.
+    // `no-react19-deprecated-apis` is in architecture and authors both
+    // "test-noise" and "migration-hint" — no auto-tag overwrites those.
+    const rnNoRawTextTags = getRuleTags("rn-no-raw-text");
+    expect(rnNoRawTextTags).toContain("react-native");
+    expect(rnNoRawTextTags).toContain("test-noise");
     const migrationHintTags = getRuleTags("no-react19-deprecated-apis");
     expect(migrationHintTags).toContain("test-noise");
     expect(migrationHintTags).toContain("migration-hint");

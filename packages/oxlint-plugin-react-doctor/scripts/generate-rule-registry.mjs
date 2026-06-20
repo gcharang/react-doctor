@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Generates `src/plugin/rule-registry.ts` by scanning every per-rule file
-// under `src/plugin/rules/<bucket>/<rule>.ts` for its
-//   export const <identifier> = defineRule<Rule>({ id: "<rule-id>", ... })
+// under `src/plugin/rules/<bucket>/<rule>.ts` for its single
+//   export const <identifier> = defineRule({ id: "<rule-id>", ... })
 //   export const <identifier> = defineRetiredRule({ id: "<rule-id>", ... })
-// declaration. The bucket directory determines the rule's `framework` and
-// its default `category`; the rule file may override the category with an
-// explicit field. `framework` is never on the rule itself.
+// declaration (one rule file = one rule). The bucket directory determines
+// the rule's `framework` and its default `category`; the rule file may
+// override the category with an explicit field. `framework` is never on
+// the rule itself.
 //
 // Output is committed to git so consumers don't need to run codegen.
 // `pnpm gen` re-runs whenever a rule is added / removed / renamed.
@@ -60,6 +61,7 @@ const BUCKETS_REQUIRING_REACT = new Set([
 // inherit a bucket tag and carry its own.
 const BUCKET_TO_AUTO_TAGS = {
   "react-native": ["react-native"],
+  "security-scan": ["security-scan"],
   server: ["server-action"],
 };
 
@@ -87,7 +89,13 @@ const EFFECT_RULES_PORTED_FROM_EXTERNAL = new Set([
 // jsx-a11y / react/* rule sets and should NOT be filtered out by
 // `customRulesOnly`. Without this list every new in-house rule we drop
 // into `a11y/` would silently disappear for users who narrow scope.
-const RULES_NOT_PORTED_FROM_EXTERNAL = new Set(["prefer-html-dialog"]);
+const RULES_NOT_PORTED_FROM_EXTERNAL = new Set([
+  "prefer-html-dialog",
+  "dialog-has-accessible-name",
+  "no-create-ref-in-function-component",
+  "no-call-component-as-function",
+  "no-string-false-on-boolean-attribute",
+]);
 
 // Rule ids whose source files are kept on disk but intentionally NOT
 // registered. Use sparingly — the canonical way to retire a rule is to
@@ -153,6 +161,7 @@ const BUCKET_TO_DEFAULT_CATEGORY = {
   "react-native": "React Native",
   "react-ui": "Accessibility",
   security: "Security",
+  "security-scan": "Security",
   server: "Server",
   "state-and-effects": "State & Effects",
   "tanstack-query": "TanStack Query",
@@ -181,7 +190,9 @@ for (const bucket of fs.readdirSync(PLUGIN_RULES_ROOT, { withFileTypes: true }))
     // (e.g. `defineRule<Foo<Bar>>(`) and the no-generic `defineRule({` form,
     // where the original `<[^>]+>` matcher silently failed and dropped the rule.
     // `defineRetiredRule` follows the same metadata shape but intentionally
-    // emits a no-op rule for legacy config compatibility.
+    // emits a no-op rule for legacy config compatibility; Scan rules
+    // (a `scan` field instead of `create`) also register through plain
+    // `defineRule`.
     const exportMatch = source.match(
       /export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:defineRule|defineRetiredRule)\b[^(]*\(\s*\{/,
     );

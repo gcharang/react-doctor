@@ -21,8 +21,10 @@ export type {
 export type {
   CleanedDiagnostic,
   Diagnostic,
+  DiagnosticFileContext,
   DiagnosticRelatedLocation,
   OxlintOutput,
+  SourceFileEntry,
 } from "./diagnostic.js";
 export type { HandleErrorOptions } from "./handle-error.js";
 export type {

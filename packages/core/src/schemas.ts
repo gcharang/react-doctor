@@ -32,8 +32,10 @@ export class Diagnostic extends Schema.Class<Diagnostic>("Diagnostic")({
   endLine: Schema.optional(Schema.Number),
   endColumn: Schema.optional(Schema.Number),
   category: Schema.String,
+  fileContext: Schema.optional(Schema.Literals(["test", "story"])),
   suppressionHint: Schema.optional(Schema.String),
   relatedLocations: Schema.optional(Schema.Array(DiagnosticRelatedLocation)),
+  fixGroupId: Schema.optional(Schema.String),
 }) {}
 
 /**
@@ -92,6 +94,7 @@ export class JsonReportProjectEntry extends Schema.Class<JsonReportProjectEntry>
   score: Schema.Unknown,
   skippedChecks: Schema.Array(Schema.String),
   skippedCheckReasons: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  scannedFileCount: Schema.optional(Schema.Number),
   elapsedMilliseconds: Schema.Number,
 }) {}
 

@@ -1,7 +1,7 @@
+import { collectPatternNames } from "../../utils/collect-pattern-names.js";
 import { defineRule } from "../../utils/define-rule.js";
 import { walkAst } from "../../utils/walk-ast.js";
 import type { EsTreeNode } from "../../utils/es-tree-node.js";
-import type { Rule } from "../../utils/rule.js";
 import type { RuleContext } from "../../utils/rule-context.js";
 import { isNodeOfType } from "../../utils/is-node-of-type.js";
 
@@ -20,24 +20,7 @@ const collectDeclaredNames = (declaration: EsTreeNode): Set<string> => {
   const names = new Set<string>();
   if (!isNodeOfType(declaration, "VariableDeclaration")) return names;
   for (const declarator of declaration.declarations ?? []) {
-    if (isNodeOfType(declarator.id, "Identifier")) {
-      names.add(declarator.id.name);
-    } else if (isNodeOfType(declarator.id, "ObjectPattern")) {
-      for (const property of declarator.id.properties ?? []) {
-        if (isNodeOfType(property, "Property") && isNodeOfType(property.value, "Identifier")) {
-          names.add(property.value.name);
-        } else if (
-          isNodeOfType(property, "RestElement") &&
-          isNodeOfType(property.argument, "Identifier")
-        ) {
-          names.add(property.argument.name);
-        }
-      }
-    } else if (isNodeOfType(declarator.id, "ArrayPattern")) {
-      for (const element of declarator.id.elements ?? []) {
-        if (isNodeOfType(element, "Identifier")) names.add(element.name);
-      }
-    }
+    collectPatternNames(declarator.id, names);
   }
   return names;
 };
@@ -50,17 +33,26 @@ const declarationStartsWithAwait = (declaration: EsTreeNode): boolean => {
   return false;
 };
 
+// HACK: walk only each initializer, not the whole declaration. A name in
+// the next statement's binding pattern (e.g. `const { data: x } = await
+// b()` after `const { data } = await a()`) is a re-bind evaluated after
+// the await resolves, not a read of the first result — counting it would
+// miss the waterfall.
 const declarationReadsAnyName = (declaration: EsTreeNode, names: Set<string>): boolean => {
   if (names.size === 0) return false;
+  if (!isNodeOfType(declaration, "VariableDeclaration")) return false;
   let didRead = false;
-  walkAst(declaration, (child: EsTreeNode) => {
-    if (didRead) return;
-    if (isNodeOfType(child, "Identifier") && names.has(child.name)) didRead = true;
-  });
+  for (const declarator of declaration.declarations ?? []) {
+    if (!declarator.init) continue;
+    walkAst(declarator.init, (child: EsTreeNode) => {
+      if (didRead) return;
+      if (isNodeOfType(child, "Identifier") && names.has(child.name)) didRead = true;
+    });
+  }
   return didRead;
 };
 
-export const serverSequentialIndependentAwait = defineRule<Rule>({
+export const serverSequentialIndependentAwait = defineRule({
   id: "server-sequential-independent-await",
   title: "Sequential independent awaits",
   severity: "warn",

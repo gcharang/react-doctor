@@ -41,6 +41,14 @@ export interface InspectResult {
    */
   scanElapsedMilliseconds?: number;
   /**
+   * Per-file lint cache outcome: files served from cache, and total files
+   * considered. Both absent when the cache was off or bypassed (audit mode,
+   * adopted `extends`, user plugins). The CLI projects these onto the Sentry
+   * wide event as `lintCacheHitRatio`.
+   */
+  lintCacheHitFileCount?: number | null;
+  lintCacheTotalFileCount?: number | null;
+  /**
    * Present only for a baseline run (`InspectOptions.baseline` set). The
    * `diagnostics` above are then the *introduced* findings only; this
    * carries the comparison totals for Codecov-style delta reporting.
@@ -80,6 +88,13 @@ export interface InspectOptions {
   deadCode?: boolean;
   includePaths?: string[];
   configOverride?: ReactDoctorConfig | null;
+  /**
+   * Directory of the config file that supplied `configOverride`, when it was
+   * loaded from disk. Anchors relative `configOverride.plugins` resolution at
+   * the config file's location instead of the scan root. Ignored without
+   * `configOverride`.
+   */
+  configSourceDirectory?: string;
   respectInlineDisables?: boolean;
   /**
    * Whether the scanned project's `package.json` changed in this diff /
@@ -132,6 +147,12 @@ export interface InspectOptions {
 
   // ── Rendering / orchestration knobs ──────────────────────────────
   verbose?: boolean;
+  /**
+   * Directory to write the full diagnostics dump into (diagnostics.json +
+   * one .txt per rule), resolved against the working directory. Defaults
+   * to a fresh temp directory per run (`--output-dir`).
+   */
+  outputDirectory?: string;
   scoreOnly?: boolean;
   noScore?: boolean;
   /**
@@ -159,6 +180,14 @@ export interface InspectOptions {
    * instead of N individual ones.
    */
   suppressRendering?: boolean;
+  /**
+   * Set when multiple `inspect()` calls run concurrently in one process
+   * (the CLI's multi-project pool). The scan keeps its telemetry
+   * span-scoped — it neither resets nor writes the process-global Sentry
+   * run state (scanned project, active run trace), so overlapping scans
+   * can't clear or mislabel each other's attribution. Defaults to `false`.
+   */
+  concurrentScan?: boolean;
 }
 
 /**
@@ -228,6 +257,16 @@ export interface JsonReportProjectEntry {
   skippedChecks: string[];
   /** Human-readable explanation per skipped check. See `InspectResult.skippedCheckReasons`. */
   skippedCheckReasons?: Record<string, string>;
+  /**
+   * Number of source files this scan's linter examined. In diff / changed
+   * mode it's the count of changed React-eligible files (`.tsx`/`.jsx` plus
+   * framework entry files); in a full scan it's the whole source tree. `0`
+   * in a diff scan means the changed files held nothing React Doctor lints —
+   * the GitHub Action reads that as "nothing to report" (skips the PR comment;
+   * the commit status says "skipped"). Optional: absent on reports from
+   * constructors that don't track it (e.g. `toJsonReport`).
+   */
+  scannedFileCount?: number;
   elapsedMilliseconds: number;
 }
 

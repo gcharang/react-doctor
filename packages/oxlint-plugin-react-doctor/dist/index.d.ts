@@ -36,7 +36,6 @@ interface ControlFlowAnalysis {
   readonly cfgFor: (functionLike: EsTreeNode) => FunctionCfg | null;
   readonly enclosingFunction: (node: EsTreeNode) => EsTreeNode | null;
   readonly isUnconditionalFromEntry: (node: EsTreeNode) => boolean;
-  readonly dominatesExit: (node: EsTreeNode) => boolean;
 }
 //#endregion
 //#region src/plugin/semantic/scope-analysis.d.ts
@@ -97,6 +96,25 @@ interface RuleContext extends Omit<BaseRuleContext, "getFilename"> {
   readonly cfg: ControlFlowAnalysis;
 }
 //#endregion
+//#region src/plugin/utils/file-scan.d.ts
+interface ScannedFile {
+  readonly absolutePath: string;
+  readonly relativePath: string;
+  readonly content: string;
+  readonly isGeneratedBundle: boolean;
+}
+interface ScanFinding {
+  readonly message: string;
+  readonly line: number;
+  readonly column: number;
+  readonly severity?: "error" | "warn";
+  readonly title?: string;
+  readonly help?: string;
+}
+interface FileScan {
+  (file: ScannedFile): ScanFinding[];
+}
+//#endregion
 //#region src/plugin/utils/rule-visitors.d.ts
 interface RuleVisitors {
   [selector: string]: ((node: any) => void) | (() => void);
@@ -116,6 +134,8 @@ interface Rule {
   tags?: ReadonlyArray<string>;
   defaultEnabled?: boolean;
   lifecycle?: "retired";
+  scan?: FileScan;
+  committedFilesOnly?: boolean;
   recommendation?: string;
   create: (context: RuleContext) => RuleVisitors;
 }
@@ -139,6 +159,27 @@ type OxlintRuleSeverity = RuleSeverity | "off";
 //#endregion
 //#region src/rules.d.ts
 declare const REACT_DOCTOR_RULES: readonly [{
+  readonly key: "react-doctor/active-static-asset";
+  readonly id: "active-static-asset";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
   readonly key: "react-doctor/activity-wraps-effect-heavy-subtree";
   readonly id: "activity-wraps-effect-heavy-subtree";
   readonly source: "react-doctor";
@@ -154,6 +195,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -173,6 +216,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/agent-tool-capability-risk";
+  readonly id: "agent-tool-capability-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -192,6 +258,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -211,6 +279,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -230,6 +300,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -249,6 +321,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -268,6 +342,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -287,6 +363,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -306,6 +384,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -325,6 +405,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -344,6 +426,71 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/artifact-baas-authority-surface";
+  readonly id: "artifact-baas-authority-surface";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/artifact-env-leak";
+  readonly id: "artifact-env-leak";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/artifact-secret-leak";
+  readonly id: "artifact-secret-leak";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -363,6 +510,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -382,6 +531,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -401,6 +552,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/auth-token-in-web-storage";
+  readonly id: "auth-token-in-web-storage";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -420,6 +594,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/build-pipeline-secret-boundary";
+  readonly id: "build-pipeline-secret-boundary";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -439,6 +636,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -458,6 +657,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -477,6 +678,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/clickjacking-redirect-risk";
+  readonly id: "clickjacking-redirect-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -496,6 +720,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -515,6 +741,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/command-execution-input-risk";
+  readonly id: "command-execution-input-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -534,6 +783,50 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/cors-cookie-trust-risk";
+  readonly id: "cors-cookie-trust-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/dangerous-html-sink";
+  readonly id: "dangerous-html-sink";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -553,6 +846,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -572,6 +867,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -591,6 +888,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -610,6 +909,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -629,6 +930,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -648,6 +951,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/dialog-has-accessible-name";
+  readonly id: "dialog-has-accessible-name";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Accessibility";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -667,6 +993,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -686,6 +1014,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -705,6 +1035,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -724,6 +1056,71 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/firebase-client-owned-authz-field";
+  readonly id: "firebase-client-owned-authz-field";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/firebase-permissive-rules";
+  readonly id: "firebase-permissive-rules";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/firebase-query-filter-as-auth";
+  readonly id: "firebase-query-filter-as-auth";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -743,6 +1140,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -762,6 +1161,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -781,6 +1182,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -800,6 +1203,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/git-provider-url-injection-risk";
+  readonly id: "git-provider-url-injection-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -819,6 +1245,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -838,6 +1266,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -857,6 +1287,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -876,6 +1308,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -895,6 +1329,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -914,6 +1350,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -933,6 +1371,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -952,6 +1392,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -971,6 +1413,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -990,6 +1434,71 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/import-metadata-execution-risk";
+  readonly id: "import-metadata-execution-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/insecure-crypto-risk";
+  readonly id: "insecure-crypto-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/insecure-session-cookie";
+  readonly id: "insecure-session-cookie";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1009,6 +1518,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1028,6 +1539,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1047,6 +1560,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1066,6 +1581,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1085,6 +1602,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1104,6 +1623,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1123,6 +1644,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1142,6 +1665,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1161,6 +1686,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1180,6 +1707,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1199,6 +1728,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1218,6 +1749,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1237,6 +1770,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1256,6 +1791,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1275,6 +1812,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1294,6 +1833,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1313,6 +1854,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1332,6 +1875,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1351,6 +1896,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1370,6 +1917,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1389,6 +1938,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1408,6 +1959,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1427,6 +1980,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1446,6 +2001,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1465,6 +2022,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1484,6 +2043,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1503,6 +2064,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1522,6 +2085,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1541,6 +2106,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1560,6 +2127,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1579,6 +2148,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1598,6 +2169,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1617,6 +2190,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1636,6 +2211,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1655,6 +2232,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1674,6 +2253,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1693,6 +2274,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1712,6 +2295,50 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/jwt-insecure-verification";
+  readonly id: "jwt-insecure-verification";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/key-lifecycle-risk";
+  readonly id: "key-lifecycle-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1731,6 +2358,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1750,6 +2379,71 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/local-rpc-native-bridge-risk";
+  readonly id: "local-rpc-native-bridge-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/mcp-tool-capability-risk";
+  readonly id: "mcp-tool-capability-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/mdx-ssr-execution-risk";
+  readonly id: "mdx-ssr-execution-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1769,6 +2463,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1788,6 +2484,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1807,6 +2505,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1826,6 +2526,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1845,6 +2547,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1864,6 +2568,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1883,6 +2589,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1902,6 +2610,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1921,6 +2631,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1940,6 +2652,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1959,6 +2673,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1978,6 +2694,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -1997,6 +2715,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2016,6 +2736,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2035,6 +2757,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2054,6 +2778,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2073,6 +2799,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2092,6 +2820,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2111,6 +2841,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2130,6 +2862,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2149,6 +2883,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2168,6 +2904,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2187,6 +2925,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2206,6 +2946,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2225,6 +2967,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2244,6 +2988,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2263,6 +3009,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2282,6 +3030,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2301,6 +3051,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2320,6 +3072,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-async-effect-callback";
+  readonly id: "no-async-effect-callback";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2339,6 +3114,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2358,6 +3135,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-call-component-as-function";
+  readonly id: "no-call-component-as-function";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2377,6 +3177,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2396,6 +3198,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2415,6 +3219,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2434,6 +3240,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2453,6 +3261,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-create-ref-in-function-component";
+  readonly id: "no-create-ref-in-function-component";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2472,6 +3303,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2491,6 +3324,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2510,6 +3345,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2529,6 +3366,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2548,6 +3387,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2567,6 +3408,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2586,6 +3429,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2605,6 +3450,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2624,6 +3471,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2643,6 +3492,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2662,6 +3513,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2681,6 +3534,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2700,6 +3555,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2719,6 +3576,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2738,6 +3597,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-document-write";
+  readonly id: "no-document-write";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Performance";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2757,6 +3639,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2776,6 +3660,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2795,6 +3681,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2814,6 +3702,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2833,6 +3723,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2852,6 +3744,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2871,6 +3765,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2890,6 +3786,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2909,6 +3807,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2928,6 +3828,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2947,6 +3849,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2966,6 +3870,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -2985,6 +3891,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3004,6 +3912,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3023,6 +3933,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3042,6 +3954,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3061,6 +3975,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-img-lazy-with-high-fetchpriority";
+  readonly id: "no-img-lazy-with-high-fetchpriority";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Performance";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3080,6 +4017,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3099,6 +4038,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3118,6 +4059,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3137,6 +4080,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3156,6 +4101,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3175,6 +4122,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-json-parse-stringify-clone";
+  readonly id: "no-json-parse-stringify-clone";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Performance";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3194,6 +4164,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3213,6 +4185,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3232,6 +4206,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3251,6 +4227,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3270,6 +4248,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3289,6 +4269,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3308,6 +4290,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3327,6 +4311,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3346,6 +4332,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3365,6 +4353,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3384,6 +4374,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3403,6 +4395,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3422,6 +4416,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3441,6 +4437,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3460,6 +4458,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3479,6 +4479,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3498,6 +4500,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3517,6 +4521,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3536,6 +4542,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3555,6 +4563,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3574,6 +4584,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3593,6 +4605,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3612,6 +4626,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3631,6 +4647,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3650,6 +4668,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3669,6 +4689,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3688,6 +4710,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3707,6 +4731,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3726,6 +4752,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3745,6 +4773,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3764,6 +4794,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3783,6 +4815,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3802,6 +4836,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3821,6 +4857,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3840,6 +4878,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3859,6 +4899,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3878,6 +4920,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3897,6 +4941,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3916,6 +4962,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3935,6 +4983,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3954,6 +5004,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3973,6 +5025,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -3992,6 +5046,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4011,6 +5067,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4030,6 +5088,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-string-false-on-boolean-attribute";
+  readonly id: "no-string-false-on-boolean-attribute";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4049,6 +5130,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-sync-xhr";
+  readonly id: "no-sync-xhr";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Performance";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4068,6 +5172,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4087,6 +5193,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4106,6 +5214,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4125,6 +5235,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4144,6 +5256,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4163,6 +5277,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4182,6 +5298,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4201,6 +5319,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4220,6 +5340,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4239,6 +5361,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4258,6 +5382,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4277,6 +5403,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4296,6 +5424,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/nosql-injection-risk";
+  readonly id: "nosql-injection-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4315,6 +5466,92 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/package-metadata-secret";
+  readonly id: "package-metadata-secret";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/path-traversal-risk";
+  readonly id: "path-traversal-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/plugin-update-trust-risk";
+  readonly id: "plugin-update-trust-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/postmessage-origin-risk";
+  readonly id: "postmessage-origin-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4334,6 +5571,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4353,6 +5592,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4372,6 +5613,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4391,6 +5634,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4410,6 +5655,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4429,6 +5676,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4448,6 +5697,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4467,6 +5718,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4486,6 +5739,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4505,6 +5760,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4524,6 +5781,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4543,6 +5802,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4562,6 +5823,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4581,6 +5844,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4600,6 +5865,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4619,6 +5886,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4638,6 +5907,50 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/public-debug-artifact";
+  readonly id: "public-debug-artifact";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/public-env-secret-name";
+  readonly id: "public-env-secret-name";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4657,6 +5970,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4676,6 +5991,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4695,6 +6012,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4714,6 +6033,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4733,6 +6054,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4752,6 +6075,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4771,6 +6096,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/raw-sql-injection-risk";
+  readonly id: "raw-sql-injection-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4790,6 +6138,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4809,6 +6159,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4828,6 +6180,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4847,6 +6201,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4866,6 +6222,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4885,6 +6243,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4904,6 +6264,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4923,6 +6285,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4942,6 +6306,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4961,6 +6327,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4980,6 +6348,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -4999,6 +6369,50 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/repository-secret-file";
+  readonly id: "repository-secret-file";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/request-body-mass-assignment";
+  readonly id: "request-body-mass-assignment";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5018,6 +6432,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5037,6 +6453,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5056,6 +6474,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5075,6 +6495,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5094,6 +6516,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5113,6 +6537,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5132,6 +6558,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5151,6 +6579,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5170,6 +6600,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5189,6 +6621,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5208,6 +6642,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5227,6 +6663,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5246,6 +6684,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5265,6 +6705,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5284,6 +6726,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5303,6 +6747,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5322,6 +6768,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5341,6 +6789,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5360,6 +6810,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5379,6 +6831,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5398,6 +6852,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5417,6 +6873,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5436,6 +6894,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5455,6 +6915,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5474,6 +6936,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5493,6 +6957,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5512,6 +6978,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5531,6 +6999,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5550,6 +7020,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5569,6 +7041,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5588,6 +7062,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5607,6 +7083,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5626,6 +7104,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5645,6 +7125,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5664,6 +7146,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5683,6 +7167,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5702,6 +7188,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5721,6 +7209,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5740,6 +7230,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5759,6 +7251,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5778,6 +7272,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5797,6 +7293,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5816,6 +7314,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5835,6 +7335,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5854,6 +7356,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5873,6 +7377,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5892,6 +7398,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5911,6 +7419,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5930,6 +7440,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/secret-in-fallback";
+  readonly id: "secret-in-fallback";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5949,6 +7482,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5968,6 +7503,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -5987,6 +7524,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6006,6 +7545,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6025,6 +7566,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6044,6 +7587,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6063,6 +7608,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6082,6 +7629,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6101,6 +7650,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6120,6 +7671,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6139,6 +7692,92 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/supabase-client-owned-authz-field";
+  readonly id: "supabase-client-owned-authz-field";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/supabase-rls-policy-risk";
+  readonly id: "supabase-rls-policy-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/supabase-table-missing-rls";
+  readonly id: "supabase-table-missing-rls";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/svg-filter-clickjacking-risk";
+  readonly id: "svg-filter-clickjacking-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6158,6 +7797,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6177,6 +7818,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6196,6 +7839,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6215,6 +7860,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6234,6 +7881,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6253,6 +7902,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6272,6 +7923,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6291,6 +7944,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6310,6 +7965,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6329,6 +7986,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6348,6 +8007,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6367,6 +8028,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6386,6 +8049,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6405,6 +8070,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6424,6 +8091,92 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/tenant-static-proxy-risk";
+  readonly id: "tenant-static-proxy-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/unsafe-json-in-html";
+  readonly id: "unsafe-json-in-html";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/untrusted-redirect-following";
+  readonly id: "untrusted-redirect-following";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/url-prefilled-privileged-action";
+  readonly id: "url-prefilled-privileged-action";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6443,6 +8196,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6462,6 +8217,29 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/webhook-signature-risk";
+  readonly id: "webhook-signature-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6481,6 +8259,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6500,6 +8280,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6519,6 +8301,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6538,6 +8322,8 @@ declare const REACT_DOCTOR_RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6608,6 +8394,27 @@ declare const EXTERNAL_RULES: readonly [{
   readonly severity: "error";
 }];
 declare const RULES: readonly [{
+  readonly key: "react-doctor/active-static-asset";
+  readonly id: "active-static-asset";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
   readonly key: "react-doctor/activity-wraps-effect-heavy-subtree";
   readonly id: "activity-wraps-effect-heavy-subtree";
   readonly source: "react-doctor";
@@ -6623,6 +8430,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6642,6 +8451,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/agent-tool-capability-risk";
+  readonly id: "agent-tool-capability-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6661,6 +8493,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6680,6 +8514,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6699,6 +8535,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6718,6 +8556,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6737,6 +8577,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6756,6 +8598,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6775,6 +8619,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6794,6 +8640,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6813,6 +8661,71 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/artifact-baas-authority-surface";
+  readonly id: "artifact-baas-authority-surface";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/artifact-env-leak";
+  readonly id: "artifact-env-leak";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/artifact-secret-leak";
+  readonly id: "artifact-secret-leak";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6832,6 +8745,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6851,6 +8766,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6870,6 +8787,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/auth-token-in-web-storage";
+  readonly id: "auth-token-in-web-storage";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6889,6 +8829,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/build-pipeline-secret-boundary";
+  readonly id: "build-pipeline-secret-boundary";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6908,6 +8871,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6927,6 +8892,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6946,6 +8913,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/clickjacking-redirect-risk";
+  readonly id: "clickjacking-redirect-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6965,6 +8955,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -6984,6 +8976,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/command-execution-input-risk";
+  readonly id: "command-execution-input-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7003,6 +9018,50 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/cors-cookie-trust-risk";
+  readonly id: "cors-cookie-trust-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/dangerous-html-sink";
+  readonly id: "dangerous-html-sink";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7022,6 +9081,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7041,6 +9102,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7060,6 +9123,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7079,6 +9144,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7098,6 +9165,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7117,6 +9186,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/dialog-has-accessible-name";
+  readonly id: "dialog-has-accessible-name";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Accessibility";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7136,6 +9228,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7155,6 +9249,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7174,6 +9270,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7193,6 +9291,71 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/firebase-client-owned-authz-field";
+  readonly id: "firebase-client-owned-authz-field";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/firebase-permissive-rules";
+  readonly id: "firebase-permissive-rules";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/firebase-query-filter-as-auth";
+  readonly id: "firebase-query-filter-as-auth";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7212,6 +9375,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7231,6 +9396,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7250,6 +9417,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7269,6 +9438,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/git-provider-url-injection-risk";
+  readonly id: "git-provider-url-injection-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7288,6 +9480,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7307,6 +9501,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7326,6 +9522,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7345,6 +9543,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7364,6 +9564,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7383,6 +9585,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7402,6 +9606,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7421,6 +9627,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7440,6 +9648,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7459,6 +9669,71 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/import-metadata-execution-risk";
+  readonly id: "import-metadata-execution-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/insecure-crypto-risk";
+  readonly id: "insecure-crypto-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/insecure-session-cookie";
+  readonly id: "insecure-session-cookie";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7478,6 +9753,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7497,6 +9774,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7516,6 +9795,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7535,6 +9816,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7554,6 +9837,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7573,6 +9858,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7592,6 +9879,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7611,6 +9900,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7630,6 +9921,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7649,6 +9942,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7668,6 +9963,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7687,6 +9984,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7706,6 +10005,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7725,6 +10026,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7744,6 +10047,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7763,6 +10068,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7782,6 +10089,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7801,6 +10110,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7820,6 +10131,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7839,6 +10152,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7858,6 +10173,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7877,6 +10194,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7896,6 +10215,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7915,6 +10236,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7934,6 +10257,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7953,6 +10278,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7972,6 +10299,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -7991,6 +10320,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8010,6 +10341,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8029,6 +10362,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8048,6 +10383,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8067,6 +10404,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8086,6 +10425,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8105,6 +10446,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8124,6 +10467,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8143,6 +10488,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8162,6 +10509,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8181,6 +10530,50 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/jwt-insecure-verification";
+  readonly id: "jwt-insecure-verification";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/key-lifecycle-risk";
+  readonly id: "key-lifecycle-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8200,6 +10593,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8219,6 +10614,71 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/local-rpc-native-bridge-risk";
+  readonly id: "local-rpc-native-bridge-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/mcp-tool-capability-risk";
+  readonly id: "mcp-tool-capability-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/mdx-ssr-execution-risk";
+  readonly id: "mdx-ssr-execution-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8238,6 +10698,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8257,6 +10719,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8276,6 +10740,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8295,6 +10761,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8314,6 +10782,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8333,6 +10803,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8352,6 +10824,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8371,6 +10845,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8390,6 +10866,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8409,6 +10887,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8428,6 +10908,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8447,6 +10929,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8466,6 +10950,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8485,6 +10971,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8504,6 +10992,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8523,6 +11013,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8542,6 +11034,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8561,6 +11055,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8580,6 +11076,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8599,6 +11097,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8618,6 +11118,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8637,6 +11139,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8656,6 +11160,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8675,6 +11181,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8694,6 +11202,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8713,6 +11223,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8732,6 +11244,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8751,6 +11265,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8770,6 +11286,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8789,6 +11307,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-async-effect-callback";
+  readonly id: "no-async-effect-callback";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8808,6 +11349,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8827,6 +11370,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-call-component-as-function";
+  readonly id: "no-call-component-as-function";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8846,6 +11412,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8865,6 +11433,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8884,6 +11454,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8903,6 +11475,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8922,6 +11496,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-create-ref-in-function-component";
+  readonly id: "no-create-ref-in-function-component";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8941,6 +11538,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8960,6 +11559,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8979,6 +11580,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -8998,6 +11601,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9017,6 +11622,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9036,6 +11643,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9055,6 +11664,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9074,6 +11685,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9093,6 +11706,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9112,6 +11727,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9131,6 +11748,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9150,6 +11769,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9169,6 +11790,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9188,6 +11811,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9207,6 +11832,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-document-write";
+  readonly id: "no-document-write";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Performance";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9226,6 +11874,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9245,6 +11895,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9264,6 +11916,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9283,6 +11937,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9302,6 +11958,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9321,6 +11979,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9340,6 +12000,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9359,6 +12021,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9378,6 +12042,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9397,6 +12063,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9416,6 +12084,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9435,6 +12105,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9454,6 +12126,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9473,6 +12147,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9492,6 +12168,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9511,6 +12189,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9530,6 +12210,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-img-lazy-with-high-fetchpriority";
+  readonly id: "no-img-lazy-with-high-fetchpriority";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Performance";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9549,6 +12252,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9568,6 +12273,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9587,6 +12294,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9606,6 +12315,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9625,6 +12336,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9644,6 +12357,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-json-parse-stringify-clone";
+  readonly id: "no-json-parse-stringify-clone";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Performance";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9663,6 +12399,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9682,6 +12420,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9701,6 +12441,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9720,6 +12462,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9739,6 +12483,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9758,6 +12504,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9777,6 +12525,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9796,6 +12546,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9815,6 +12567,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9834,6 +12588,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9853,6 +12609,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9872,6 +12630,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9891,6 +12651,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9910,6 +12672,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9929,6 +12693,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9948,6 +12714,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9967,6 +12735,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -9986,6 +12756,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10005,6 +12777,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10024,6 +12798,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10043,6 +12819,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10062,6 +12840,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10081,6 +12861,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10100,6 +12882,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10119,6 +12903,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10138,6 +12924,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10157,6 +12945,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10176,6 +12966,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10195,6 +12987,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10214,6 +13008,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10233,6 +13029,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10252,6 +13050,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10271,6 +13071,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10290,6 +13092,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10309,6 +13113,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10328,6 +13134,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10347,6 +13155,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10366,6 +13176,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10385,6 +13197,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10404,6 +13218,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10423,6 +13239,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10442,6 +13260,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10461,6 +13281,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10480,6 +13302,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10499,6 +13323,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-string-false-on-boolean-attribute";
+  readonly id: "no-string-false-on-boolean-attribute";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Bugs";
+    readonly requires: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10518,6 +13365,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/no-sync-xhr";
+  readonly id: "no-sync-xhr";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Performance";
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly tags?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10537,6 +13407,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10556,6 +13428,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10575,6 +13449,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10594,6 +13470,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10613,6 +13491,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10632,6 +13512,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10651,6 +13533,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10670,6 +13554,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10689,6 +13575,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10708,6 +13596,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10727,6 +13617,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10746,6 +13638,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10765,6 +13659,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/nosql-injection-risk";
+  readonly id: "nosql-injection-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10784,6 +13701,92 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/package-metadata-secret";
+  readonly id: "package-metadata-secret";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/path-traversal-risk";
+  readonly id: "path-traversal-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/plugin-update-trust-risk";
+  readonly id: "plugin-update-trust-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/postmessage-origin-risk";
+  readonly id: "postmessage-origin-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10803,6 +13806,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10822,6 +13827,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10841,6 +13848,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10860,6 +13869,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10879,6 +13890,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10898,6 +13911,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10917,6 +13932,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10936,6 +13953,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10955,6 +13974,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10974,6 +13995,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -10993,6 +14016,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11012,6 +14037,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11031,6 +14058,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11050,6 +14079,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11069,6 +14100,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11088,6 +14121,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11107,6 +14142,50 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/public-debug-artifact";
+  readonly id: "public-debug-artifact";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/public-env-secret-name";
+  readonly id: "public-env-secret-name";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11126,6 +14205,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11145,6 +14226,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11164,6 +14247,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11183,6 +14268,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11202,6 +14289,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11221,6 +14310,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11240,6 +14331,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/raw-sql-injection-risk";
+  readonly id: "raw-sql-injection-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11259,6 +14373,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11278,6 +14394,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11297,6 +14415,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11316,6 +14436,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11335,6 +14457,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11354,6 +14478,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11373,6 +14499,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11392,6 +14520,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11411,6 +14541,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11430,6 +14562,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11449,6 +14583,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11468,6 +14604,50 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/repository-secret-file";
+  readonly id: "repository-secret-file";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/request-body-mass-assignment";
+  readonly id: "request-body-mass-assignment";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11487,6 +14667,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11506,6 +14688,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11525,6 +14709,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11544,6 +14730,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11563,6 +14751,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11582,6 +14772,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11601,6 +14793,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11620,6 +14814,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11639,6 +14835,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11658,6 +14856,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11677,6 +14877,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11696,6 +14898,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11715,6 +14919,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11734,6 +14940,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11753,6 +14961,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11772,6 +14982,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11791,6 +15003,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11810,6 +15024,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11829,6 +15045,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11848,6 +15066,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11867,6 +15087,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11886,6 +15108,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11905,6 +15129,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11924,6 +15150,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11943,6 +15171,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11962,6 +15192,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -11981,6 +15213,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12000,6 +15234,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12019,6 +15255,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12038,6 +15276,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12057,6 +15297,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12076,6 +15318,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12095,6 +15339,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12114,6 +15360,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12133,6 +15381,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12152,6 +15402,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12171,6 +15423,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12190,6 +15444,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12209,6 +15465,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12228,6 +15486,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12247,6 +15507,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12266,6 +15528,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12285,6 +15549,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12304,6 +15570,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12323,6 +15591,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12342,6 +15612,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12361,6 +15633,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12380,6 +15654,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12399,6 +15675,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/secret-in-fallback";
+  readonly id: "secret-in-fallback";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12418,6 +15717,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12437,6 +15738,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12456,6 +15759,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12475,6 +15780,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12494,6 +15801,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12513,6 +15822,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12532,6 +15843,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12551,6 +15864,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12570,6 +15885,8 @@ declare const RULES: readonly [{
     readonly disabledBy?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12589,6 +15906,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12608,6 +15927,92 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/supabase-client-owned-authz-field";
+  readonly id: "supabase-client-owned-authz-field";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/supabase-rls-policy-risk";
+  readonly id: "supabase-rls-policy-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/supabase-table-missing-rls";
+  readonly id: "supabase-table-missing-rls";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/svg-filter-clickjacking-risk";
+  readonly id: "svg-filter-clickjacking-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12627,6 +16032,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12646,6 +16053,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12665,6 +16074,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12684,6 +16095,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12703,6 +16116,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12722,6 +16137,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12741,6 +16158,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12760,6 +16179,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12779,6 +16200,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12798,6 +16221,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12817,6 +16242,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12836,6 +16263,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12855,6 +16284,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12874,6 +16305,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12893,6 +16326,92 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/tenant-static-proxy-risk";
+  readonly id: "tenant-static-proxy-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/unsafe-json-in-html";
+  readonly id: "unsafe-json-in-html";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/untrusted-redirect-following";
+  readonly id: "untrusted-redirect-following";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/url-prefilled-privileged-action";
+  readonly id: "url-prefilled-privileged-action";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12912,6 +16431,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12931,6 +16452,29 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
+    readonly recommendation?: string;
+    readonly create: (context: RuleContext) => RuleVisitors;
+  };
+}, {
+  readonly key: "react-doctor/webhook-signature-risk";
+  readonly id: "webhook-signature-risk";
+  readonly source: "react-doctor";
+  readonly originallyExternal: false;
+  readonly rule: {
+    readonly framework: "global";
+    readonly category: "Security";
+    readonly tags: readonly string[];
+    readonly id: string;
+    readonly title?: string;
+    readonly severity: RuleSeverity;
+    readonly requires?: ReadonlyArray<string>;
+    readonly disabledBy?: ReadonlyArray<string>;
+    readonly defaultEnabled?: boolean;
+    readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12950,6 +16494,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12969,6 +16515,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -12988,6 +16536,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -13007,6 +16557,8 @@ declare const RULES: readonly [{
     readonly tags?: ReadonlyArray<string>;
     readonly defaultEnabled?: boolean;
     readonly lifecycle?: "retired";
+    readonly scan?: FileScan;
+    readonly committedFilesOnly?: boolean;
     readonly recommendation?: string;
     readonly create: (context: RuleContext) => RuleVisitors;
   };
@@ -13089,10 +16641,21 @@ declare const REACT_COMPILER_RULES: Record<string, OxlintRuleSeverity>;
 //#region src/plugin/constants/style.d.ts
 declare const MOTION_LIBRARY_PACKAGES: Set<string>;
 //#endregion
+//#region src/plugin/constants/cross-file-rule-ids.d.ts
+declare const CROSS_FILE_RULE_IDS: ReadonlySet<string>;
+//#endregion
+//#region src/plugin/rules/security-scan/utils/classify-security-scan-file.d.ts
+interface SecurityScanFileClassification {
+  readonly bucket: "priority" | "artifact" | "other";
+  readonly isGeneratedBundleByName: boolean;
+}
+declare const classifySecurityScanFile: (relativePath: string) => SecurityScanFileClassification | null;
+declare const shouldReadSecurityScanContent: (relativePath: string, isGeneratedBundle: boolean) => boolean;
+//#endregion
 //#region src/react-native-dependency-names.d.ts
 declare const REACT_NATIVE_DEPENDENCY_NAMES: ReadonlySet<string>;
 declare const REACT_NATIVE_DEPENDENCY_PREFIXES: ReadonlyArray<string>;
 declare const isReactNativeDependencyName: (dependencyName: string) => boolean;
 //#endregion
-export { ALL_REACT_DOCTOR_RULES, ALL_REACT_DOCTOR_RULE_KEYS, EXTERNAL_RULES, type EsTreeNode, FRAMEWORK_SPECIFIC_RULE_KEYS, MOTION_LIBRARY_PACKAGES, NEXTJS_RULES, type OxlintRuleSeverity, PREACT_RULES, REACT_COMPILER_RULES, REACT_DOCTOR_RULES, REACT_NATIVE_DEPENDENCY_NAMES, REACT_NATIVE_DEPENDENCY_PREFIXES, REACT_NATIVE_RULES, RECOMMENDED_RULES, RULES, type Rule, type RuleFramework, type RulePlugin, type RuleSeverity, type RuleVisitors, TANSTACK_QUERY_RULES, TANSTACK_START_RULES, plugin as default, isReactNativeDependencyName };
+export { ALL_REACT_DOCTOR_RULES, ALL_REACT_DOCTOR_RULE_KEYS, CROSS_FILE_RULE_IDS, EXTERNAL_RULES, type EsTreeNode, FRAMEWORK_SPECIFIC_RULE_KEYS, type FileScan, MOTION_LIBRARY_PACKAGES, NEXTJS_RULES, type OxlintRuleSeverity, PREACT_RULES, REACT_COMPILER_RULES, REACT_DOCTOR_RULES, REACT_NATIVE_DEPENDENCY_NAMES, REACT_NATIVE_DEPENDENCY_PREFIXES, REACT_NATIVE_RULES, RECOMMENDED_RULES, RULES, type Rule, type RuleFramework, type RulePlugin, type RuleSeverity, type RuleVisitors, type ScanFinding, type ScannedFile, TANSTACK_QUERY_RULES, TANSTACK_START_RULES, classifySecurityScanFile, plugin as default, isReactNativeDependencyName, shouldReadSecurityScanContent };
 //# sourceMappingURL=index.d.ts.map

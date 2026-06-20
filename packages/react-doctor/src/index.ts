@@ -4,6 +4,7 @@ import {
   clearAutoSuppressionCaches,
   clearConfigCache,
   clearIgnorePatternsCache,
+  clearMinifiedFileCache,
   clearPackageJsonCache,
   clearPackageRoleCache,
   clearProjectCache,
@@ -11,6 +12,8 @@ import {
 import type {
   Diagnostic,
   DiagnoseOptions,
+  DiagnoseProjectsInput,
+  DiagnoseProjectsResult,
   DiagnoseResult,
   DiffInfo,
   JsonReport,
@@ -19,7 +22,11 @@ import type {
   JsonReportMode,
   JsonReportProjectEntry,
   JsonReportSummary,
+  ProjectDefinition,
   ProjectInfo,
+  ProjectResult,
+  ProjectResultError,
+  ProjectResultOk,
   ReactDoctorConfig,
   ScoreResult,
 } from "@react-doctor/core";
@@ -27,6 +34,8 @@ import type {
 export type {
   Diagnostic,
   DiagnoseOptions,
+  DiagnoseProjectsInput,
+  DiagnoseProjectsResult,
   DiagnoseResult,
   DiffInfo,
   JsonReport,
@@ -35,7 +44,11 @@ export type {
   JsonReportMode,
   JsonReportProjectEntry,
   JsonReportSummary,
+  ProjectDefinition,
   ProjectInfo,
+  ProjectResult,
+  ProjectResultError,
+  ProjectResultOk,
   ReactDoctorConfig,
   ScoreResult,
 };
@@ -77,6 +90,7 @@ export const clearCaches = (): void => {
   clearIgnorePatternsCache();
   clearPackageRoleCache();
   clearAutoSuppressionCaches();
+  clearMinifiedFileCache();
 };
 
 interface ToJsonReportOptions {

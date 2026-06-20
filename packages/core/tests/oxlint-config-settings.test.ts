@@ -49,4 +49,63 @@ describe("createOxlintConfig settings", () => {
 
     expect(config.settings["react-doctor"]).not.toHaveProperty("shopifyFlashListMajorVersion");
   });
+
+  it("never registers security scan rules (they run as a core environment check)", () => {
+    const config = createOxlintConfig({
+      pluginPath: "/tmp/plugin.js",
+      project: buildProject({ framework: "vite", hasReactNativeWorkspace: false }),
+    });
+
+    expect(config.rules).not.toHaveProperty("react-doctor/artifact-secret-leak");
+    expect(config.rules).not.toHaveProperty("react-doctor/raw-sql-injection-risk");
+  });
+
+  it("excludes security scan rules even when severity controls opt them in", () => {
+    const config = createOxlintConfig({
+      pluginPath: "/tmp/plugin.js",
+      project: buildProject({ framework: "vite", hasReactNativeWorkspace: false }),
+      severityControls: {
+        rules: {
+          "react-doctor/artifact-secret-leak": "error",
+          "react-doctor/raw-sql-injection-risk": "error",
+        },
+      },
+    });
+
+    expect(config.rules).not.toHaveProperty("react-doctor/artifact-secret-leak");
+    expect(config.rules).not.toHaveProperty("react-doctor/raw-sql-injection-risk");
+  });
+
+  const hasReactHooksJsEntry = (config: ReturnType<typeof createOxlintConfig>): boolean =>
+    config.jsPlugins.some(
+      (entry) => typeof entry === "object" && "name" in entry && entry.name === "react-hooks-js",
+    );
+
+  it("registers the react-hooks-js plugin + compiler rules when React Compiler is present", () => {
+    const config = createOxlintConfig({
+      pluginPath: "/tmp/plugin.js",
+      project: buildProject({ hasReactCompiler: true }),
+    });
+
+    expect(hasReactHooksJsEntry(config)).toBe(true);
+    expect(Object.keys(config.rules).some((ruleKey) => ruleKey.startsWith("react-hooks-js/"))).toBe(
+      true,
+    );
+  });
+
+  it("drops the react-hooks-js plugin + compiler rules under disableReactHooksJsPlugin (the load-failure fallback)", () => {
+    const config = createOxlintConfig({
+      pluginPath: "/tmp/plugin.js",
+      project: buildProject({ hasReactCompiler: true }),
+      disableReactHooksJsPlugin: true,
+    });
+
+    expect(hasReactHooksJsEntry(config)).toBe(false);
+    expect(Object.keys(config.rules).some((ruleKey) => ruleKey.startsWith("react-hooks-js/"))).toBe(
+      false,
+    );
+    // The curated react-doctor rules still register — only the optional
+    // React Compiler frontend is dropped.
+    expect(config.jsPlugins).toContain("/tmp/plugin.js");
+  });
 });

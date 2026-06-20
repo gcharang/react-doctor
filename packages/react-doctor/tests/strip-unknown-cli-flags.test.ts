@@ -14,6 +14,7 @@ describe("stripUnknownCliFlags", () => {
     expect(
       stripUserArguments([
         ".",
+        "--debug",
         "--no-score",
         "--project",
         "web",
@@ -27,6 +28,7 @@ describe("stripUnknownCliFlags", () => {
       ]),
     ).toEqual([
       ".",
+      "--debug",
       "--no-score",
       "--project",
       "web",
@@ -53,6 +55,17 @@ describe("stripUnknownCliFlags", () => {
       "lines",
       "--base",
       "main",
+    ]);
+  });
+
+  it("keeps --output-dir and consumes its value (no value leaks as a positional)", () => {
+    expect(stripUserArguments([".", "--output-dir", "./doctor-report"])).toEqual([
+      ".",
+      "--output-dir",
+      "./doctor-report",
+    ]);
+    expect(stripUserArguments(["--output-dir=./doctor-report"])).toEqual([
+      "--output-dir=./doctor-report",
     ]);
   });
 

@@ -12,6 +12,7 @@ const ROOT_FLAG_SPEC: CliFlagSpec = {
   longOptionsWithoutValues: new Set([
     "--color",
     "--dead-code",
+    "--debug",
     "--help",
     "--json",
     "--json-compact",
@@ -25,7 +26,6 @@ const ROOT_FLAG_SPEC: CliFlagSpec = {
     "--no-telemetry",
     "--no-warnings",
     "--score",
-    "--sfw",
     "--staged",
     "--verbose",
     "--version",
@@ -37,6 +37,7 @@ const ROOT_FLAG_SPEC: CliFlagSpec = {
     "--category",
     "--changed-files-from",
     "--blocking",
+    "--output-dir",
     "--fail-on",
     "--project",
     "--scope",

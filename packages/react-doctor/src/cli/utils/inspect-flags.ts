@@ -6,6 +6,10 @@ export interface InspectFlags {
   lint?: boolean;
   deadCode?: boolean;
   verbose?: boolean;
+  // Forces a Sentry trace and prints its id at the end. Conflicts with
+  // --no-score / --no-telemetry, which disable the telemetry it needs.
+  debug?: boolean;
+  outputDir?: string;
   score?: boolean;
   json?: boolean;
   jsonCompact?: boolean;
@@ -36,9 +40,4 @@ export interface InspectFlags {
    * `blocking` is unset, but triggers a one-time deprecation warning.
    */
   failOn?: string;
-  /**
-   * Demo mode: print the Socket.dev supply-chain score of every direct
-   * dependency, then exit without running a scan.
-   */
-  sfw?: boolean;
 }

@@ -1,3 +1,4 @@
+import type { FileScan } from "./file-scan.js";
 import type { RuleContext } from "./rule-context.js";
 import type { RuleVisitors } from "./rule-visitors.js";
 
@@ -68,6 +69,17 @@ export interface Rule {
   // Retired rules stay registered only so legacy configs and docs tooling
   // can resolve the id. They intentionally never report diagnostics.
   lifecycle?: "retired";
+  // Project-level file scan. Rules with `scan` are registered for
+  // metadata/tags/severity like any rule, but are EXCLUDED from the
+  // generated oxlint config and executed by @react-doctor/core's
+  // check-security-scan environment check over a whole-tree walk.
+  scan?: FileScan;
+  // When `true`, the rule's finding only applies to files actually committed
+  // to the repository (its message asserts the file is "checked in"). The scan
+  // host drops findings for paths git ignores, so a local-only gitignored file
+  // (e.g. a `.env` in `.gitignore`) is not flagged. Lets a scan rule declare
+  // this without coupling the host to specific rule ids.
+  committedFilesOnly?: boolean;
   recommendation?: string;
   create: (context: RuleContext) => RuleVisitors;
 }

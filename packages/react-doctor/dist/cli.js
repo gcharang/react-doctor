@@ -11,11 +11,11 @@ import { parseSync } from "oxc-parser";
 import * as OS from "node:os";
 import os, { tmpdir } from "node:os";
 import { parseJSON5 } from "confbox";
+import * as NodeUrl from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createJiti } from "jiti";
 import * as Crypto from "node:crypto";
 import crypto, { createHash, randomUUID } from "node:crypto";
-import * as NodeUrl from "node:url";
-import { fileURLToPath } from "node:url";
 import * as Sentry from "@sentry/node";
 import { performance as performance$1 } from "node:perf_hooks";
 import { promisify, stripVTControlCharacters } from "node:util";
@@ -10274,7 +10274,7 @@ const provideContext$1 = /* @__PURE__ */ dual(2, (self, context) => {
 	return updateContext$1(self, merge$3(context));
 });
 /** @internal */
-const provideService$1 = function() {
+const provideService$3 = function() {
 	if (arguments.length === 1) return dual(2, (self, impl) => provideServiceImpl(self, arguments[0], impl));
 	return dual(3, (self, service, impl) => provideServiceImpl(self, service, impl)).apply(this, arguments);
 };
@@ -10505,7 +10505,7 @@ const constScopeEmpty = { _tag: "Empty" };
 /** @internal */
 const scope$1 = scopeTag;
 /** @internal */
-const provideScope = /* @__PURE__ */ provideService$1(scopeTag);
+const provideScope = /* @__PURE__ */ provideService$3(scopeTag);
 /** @internal */
 const scoped$1 = (self) => withFiber$1((fiber) => {
 	const prev = fiber.context;
@@ -10946,9 +10946,9 @@ const makeLatchUnsafe = (open) => new Latch(open ?? false);
 /** @internal */
 const makeLatch = (open) => sync$2(() => makeLatchUnsafe(open));
 /** @internal */
-const withTracer$1 = /* @__PURE__ */ dual(2, (effect, tracer) => provideService$1(effect, Tracer, tracer));
+const withTracer$1 = /* @__PURE__ */ dual(2, (effect, tracer) => provideService$3(effect, Tracer, tracer));
 /** @internal */
-const withTracerEnabled$1 = /* @__PURE__ */ provideService$1(TracerEnabled);
+const withTracerEnabled$1 = /* @__PURE__ */ provideService$3(TracerEnabled);
 const bigint0 = /* @__PURE__ */ BigInt(0);
 const NoopSpanProto = {
 	_tag: "Span",
@@ -11029,7 +11029,7 @@ const useSpan$1 = (name, ...args) => {
 		}));
 	});
 };
-const provideParentSpan = /* @__PURE__ */ provideService$1(ParentSpan);
+const provideParentSpan = /* @__PURE__ */ provideService$3(ParentSpan);
 /** @internal */
 const withParentSpan$1 = function() {
 	const dataFirst = isEffect$1(arguments[0]);
@@ -12596,7 +12596,7 @@ var CurrentMemoMap = class extends Service()("effect/Layer/CurrentMemoMap") {
 * @category memo map
 * @since 2.0.0
 */
-const buildWithMemoMap = /* @__PURE__ */ dual(3, (self, memoMap, scope) => provideService$1(map$4(self.build(memoMap, scope), add(CurrentMemoMap, memoMap)), CurrentMemoMap, memoMap));
+const buildWithMemoMap = /* @__PURE__ */ dual(3, (self, memoMap, scope) => provideService$3(map$4(self.build(memoMap, scope), add(CurrentMemoMap, memoMap)), CurrentMemoMap, memoMap));
 /**
 * Builds a layer into an `Effect` value. Any resources associated with this
 * layer will be released when the specified scope is closed unless their scope
@@ -13949,7 +13949,7 @@ const provide$1 = /* @__PURE__ */ dual((args) => isEffect$1(args[0]), (self, sou
 /** @internal */
 const repeatOrElse = /* @__PURE__ */ dual(3, (self, schedule, orElse) => flatMap$4(toStepWithMetadata(schedule), (step) => {
 	let meta = CurrentMetadata.defaultValue();
-	return catch_$2(forever$2(tap$2(flatMap$4(suspend$3(() => provideService$1(self, CurrentMetadata, meta)), step), (meta_) => sync$2(() => {
+	return catch_$2(forever$2(tap$2(flatMap$4(suspend$3(() => provideService$3(self, CurrentMetadata, meta)), step), (meta_) => sync$2(() => {
 		meta = meta_;
 	})), { disableYield: true }), (error) => isDone$2(error) ? succeed$5(error.value) : orElse(error, meta.attempt === 0 ? none() : some(meta)));
 }));
@@ -13957,7 +13957,7 @@ const repeatOrElse = /* @__PURE__ */ dual(3, (self, schedule, orElse) => flatMap
 const retryOrElse = /* @__PURE__ */ dual(3, (self, policy, orElse) => flatMap$4(toStepWithMetadata(policy), (step) => {
 	let meta = CurrentMetadata.defaultValue();
 	let lastError;
-	const loop = catch_$2(suspend$3(() => provideService$1(self, CurrentMetadata, meta)), (error) => {
+	const loop = catch_$2(suspend$3(() => provideService$3(self, CurrentMetadata, meta)), (error) => {
 		lastError = error;
 		return flatMap$4(step(error), (meta_) => {
 			meta = meta_;
@@ -16073,7 +16073,7 @@ const updateContext = updateContext$1;
 * @category Context
 * @since 2.0.0
 */
-const provideService = provideService$1;
+const provideService$2 = provideService$3;
 /**
 * Scopes all resources used in this workflow to the lifetime of the workflow,
 * ensuring that their finalizers are run as soon as this workflow completes
@@ -21088,6 +21088,20 @@ function decodeUnknownOption$1(schema, options) {
 	return asOption(decodeUnknownEffect(schema, options));
 }
 /**
+* Creates a synchronous decoder for `unknown` input.
+*
+* **Details**
+*
+* The returned function returns the decoded `Type` on success and throws an
+* `Error` with the `SchemaIssue.Issue` in its `cause` on decoding failure.
+*
+* @category decoding
+* @since 3.10.0
+*/
+function decodeUnknownSync$1(schema, options) {
+	return asSync(decodeUnknownEffect(schema, options));
+}
+/**
 * Creates an effectful encoder for `unknown` input.
 *
 * **Details**
@@ -21388,6 +21402,40 @@ function isSchemaError(u) {
 * @since 3.10.0
 */
 const decodeUnknownOption = decodeUnknownOption$1;
+/**
+* Decodes an `unknown` input against a schema synchronously, returning the
+* decoded value or throwing an `Error` whose cause contains the schema issue.
+* Use this when you want to validate data at a boundary and treat a schema
+* mismatch as an exception. For typed input use `decodeSync`.
+*
+* **Details**
+*
+* Only service-free schemas can be decoded synchronously. For non-throwing
+* alternatives see `decodeUnknownOption`, `decodeUnknownExit`, or
+* `decodeUnknownEffect`. Options may be provided either when creating the
+* decoder or when applying it; application options override creation options.
+*
+* **Example** (Decoding with a transformation schema)
+*
+* ```ts
+* import { Schema } from "effect"
+*
+* const NumberFromString = Schema.NumberFromString
+*
+* console.log(Schema.decodeUnknownSync(NumberFromString)("42"))
+* // Output: 42
+*
+* Schema.decodeUnknownSync(NumberFromString)("not a number")
+* // throws SchemaError: NumberFromString
+* //   └─ Encoded side transformation failure
+* //      └─ NumberFromString
+* //         └─ Expected a numeric string, actual "not a number"
+* ```
+*
+* @category decoding
+* @since 4.0.0
+*/
+const decodeUnknownSync = decodeUnknownSync$1;
 /**
 * Encodes an `unknown` input against a schema synchronously, throwing a
 * {@link SchemaError} on failure. Use this when you want to serialize data at a
@@ -22353,8 +22401,10 @@ var Diagnostic = class extends Class("Diagnostic")({
 	endLine: optional(Number$1),
 	endColumn: optional(Number$1),
 	category: String$1,
+	fileContext: optional(Literals(["test", "story"])),
 	suppressionHint: optional(String$1),
-	relatedLocations: optional(ArraySchema(DiagnosticRelatedLocation))
+	relatedLocations: optional(ArraySchema(DiagnosticRelatedLocation)),
+	fixGroupId: optional(String$1)
 }) {};
 const JsonReportMode = Literals([
 	"full",
@@ -22396,6 +22446,7 @@ var JsonReportProjectEntry = class extends Class("JsonReportProjectEntry")({
 	score: Unknown,
 	skippedChecks: ArraySchema(String$1),
 	skippedCheckReasons: optional(Record$1(String$1, String$1)),
+	scannedFileCount: optional(Number$1),
 	elapsedMilliseconds: Number$1
 }) {};
 /**
@@ -22446,7 +22497,1343 @@ var JsonReportV2 = class extends Class("JsonReportV2")({
 }) {};
 Union([JsonReportV1, JsonReportV2]);
 //#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/constants.js
+var require_constants$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SEMVER_SPEC_VERSION = "2.0.0";
+	const MAX_LENGTH = 256;
+	const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER || 9007199254740991;
+	module.exports = {
+		MAX_LENGTH,
+		MAX_SAFE_COMPONENT_LENGTH: 16,
+		MAX_SAFE_BUILD_LENGTH: MAX_LENGTH - 6,
+		MAX_SAFE_INTEGER,
+		RELEASE_TYPES: [
+			"major",
+			"premajor",
+			"minor",
+			"preminor",
+			"patch",
+			"prepatch",
+			"prerelease"
+		],
+		SEMVER_SPEC_VERSION,
+		FLAG_INCLUDE_PRERELEASE: 1,
+		FLAG_LOOSE: 2
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/debug.js
+var require_debug = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	module.exports = typeof process === "object" && process.env && process.env.NODE_DEBUG && /\bsemver\b/i.test(process.env.NODE_DEBUG) ? (...args) => console.error("SEMVER", ...args) : () => {};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/re.js
+var require_re = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const { MAX_SAFE_COMPONENT_LENGTH, MAX_SAFE_BUILD_LENGTH, MAX_LENGTH } = require_constants$1();
+	const debug = require_debug();
+	exports = module.exports = {};
+	const re = exports.re = [];
+	const safeRe = exports.safeRe = [];
+	const src = exports.src = [];
+	const safeSrc = exports.safeSrc = [];
+	const t = exports.t = {};
+	let R = 0;
+	const LETTERDASHNUMBER = "[a-zA-Z0-9-]";
+	const safeRegexReplacements = [
+		["\\s", 1],
+		["\\d", MAX_LENGTH],
+		[LETTERDASHNUMBER, MAX_SAFE_BUILD_LENGTH]
+	];
+	const makeSafeRegex = (value) => {
+		for (const [token, max] of safeRegexReplacements) value = value.split(`${token}*`).join(`${token}{0,${max}}`).split(`${token}+`).join(`${token}{1,${max}}`);
+		return value;
+	};
+	const createToken = (name, value, isGlobal) => {
+		const safe = makeSafeRegex(value);
+		const index = R++;
+		debug(name, index, value);
+		t[name] = index;
+		src[index] = value;
+		safeSrc[index] = safe;
+		re[index] = new RegExp(value, isGlobal ? "g" : void 0);
+		safeRe[index] = new RegExp(safe, isGlobal ? "g" : void 0);
+	};
+	createToken("NUMERICIDENTIFIER", "0|[1-9]\\d*");
+	createToken("NUMERICIDENTIFIERLOOSE", "\\d+");
+	createToken("NONNUMERICIDENTIFIER", `\\d*[a-zA-Z-]${LETTERDASHNUMBER}*`);
+	createToken("MAINVERSION", `(${src[t.NUMERICIDENTIFIER]})\\.(${src[t.NUMERICIDENTIFIER]})\\.(${src[t.NUMERICIDENTIFIER]})`);
+	createToken("MAINVERSIONLOOSE", `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.(${src[t.NUMERICIDENTIFIERLOOSE]})\\.(${src[t.NUMERICIDENTIFIERLOOSE]})`);
+	createToken("PRERELEASEIDENTIFIER", `(?:${src[t.NONNUMERICIDENTIFIER]}|${src[t.NUMERICIDENTIFIER]})`);
+	createToken("PRERELEASEIDENTIFIERLOOSE", `(?:${src[t.NONNUMERICIDENTIFIER]}|${src[t.NUMERICIDENTIFIERLOOSE]})`);
+	createToken("PRERELEASE", `(?:-(${src[t.PRERELEASEIDENTIFIER]}(?:\\.${src[t.PRERELEASEIDENTIFIER]})*))`);
+	createToken("PRERELEASELOOSE", `(?:-?(${src[t.PRERELEASEIDENTIFIERLOOSE]}(?:\\.${src[t.PRERELEASEIDENTIFIERLOOSE]})*))`);
+	createToken("BUILDIDENTIFIER", `${LETTERDASHNUMBER}+`);
+	createToken("BUILD", `(?:\\+(${src[t.BUILDIDENTIFIER]}(?:\\.${src[t.BUILDIDENTIFIER]})*))`);
+	createToken("FULLPLAIN", `v?${src[t.MAINVERSION]}${src[t.PRERELEASE]}?${src[t.BUILD]}?`);
+	createToken("FULL", `^${src[t.FULLPLAIN]}$`);
+	createToken("LOOSEPLAIN", `[v=\\s]*${src[t.MAINVERSIONLOOSE]}${src[t.PRERELEASELOOSE]}?${src[t.BUILD]}?`);
+	createToken("LOOSE", `^${src[t.LOOSEPLAIN]}$`);
+	createToken("GTLT", "((?:<|>)?=?)");
+	createToken("XRANGEIDENTIFIERLOOSE", `${src[t.NUMERICIDENTIFIERLOOSE]}|x|X|\\*`);
+	createToken("XRANGEIDENTIFIER", `${src[t.NUMERICIDENTIFIER]}|x|X|\\*`);
+	createToken("XRANGEPLAIN", `[v=\\s]*(${src[t.XRANGEIDENTIFIER]})(?:\\.(${src[t.XRANGEIDENTIFIER]})(?:\\.(${src[t.XRANGEIDENTIFIER]})(?:${src[t.PRERELEASE]})?${src[t.BUILD]}?)?)?`);
+	createToken("XRANGEPLAINLOOSE", `[v=\\s]*(${src[t.XRANGEIDENTIFIERLOOSE]})(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})(?:${src[t.PRERELEASELOOSE]})?${src[t.BUILD]}?)?)?`);
+	createToken("XRANGE", `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAIN]}$`);
+	createToken("XRANGELOOSE", `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAINLOOSE]}$`);
+	createToken("COERCEPLAIN", `(^|[^\\d])(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}})(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?`);
+	createToken("COERCE", `${src[t.COERCEPLAIN]}(?:$|[^\\d])`);
+	createToken("COERCEFULL", src[t.COERCEPLAIN] + `(?:${src[t.PRERELEASE]})?(?:${src[t.BUILD]})?(?:$|[^\\d])`);
+	createToken("COERCERTL", src[t.COERCE], true);
+	createToken("COERCERTLFULL", src[t.COERCEFULL], true);
+	createToken("LONETILDE", "(?:~>?)");
+	createToken("TILDETRIM", `(\\s*)${src[t.LONETILDE]}\\s+`, true);
+	exports.tildeTrimReplace = "$1~";
+	createToken("TILDE", `^${src[t.LONETILDE]}${src[t.XRANGEPLAIN]}$`);
+	createToken("TILDELOOSE", `^${src[t.LONETILDE]}${src[t.XRANGEPLAINLOOSE]}$`);
+	createToken("LONECARET", "(?:\\^)");
+	createToken("CARETTRIM", `(\\s*)${src[t.LONECARET]}\\s+`, true);
+	exports.caretTrimReplace = "$1^";
+	createToken("CARET", `^${src[t.LONECARET]}${src[t.XRANGEPLAIN]}$`);
+	createToken("CARETLOOSE", `^${src[t.LONECARET]}${src[t.XRANGEPLAINLOOSE]}$`);
+	createToken("COMPARATORLOOSE", `^${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]})$|^$`);
+	createToken("COMPARATOR", `^${src[t.GTLT]}\\s*(${src[t.FULLPLAIN]})$|^$`);
+	createToken("COMPARATORTRIM", `(\\s*)${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]}|${src[t.XRANGEPLAIN]})`, true);
+	exports.comparatorTrimReplace = "$1$2$3";
+	createToken("HYPHENRANGE", `^\\s*(${src[t.XRANGEPLAIN]})\\s+-\\s+(${src[t.XRANGEPLAIN]})\\s*$`);
+	createToken("HYPHENRANGELOOSE", `^\\s*(${src[t.XRANGEPLAINLOOSE]})\\s+-\\s+(${src[t.XRANGEPLAINLOOSE]})\\s*$`);
+	createToken("STAR", "(<|>)?=?\\s*\\*");
+	createToken("GTE0", "^\\s*>=\\s*0\\.0\\.0\\s*$");
+	createToken("GTE0PRE", "^\\s*>=\\s*0\\.0\\.0-0\\s*$");
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/parse-options.js
+var require_parse_options = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const looseOption = Object.freeze({ loose: true });
+	const emptyOpts = Object.freeze({});
+	const parseOptions = (options) => {
+		if (!options) return emptyOpts;
+		if (typeof options !== "object") return looseOption;
+		return options;
+	};
+	module.exports = parseOptions;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/identifiers.js
+var require_identifiers = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const numeric = /^[0-9]+$/;
+	const compareIdentifiers = (a, b) => {
+		if (typeof a === "number" && typeof b === "number") return a === b ? 0 : a < b ? -1 : 1;
+		const anum = numeric.test(a);
+		const bnum = numeric.test(b);
+		if (anum && bnum) {
+			a = +a;
+			b = +b;
+		}
+		return a === b ? 0 : anum && !bnum ? -1 : bnum && !anum ? 1 : a < b ? -1 : 1;
+	};
+	const rcompareIdentifiers = (a, b) => compareIdentifiers(b, a);
+	module.exports = {
+		compareIdentifiers,
+		rcompareIdentifiers
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/semver.js
+var require_semver$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const debug = require_debug();
+	const { MAX_LENGTH, MAX_SAFE_INTEGER } = require_constants$1();
+	const { safeRe: re, t } = require_re();
+	const parseOptions = require_parse_options();
+	const { compareIdentifiers } = require_identifiers();
+	module.exports = class SemVer {
+		constructor(version, options) {
+			options = parseOptions(options);
+			if (version instanceof SemVer) if (version.loose === !!options.loose && version.includePrerelease === !!options.includePrerelease) return version;
+			else version = version.version;
+			else if (typeof version !== "string") throw new TypeError(`Invalid version. Must be a string. Got type "${typeof version}".`);
+			if (version.length > MAX_LENGTH) throw new TypeError(`version is longer than ${MAX_LENGTH} characters`);
+			debug("SemVer", version, options);
+			this.options = options;
+			this.loose = !!options.loose;
+			this.includePrerelease = !!options.includePrerelease;
+			const m = version.trim().match(options.loose ? re[t.LOOSE] : re[t.FULL]);
+			if (!m) throw new TypeError(`Invalid Version: ${version}`);
+			this.raw = version;
+			this.major = +m[1];
+			this.minor = +m[2];
+			this.patch = +m[3];
+			if (this.major > MAX_SAFE_INTEGER || this.major < 0) throw new TypeError("Invalid major version");
+			if (this.minor > MAX_SAFE_INTEGER || this.minor < 0) throw new TypeError("Invalid minor version");
+			if (this.patch > MAX_SAFE_INTEGER || this.patch < 0) throw new TypeError("Invalid patch version");
+			if (!m[4]) this.prerelease = [];
+			else this.prerelease = m[4].split(".").map((id) => {
+				if (/^[0-9]+$/.test(id)) {
+					const num = +id;
+					if (num >= 0 && num < MAX_SAFE_INTEGER) return num;
+				}
+				return id;
+			});
+			this.build = m[5] ? m[5].split(".") : [];
+			this.format();
+		}
+		format() {
+			this.version = `${this.major}.${this.minor}.${this.patch}`;
+			if (this.prerelease.length) this.version += `-${this.prerelease.join(".")}`;
+			return this.version;
+		}
+		toString() {
+			return this.version;
+		}
+		compare(other) {
+			debug("SemVer.compare", this.version, this.options, other);
+			if (!(other instanceof SemVer)) {
+				if (typeof other === "string" && other === this.version) return 0;
+				other = new SemVer(other, this.options);
+			}
+			if (other.version === this.version) return 0;
+			return this.compareMain(other) || this.comparePre(other);
+		}
+		compareMain(other) {
+			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
+			if (this.major < other.major) return -1;
+			if (this.major > other.major) return 1;
+			if (this.minor < other.minor) return -1;
+			if (this.minor > other.minor) return 1;
+			if (this.patch < other.patch) return -1;
+			if (this.patch > other.patch) return 1;
+			return 0;
+		}
+		comparePre(other) {
+			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
+			if (this.prerelease.length && !other.prerelease.length) return -1;
+			else if (!this.prerelease.length && other.prerelease.length) return 1;
+			else if (!this.prerelease.length && !other.prerelease.length) return 0;
+			let i = 0;
+			do {
+				const a = this.prerelease[i];
+				const b = other.prerelease[i];
+				debug("prerelease compare", i, a, b);
+				if (a === void 0 && b === void 0) return 0;
+				else if (b === void 0) return 1;
+				else if (a === void 0) return -1;
+				else if (a === b) continue;
+				else return compareIdentifiers(a, b);
+			} while (++i);
+		}
+		compareBuild(other) {
+			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
+			let i = 0;
+			do {
+				const a = this.build[i];
+				const b = other.build[i];
+				debug("build compare", i, a, b);
+				if (a === void 0 && b === void 0) return 0;
+				else if (b === void 0) return 1;
+				else if (a === void 0) return -1;
+				else if (a === b) continue;
+				else return compareIdentifiers(a, b);
+			} while (++i);
+		}
+		inc(release, identifier, identifierBase) {
+			if (release.startsWith("pre")) {
+				if (!identifier && identifierBase === false) throw new Error("invalid increment argument: identifier is empty");
+				if (identifier) {
+					const match = `-${identifier}`.match(this.options.loose ? re[t.PRERELEASELOOSE] : re[t.PRERELEASE]);
+					if (!match || match[1] !== identifier) throw new Error(`invalid identifier: ${identifier}`);
+				}
+			}
+			switch (release) {
+				case "premajor":
+					this.prerelease.length = 0;
+					this.patch = 0;
+					this.minor = 0;
+					this.major++;
+					this.inc("pre", identifier, identifierBase);
+					break;
+				case "preminor":
+					this.prerelease.length = 0;
+					this.patch = 0;
+					this.minor++;
+					this.inc("pre", identifier, identifierBase);
+					break;
+				case "prepatch":
+					this.prerelease.length = 0;
+					this.inc("patch", identifier, identifierBase);
+					this.inc("pre", identifier, identifierBase);
+					break;
+				case "prerelease":
+					if (this.prerelease.length === 0) this.inc("patch", identifier, identifierBase);
+					this.inc("pre", identifier, identifierBase);
+					break;
+				case "release":
+					if (this.prerelease.length === 0) throw new Error(`version ${this.raw} is not a prerelease`);
+					this.prerelease.length = 0;
+					break;
+				case "major":
+					if (this.minor !== 0 || this.patch !== 0 || this.prerelease.length === 0) this.major++;
+					this.minor = 0;
+					this.patch = 0;
+					this.prerelease = [];
+					break;
+				case "minor":
+					if (this.patch !== 0 || this.prerelease.length === 0) this.minor++;
+					this.patch = 0;
+					this.prerelease = [];
+					break;
+				case "patch":
+					if (this.prerelease.length === 0) this.patch++;
+					this.prerelease = [];
+					break;
+				case "pre": {
+					const base = Number(identifierBase) ? 1 : 0;
+					if (this.prerelease.length === 0) this.prerelease = [base];
+					else {
+						let i = this.prerelease.length;
+						while (--i >= 0) if (typeof this.prerelease[i] === "number") {
+							this.prerelease[i]++;
+							i = -2;
+						}
+						if (i === -1) {
+							if (identifier === this.prerelease.join(".") && identifierBase === false) throw new Error("invalid increment argument: identifier already exists");
+							this.prerelease.push(base);
+						}
+					}
+					if (identifier) {
+						let prerelease = [identifier, base];
+						if (identifierBase === false) prerelease = [identifier];
+						if (compareIdentifiers(this.prerelease[0], identifier) === 0) {
+							if (isNaN(this.prerelease[1])) this.prerelease = prerelease;
+						} else this.prerelease = prerelease;
+					}
+					break;
+				}
+				default: throw new Error(`invalid increment argument: ${release}`);
+			}
+			this.raw = this.format();
+			if (this.build.length) this.raw += `+${this.build.join(".")}`;
+			return this;
+		}
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/parse.js
+var require_parse$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const parse = (version, options, throwErrors = false) => {
+		if (version instanceof SemVer) return version;
+		try {
+			return new SemVer(version, options);
+		} catch (er) {
+			if (!throwErrors) return null;
+			throw er;
+		}
+	};
+	module.exports = parse;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/valid.js
+var require_valid$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const parse = require_parse$1();
+	const valid = (version, options) => {
+		const v = parse(version, options);
+		return v ? v.version : null;
+	};
+	module.exports = valid;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/clean.js
+var require_clean = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const parse = require_parse$1();
+	const clean = (version, options) => {
+		const s = parse(version.trim().replace(/^[=v]+/, ""), options);
+		return s ? s.version : null;
+	};
+	module.exports = clean;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/inc.js
+var require_inc = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const inc = (version, release, options, identifier, identifierBase) => {
+		if (typeof options === "string") {
+			identifierBase = identifier;
+			identifier = options;
+			options = void 0;
+		}
+		try {
+			return new SemVer(version instanceof SemVer ? version.version : version, options).inc(release, identifier, identifierBase).version;
+		} catch (er) {
+			return null;
+		}
+	};
+	module.exports = inc;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/diff.js
+var require_diff = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const parse = require_parse$1();
+	const diff = (version1, version2) => {
+		const v1 = parse(version1, null, true);
+		const v2 = parse(version2, null, true);
+		const comparison = v1.compare(v2);
+		if (comparison === 0) return null;
+		const v1Higher = comparison > 0;
+		const highVersion = v1Higher ? v1 : v2;
+		const lowVersion = v1Higher ? v2 : v1;
+		const highHasPre = !!highVersion.prerelease.length;
+		if (!!lowVersion.prerelease.length && !highHasPre) {
+			if (!lowVersion.patch && !lowVersion.minor) return "major";
+			if (lowVersion.compareMain(highVersion) === 0) {
+				if (lowVersion.minor && !lowVersion.patch) return "minor";
+				return "patch";
+			}
+		}
+		const prefix = highHasPre ? "pre" : "";
+		if (v1.major !== v2.major) return prefix + "major";
+		if (v1.minor !== v2.minor) return prefix + "minor";
+		if (v1.patch !== v2.patch) return prefix + "patch";
+		return "prerelease";
+	};
+	module.exports = diff;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/major.js
+var require_major = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const major = (a, loose) => new SemVer(a, loose).major;
+	module.exports = major;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/minor.js
+var require_minor = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const minor = (a, loose) => new SemVer(a, loose).minor;
+	module.exports = minor;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/patch.js
+var require_patch = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const patch = (a, loose) => new SemVer(a, loose).patch;
+	module.exports = patch;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/prerelease.js
+var require_prerelease = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const parse = require_parse$1();
+	const prerelease = (version, options) => {
+		const parsed = parse(version, options);
+		return parsed && parsed.prerelease.length ? parsed.prerelease : null;
+	};
+	module.exports = prerelease;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare.js
+var require_compare = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const compare = (a, b, loose) => new SemVer(a, loose).compare(new SemVer(b, loose));
+	module.exports = compare;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/rcompare.js
+var require_rcompare = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const rcompare = (a, b, loose) => compare(b, a, loose);
+	module.exports = rcompare;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare-loose.js
+var require_compare_loose = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const compareLoose = (a, b) => compare(a, b, true);
+	module.exports = compareLoose;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare-build.js
+var require_compare_build = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const compareBuild = (a, b, loose) => {
+		const versionA = new SemVer(a, loose);
+		const versionB = new SemVer(b, loose);
+		return versionA.compare(versionB) || versionA.compareBuild(versionB);
+	};
+	module.exports = compareBuild;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/sort.js
+var require_sort = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compareBuild = require_compare_build();
+	const sort = (list, loose) => list.sort((a, b) => compareBuild(a, b, loose));
+	module.exports = sort;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/rsort.js
+var require_rsort = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compareBuild = require_compare_build();
+	const rsort = (list, loose) => list.sort((a, b) => compareBuild(b, a, loose));
+	module.exports = rsort;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/gt.js
+var require_gt = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const gt = (a, b, loose) => compare(a, b, loose) > 0;
+	module.exports = gt;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/lt.js
+var require_lt = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const lt = (a, b, loose) => compare(a, b, loose) < 0;
+	module.exports = lt;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/eq.js
+var require_eq = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const eq = (a, b, loose) => compare(a, b, loose) === 0;
+	module.exports = eq;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/neq.js
+var require_neq = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const neq = (a, b, loose) => compare(a, b, loose) !== 0;
+	module.exports = neq;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/gte.js
+var require_gte = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const gte = (a, b, loose) => compare(a, b, loose) >= 0;
+	module.exports = gte;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/lte.js
+var require_lte = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const compare = require_compare();
+	const lte = (a, b, loose) => compare(a, b, loose) <= 0;
+	module.exports = lte;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/cmp.js
+var require_cmp = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const eq = require_eq();
+	const neq = require_neq();
+	const gt = require_gt();
+	const gte = require_gte();
+	const lt = require_lt();
+	const lte = require_lte();
+	const cmp = (a, op, b, loose) => {
+		switch (op) {
+			case "===":
+				if (typeof a === "object") a = a.version;
+				if (typeof b === "object") b = b.version;
+				return a === b;
+			case "!==":
+				if (typeof a === "object") a = a.version;
+				if (typeof b === "object") b = b.version;
+				return a !== b;
+			case "":
+			case "=":
+			case "==": return eq(a, b, loose);
+			case "!=": return neq(a, b, loose);
+			case ">": return gt(a, b, loose);
+			case ">=": return gte(a, b, loose);
+			case "<": return lt(a, b, loose);
+			case "<=": return lte(a, b, loose);
+			default: throw new TypeError(`Invalid operator: ${op}`);
+		}
+	};
+	module.exports = cmp;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/coerce.js
+var require_coerce = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const parse = require_parse$1();
+	const { safeRe: re, t } = require_re();
+	const coerce = (version, options) => {
+		if (version instanceof SemVer) return version;
+		if (typeof version === "number") version = String(version);
+		if (typeof version !== "string") return null;
+		options = options || {};
+		let match = null;
+		if (!options.rtl) match = version.match(options.includePrerelease ? re[t.COERCEFULL] : re[t.COERCE]);
+		else {
+			const coerceRtlRegex = options.includePrerelease ? re[t.COERCERTLFULL] : re[t.COERCERTL];
+			let next;
+			while ((next = coerceRtlRegex.exec(version)) && (!match || match.index + match[0].length !== version.length)) {
+				if (!match || next.index + next[0].length !== match.index + match[0].length) match = next;
+				coerceRtlRegex.lastIndex = next.index + next[1].length + next[2].length;
+			}
+			coerceRtlRegex.lastIndex = -1;
+		}
+		if (match === null) return null;
+		const major = match[2];
+		return parse(`${major}.${match[3] || "0"}.${match[4] || "0"}${options.includePrerelease && match[5] ? `-${match[5]}` : ""}${options.includePrerelease && match[6] ? `+${match[6]}` : ""}`, options);
+	};
+	module.exports = coerce;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/lrucache.js
+var require_lrucache = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	var LRUCache = class {
+		constructor() {
+			this.max = 1e3;
+			this.map = /* @__PURE__ */ new Map();
+		}
+		get(key) {
+			const value = this.map.get(key);
+			if (value === void 0) return;
+			else {
+				this.map.delete(key);
+				this.map.set(key, value);
+				return value;
+			}
+		}
+		delete(key) {
+			return this.map.delete(key);
+		}
+		set(key, value) {
+			if (!this.delete(key) && value !== void 0) {
+				if (this.map.size >= this.max) {
+					const firstKey = this.map.keys().next().value;
+					this.delete(firstKey);
+				}
+				this.map.set(key, value);
+			}
+			return this;
+		}
+	};
+	module.exports = LRUCache;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/range.js
+var require_range = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SPACE_CHARACTERS = /\s+/g;
+	module.exports = class Range {
+		constructor(range, options) {
+			options = parseOptions(options);
+			if (range instanceof Range) if (range.loose === !!options.loose && range.includePrerelease === !!options.includePrerelease) return range;
+			else return new Range(range.raw, options);
+			if (range instanceof Comparator) {
+				this.raw = range.value;
+				this.set = [[range]];
+				this.formatted = void 0;
+				return this;
+			}
+			this.options = options;
+			this.loose = !!options.loose;
+			this.includePrerelease = !!options.includePrerelease;
+			this.raw = range.trim().replace(SPACE_CHARACTERS, " ");
+			this.set = this.raw.split("||").map((r) => this.parseRange(r.trim())).filter((c) => c.length);
+			if (!this.set.length) throw new TypeError(`Invalid SemVer Range: ${this.raw}`);
+			if (this.set.length > 1) {
+				const first = this.set[0];
+				this.set = this.set.filter((c) => !isNullSet(c[0]));
+				if (this.set.length === 0) this.set = [first];
+				else if (this.set.length > 1) {
+					for (const c of this.set) if (c.length === 1 && isAny(c[0])) {
+						this.set = [c];
+						break;
+					}
+				}
+			}
+			this.formatted = void 0;
+		}
+		get range() {
+			if (this.formatted === void 0) {
+				this.formatted = "";
+				for (let i = 0; i < this.set.length; i++) {
+					if (i > 0) this.formatted += "||";
+					const comps = this.set[i];
+					for (let k = 0; k < comps.length; k++) {
+						if (k > 0) this.formatted += " ";
+						this.formatted += comps[k].toString().trim();
+					}
+				}
+			}
+			return this.formatted;
+		}
+		format() {
+			return this.range;
+		}
+		toString() {
+			return this.range;
+		}
+		parseRange(range) {
+			const memoKey = ((this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE)) + ":" + range;
+			const cached = cache.get(memoKey);
+			if (cached) return cached;
+			const loose = this.options.loose;
+			const hr = loose ? re[t.HYPHENRANGELOOSE] : re[t.HYPHENRANGE];
+			range = range.replace(hr, hyphenReplace(this.options.includePrerelease));
+			debug("hyphen replace", range);
+			range = range.replace(re[t.COMPARATORTRIM], comparatorTrimReplace);
+			debug("comparator trim", range);
+			range = range.replace(re[t.TILDETRIM], tildeTrimReplace);
+			debug("tilde trim", range);
+			range = range.replace(re[t.CARETTRIM], caretTrimReplace);
+			debug("caret trim", range);
+			let rangeList = range.split(" ").map((comp) => parseComparator(comp, this.options)).join(" ").split(/\s+/).map((comp) => replaceGTE0(comp, this.options));
+			if (loose) rangeList = rangeList.filter((comp) => {
+				debug("loose invalid filter", comp, this.options);
+				return !!comp.match(re[t.COMPARATORLOOSE]);
+			});
+			debug("range list", rangeList);
+			const rangeMap = /* @__PURE__ */ new Map();
+			const comparators = rangeList.map((comp) => new Comparator(comp, this.options));
+			for (const comp of comparators) {
+				if (isNullSet(comp)) return [comp];
+				rangeMap.set(comp.value, comp);
+			}
+			if (rangeMap.size > 1 && rangeMap.has("")) rangeMap.delete("");
+			const result = [...rangeMap.values()];
+			cache.set(memoKey, result);
+			return result;
+		}
+		intersects(range, options) {
+			if (!(range instanceof Range)) throw new TypeError("a Range is required");
+			return this.set.some((thisComparators) => {
+				return isSatisfiable(thisComparators, options) && range.set.some((rangeComparators) => {
+					return isSatisfiable(rangeComparators, options) && thisComparators.every((thisComparator) => {
+						return rangeComparators.every((rangeComparator) => {
+							return thisComparator.intersects(rangeComparator, options);
+						});
+					});
+				});
+			});
+		}
+		test(version) {
+			if (!version) return false;
+			if (typeof version === "string") try {
+				version = new SemVer(version, this.options);
+			} catch (er) {
+				return false;
+			}
+			for (let i = 0; i < this.set.length; i++) if (testSet(this.set[i], version, this.options)) return true;
+			return false;
+		}
+	};
+	const cache = new (require_lrucache())();
+	const parseOptions = require_parse_options();
+	const Comparator = require_comparator();
+	const debug = require_debug();
+	const SemVer = require_semver$1();
+	const { safeRe: re, t, comparatorTrimReplace, tildeTrimReplace, caretTrimReplace } = require_re();
+	const { FLAG_INCLUDE_PRERELEASE, FLAG_LOOSE } = require_constants$1();
+	const isNullSet = (c) => c.value === "<0.0.0-0";
+	const isAny = (c) => c.value === "";
+	const isSatisfiable = (comparators, options) => {
+		let result = true;
+		const remainingComparators = comparators.slice();
+		let testComparator = remainingComparators.pop();
+		while (result && remainingComparators.length) {
+			result = remainingComparators.every((otherComparator) => {
+				return testComparator.intersects(otherComparator, options);
+			});
+			testComparator = remainingComparators.pop();
+		}
+		return result;
+	};
+	const parseComparator = (comp, options) => {
+		comp = comp.replace(re[t.BUILD], "");
+		debug("comp", comp, options);
+		comp = replaceCarets(comp, options);
+		debug("caret", comp);
+		comp = replaceTildes(comp, options);
+		debug("tildes", comp);
+		comp = replaceXRanges(comp, options);
+		debug("xrange", comp);
+		comp = replaceStars(comp, options);
+		debug("stars", comp);
+		return comp;
+	};
+	const isX = (id) => !id || id.toLowerCase() === "x" || id === "*";
+	const replaceTildes = (comp, options) => {
+		return comp.trim().split(/\s+/).map((c) => replaceTilde(c, options)).join(" ");
+	};
+	const replaceTilde = (comp, options) => {
+		const r = options.loose ? re[t.TILDELOOSE] : re[t.TILDE];
+		return comp.replace(r, (_, M, m, p, pr) => {
+			debug("tilde", comp, _, M, m, p, pr);
+			let ret;
+			if (isX(M)) ret = "";
+			else if (isX(m)) ret = `>=${M}.0.0 <${+M + 1}.0.0-0`;
+			else if (isX(p)) ret = `>=${M}.${m}.0 <${M}.${+m + 1}.0-0`;
+			else if (pr) {
+				debug("replaceTilde pr", pr);
+				ret = `>=${M}.${m}.${p}-${pr} <${M}.${+m + 1}.0-0`;
+			} else ret = `>=${M}.${m}.${p} <${M}.${+m + 1}.0-0`;
+			debug("tilde return", ret);
+			return ret;
+		});
+	};
+	const replaceCarets = (comp, options) => {
+		return comp.trim().split(/\s+/).map((c) => replaceCaret(c, options)).join(" ");
+	};
+	const replaceCaret = (comp, options) => {
+		debug("caret", comp, options);
+		const r = options.loose ? re[t.CARETLOOSE] : re[t.CARET];
+		const z = options.includePrerelease ? "-0" : "";
+		return comp.replace(r, (_, M, m, p, pr) => {
+			debug("caret", comp, _, M, m, p, pr);
+			let ret;
+			if (isX(M)) ret = "";
+			else if (isX(m)) ret = `>=${M}.0.0${z} <${+M + 1}.0.0-0`;
+			else if (isX(p)) if (M === "0") ret = `>=${M}.${m}.0${z} <${M}.${+m + 1}.0-0`;
+			else ret = `>=${M}.${m}.0${z} <${+M + 1}.0.0-0`;
+			else if (pr) {
+				debug("replaceCaret pr", pr);
+				if (M === "0") if (m === "0") ret = `>=${M}.${m}.${p}-${pr} <${M}.${m}.${+p + 1}-0`;
+				else ret = `>=${M}.${m}.${p}-${pr} <${M}.${+m + 1}.0-0`;
+				else ret = `>=${M}.${m}.${p}-${pr} <${+M + 1}.0.0-0`;
+			} else {
+				debug("no pr");
+				if (M === "0") if (m === "0") ret = `>=${M}.${m}.${p}${z} <${M}.${m}.${+p + 1}-0`;
+				else ret = `>=${M}.${m}.${p}${z} <${M}.${+m + 1}.0-0`;
+				else ret = `>=${M}.${m}.${p} <${+M + 1}.0.0-0`;
+			}
+			debug("caret return", ret);
+			return ret;
+		});
+	};
+	const replaceXRanges = (comp, options) => {
+		debug("replaceXRanges", comp, options);
+		return comp.split(/\s+/).map((c) => replaceXRange(c, options)).join(" ");
+	};
+	const replaceXRange = (comp, options) => {
+		comp = comp.trim();
+		const r = options.loose ? re[t.XRANGELOOSE] : re[t.XRANGE];
+		return comp.replace(r, (ret, gtlt, M, m, p, pr) => {
+			debug("xRange", comp, ret, gtlt, M, m, p, pr);
+			const xM = isX(M);
+			const xm = xM || isX(m);
+			const xp = xm || isX(p);
+			const anyX = xp;
+			if (gtlt === "=" && anyX) gtlt = "";
+			pr = options.includePrerelease ? "-0" : "";
+			if (xM) if (gtlt === ">" || gtlt === "<") ret = "<0.0.0-0";
+			else ret = "*";
+			else if (gtlt && anyX) {
+				if (xm) m = 0;
+				p = 0;
+				if (gtlt === ">") {
+					gtlt = ">=";
+					if (xm) {
+						M = +M + 1;
+						m = 0;
+						p = 0;
+					} else {
+						m = +m + 1;
+						p = 0;
+					}
+				} else if (gtlt === "<=") {
+					gtlt = "<";
+					if (xm) M = +M + 1;
+					else m = +m + 1;
+				}
+				if (gtlt === "<") pr = "-0";
+				ret = `${gtlt + M}.${m}.${p}${pr}`;
+			} else if (xm) ret = `>=${M}.0.0${pr} <${+M + 1}.0.0-0`;
+			else if (xp) ret = `>=${M}.${m}.0${pr} <${M}.${+m + 1}.0-0`;
+			debug("xRange return", ret);
+			return ret;
+		});
+	};
+	const replaceStars = (comp, options) => {
+		debug("replaceStars", comp, options);
+		return comp.trim().replace(re[t.STAR], "");
+	};
+	const replaceGTE0 = (comp, options) => {
+		debug("replaceGTE0", comp, options);
+		return comp.trim().replace(re[options.includePrerelease ? t.GTE0PRE : t.GTE0], "");
+	};
+	const hyphenReplace = (incPr) => ($0, from, fM, fm, fp, fpr, fb, to, tM, tm, tp, tpr) => {
+		if (isX(fM)) from = "";
+		else if (isX(fm)) from = `>=${fM}.0.0${incPr ? "-0" : ""}`;
+		else if (isX(fp)) from = `>=${fM}.${fm}.0${incPr ? "-0" : ""}`;
+		else if (fpr) from = `>=${from}`;
+		else from = `>=${from}${incPr ? "-0" : ""}`;
+		if (isX(tM)) to = "";
+		else if (isX(tm)) to = `<${+tM + 1}.0.0-0`;
+		else if (isX(tp)) to = `<${tM}.${+tm + 1}.0-0`;
+		else if (tpr) to = `<=${tM}.${tm}.${tp}-${tpr}`;
+		else if (incPr) to = `<${tM}.${tm}.${+tp + 1}-0`;
+		else to = `<=${to}`;
+		return `${from} ${to}`.trim();
+	};
+	const testSet = (set, version, options) => {
+		for (let i = 0; i < set.length; i++) if (!set[i].test(version)) return false;
+		if (version.prerelease.length && !options.includePrerelease) {
+			for (let i = 0; i < set.length; i++) {
+				debug(set[i].semver);
+				if (set[i].semver === Comparator.ANY) continue;
+				if (set[i].semver.prerelease.length > 0) {
+					const allowed = set[i].semver;
+					if (allowed.major === version.major && allowed.minor === version.minor && allowed.patch === version.patch) return true;
+				}
+			}
+			return false;
+		}
+		return true;
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/comparator.js
+var require_comparator = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const ANY = Symbol("SemVer ANY");
+	module.exports = class Comparator {
+		static get ANY() {
+			return ANY;
+		}
+		constructor(comp, options) {
+			options = parseOptions(options);
+			if (comp instanceof Comparator) if (comp.loose === !!options.loose) return comp;
+			else comp = comp.value;
+			comp = comp.trim().split(/\s+/).join(" ");
+			debug("comparator", comp, options);
+			this.options = options;
+			this.loose = !!options.loose;
+			this.parse(comp);
+			if (this.semver === ANY) this.value = "";
+			else this.value = this.operator + this.semver.version;
+			debug("comp", this);
+		}
+		parse(comp) {
+			const r = this.options.loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR];
+			const m = comp.match(r);
+			if (!m) throw new TypeError(`Invalid comparator: ${comp}`);
+			this.operator = m[1] !== void 0 ? m[1] : "";
+			if (this.operator === "=") this.operator = "";
+			if (!m[2]) this.semver = ANY;
+			else this.semver = new SemVer(m[2], this.options.loose);
+		}
+		toString() {
+			return this.value;
+		}
+		test(version) {
+			debug("Comparator.test", version, this.options.loose);
+			if (this.semver === ANY || version === ANY) return true;
+			if (typeof version === "string") try {
+				version = new SemVer(version, this.options);
+			} catch (er) {
+				return false;
+			}
+			return cmp(version, this.operator, this.semver, this.options);
+		}
+		intersects(comp, options) {
+			if (!(comp instanceof Comparator)) throw new TypeError("a Comparator is required");
+			if (this.operator === "") {
+				if (this.value === "") return true;
+				return new Range(comp.value, options).test(this.value);
+			} else if (comp.operator === "") {
+				if (comp.value === "") return true;
+				return new Range(this.value, options).test(comp.semver);
+			}
+			options = parseOptions(options);
+			if (options.includePrerelease && (this.value === "<0.0.0-0" || comp.value === "<0.0.0-0")) return false;
+			if (!options.includePrerelease && (this.value.startsWith("<0.0.0") || comp.value.startsWith("<0.0.0"))) return false;
+			if (this.operator.startsWith(">") && comp.operator.startsWith(">")) return true;
+			if (this.operator.startsWith("<") && comp.operator.startsWith("<")) return true;
+			if (this.semver.version === comp.semver.version && this.operator.includes("=") && comp.operator.includes("=")) return true;
+			if (cmp(this.semver, "<", comp.semver, options) && this.operator.startsWith(">") && comp.operator.startsWith("<")) return true;
+			if (cmp(this.semver, ">", comp.semver, options) && this.operator.startsWith("<") && comp.operator.startsWith(">")) return true;
+			return false;
+		}
+	};
+	const parseOptions = require_parse_options();
+	const { safeRe: re, t } = require_re();
+	const cmp = require_cmp();
+	const debug = require_debug();
+	const SemVer = require_semver$1();
+	const Range = require_range();
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/satisfies.js
+var require_satisfies = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const Range = require_range();
+	const satisfies = (version, range, options) => {
+		try {
+			range = new Range(range, options);
+		} catch (er) {
+			return false;
+		}
+		return range.test(version);
+	};
+	module.exports = satisfies;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/to-comparators.js
+var require_to_comparators = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const Range = require_range();
+	const toComparators = (range, options) => new Range(range, options).set.map((comp) => comp.map((c) => c.value).join(" ").trim().split(" "));
+	module.exports = toComparators;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/max-satisfying.js
+var require_max_satisfying = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const Range = require_range();
+	const maxSatisfying = (versions, range, options) => {
+		let max = null;
+		let maxSV = null;
+		let rangeObj = null;
+		try {
+			rangeObj = new Range(range, options);
+		} catch (er) {
+			return null;
+		}
+		versions.forEach((v) => {
+			if (rangeObj.test(v)) {
+				if (!max || maxSV.compare(v) === -1) {
+					max = v;
+					maxSV = new SemVer(max, options);
+				}
+			}
+		});
+		return max;
+	};
+	module.exports = maxSatisfying;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/min-satisfying.js
+var require_min_satisfying = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const Range = require_range();
+	const minSatisfying = (versions, range, options) => {
+		let min = null;
+		let minSV = null;
+		let rangeObj = null;
+		try {
+			rangeObj = new Range(range, options);
+		} catch (er) {
+			return null;
+		}
+		versions.forEach((v) => {
+			if (rangeObj.test(v)) {
+				if (!min || minSV.compare(v) === 1) {
+					min = v;
+					minSV = new SemVer(min, options);
+				}
+			}
+		});
+		return min;
+	};
+	module.exports = minSatisfying;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/min-version.js
+var require_min_version = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const Range = require_range();
+	const gt = require_gt();
+	const minVersion = (range, loose) => {
+		range = new Range(range, loose);
+		let minver = new SemVer("0.0.0");
+		if (range.test(minver)) return minver;
+		minver = new SemVer("0.0.0-0");
+		if (range.test(minver)) return minver;
+		minver = null;
+		for (let i = 0; i < range.set.length; ++i) {
+			const comparators = range.set[i];
+			let setMin = null;
+			comparators.forEach((comparator) => {
+				const compver = new SemVer(comparator.semver.version);
+				switch (comparator.operator) {
+					case ">":
+						if (compver.prerelease.length === 0) compver.patch++;
+						else compver.prerelease.push(0);
+						compver.raw = compver.format();
+					case "":
+					case ">=":
+						if (!setMin || gt(compver, setMin)) setMin = compver;
+						break;
+					case "<":
+					case "<=": break;
+					/* istanbul ignore next */
+					default: throw new Error(`Unexpected operation: ${comparator.operator}`);
+				}
+			});
+			if (setMin && (!minver || gt(minver, setMin))) minver = setMin;
+		}
+		if (minver && range.test(minver)) return minver;
+		return null;
+	};
+	module.exports = minVersion;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/valid.js
+var require_valid = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const Range = require_range();
+	const validRange = (range, options) => {
+		try {
+			return new Range(range, options).range || "*";
+		} catch (er) {
+			return null;
+		}
+	};
+	module.exports = validRange;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/outside.js
+var require_outside = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const SemVer = require_semver$1();
+	const Comparator = require_comparator();
+	const { ANY } = Comparator;
+	const Range = require_range();
+	const satisfies = require_satisfies();
+	const gt = require_gt();
+	const lt = require_lt();
+	const lte = require_lte();
+	const gte = require_gte();
+	const outside = (version, range, hilo, options) => {
+		version = new SemVer(version, options);
+		range = new Range(range, options);
+		let gtfn, ltefn, ltfn, comp, ecomp;
+		switch (hilo) {
+			case ">":
+				gtfn = gt;
+				ltefn = lte;
+				ltfn = lt;
+				comp = ">";
+				ecomp = ">=";
+				break;
+			case "<":
+				gtfn = lt;
+				ltefn = gte;
+				ltfn = gt;
+				comp = "<";
+				ecomp = "<=";
+				break;
+			default: throw new TypeError("Must provide a hilo val of \"<\" or \">\"");
+		}
+		if (satisfies(version, range, options)) return false;
+		for (let i = 0; i < range.set.length; ++i) {
+			const comparators = range.set[i];
+			let high = null;
+			let low = null;
+			comparators.forEach((comparator) => {
+				if (comparator.semver === ANY) comparator = new Comparator(">=0.0.0");
+				high = high || comparator;
+				low = low || comparator;
+				if (gtfn(comparator.semver, high.semver, options)) high = comparator;
+				else if (ltfn(comparator.semver, low.semver, options)) low = comparator;
+			});
+			if (high.operator === comp || high.operator === ecomp) return false;
+			if ((!low.operator || low.operator === comp) && ltefn(version, low.semver)) return false;
+			else if (low.operator === ecomp && ltfn(version, low.semver)) return false;
+		}
+		return true;
+	};
+	module.exports = outside;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/gtr.js
+var require_gtr = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const outside = require_outside();
+	const gtr = (version, range, options) => outside(version, range, ">", options);
+	module.exports = gtr;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/ltr.js
+var require_ltr = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const outside = require_outside();
+	const ltr = (version, range, options) => outside(version, range, "<", options);
+	module.exports = ltr;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/intersects.js
+var require_intersects = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const Range = require_range();
+	const intersects = (r1, r2, options) => {
+		r1 = new Range(r1, options);
+		r2 = new Range(r2, options);
+		return r1.intersects(r2, options);
+	};
+	module.exports = intersects;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/simplify.js
+var require_simplify = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const satisfies = require_satisfies();
+	const compare = require_compare();
+	module.exports = (versions, range, options) => {
+		const set = [];
+		let first = null;
+		let prev = null;
+		const v = versions.sort((a, b) => compare(a, b, options));
+		for (const version of v) if (satisfies(version, range, options)) {
+			prev = version;
+			if (!first) first = version;
+		} else {
+			if (prev) set.push([first, prev]);
+			prev = null;
+			first = null;
+		}
+		if (first) set.push([first, null]);
+		const ranges = [];
+		for (const [min, max] of set) if (min === max) ranges.push(min);
+		else if (!max && min === v[0]) ranges.push("*");
+		else if (!max) ranges.push(`>=${min}`);
+		else if (min === v[0]) ranges.push(`<=${max}`);
+		else ranges.push(`${min} - ${max}`);
+		const simplified = ranges.join(" || ");
+		const original = typeof range.raw === "string" ? range.raw : String(range);
+		return simplified.length < original.length ? simplified : range;
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/subset.js
+var require_subset = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const Range = require_range();
+	const Comparator = require_comparator();
+	const { ANY } = Comparator;
+	const satisfies = require_satisfies();
+	const compare = require_compare();
+	const subset = (sub, dom, options = {}) => {
+		if (sub === dom) return true;
+		sub = new Range(sub, options);
+		dom = new Range(dom, options);
+		let sawNonNull = false;
+		OUTER: for (const simpleSub of sub.set) {
+			for (const simpleDom of dom.set) {
+				const isSub = simpleSubset(simpleSub, simpleDom, options);
+				sawNonNull = sawNonNull || isSub !== null;
+				if (isSub) continue OUTER;
+			}
+			if (sawNonNull) return false;
+		}
+		return true;
+	};
+	const minimumVersionWithPreRelease = [new Comparator(">=0.0.0-0")];
+	const minimumVersion = [new Comparator(">=0.0.0")];
+	const simpleSubset = (sub, dom, options) => {
+		if (sub === dom) return true;
+		if (sub.length === 1 && sub[0].semver === ANY) if (dom.length === 1 && dom[0].semver === ANY) return true;
+		else if (options.includePrerelease) sub = minimumVersionWithPreRelease;
+		else sub = minimumVersion;
+		if (dom.length === 1 && dom[0].semver === ANY) if (options.includePrerelease) return true;
+		else dom = minimumVersion;
+		const eqSet = /* @__PURE__ */ new Set();
+		let gt, lt;
+		for (const c of sub) if (c.operator === ">" || c.operator === ">=") gt = higherGT(gt, c, options);
+		else if (c.operator === "<" || c.operator === "<=") lt = lowerLT(lt, c, options);
+		else eqSet.add(c.semver);
+		if (eqSet.size > 1) return null;
+		let gtltComp;
+		if (gt && lt) {
+			gtltComp = compare(gt.semver, lt.semver, options);
+			if (gtltComp > 0) return null;
+			else if (gtltComp === 0 && (gt.operator !== ">=" || lt.operator !== "<=")) return null;
+		}
+		for (const eq of eqSet) {
+			if (gt && !satisfies(eq, String(gt), options)) return null;
+			if (lt && !satisfies(eq, String(lt), options)) return null;
+			for (const c of dom) if (!satisfies(eq, String(c), options)) return false;
+			return true;
+		}
+		let higher, lower;
+		let hasDomLT, hasDomGT;
+		let needDomLTPre = lt && !options.includePrerelease && lt.semver.prerelease.length ? lt.semver : false;
+		let needDomGTPre = gt && !options.includePrerelease && gt.semver.prerelease.length ? gt.semver : false;
+		if (needDomLTPre && needDomLTPre.prerelease.length === 1 && lt.operator === "<" && needDomLTPre.prerelease[0] === 0) needDomLTPre = false;
+		for (const c of dom) {
+			hasDomGT = hasDomGT || c.operator === ">" || c.operator === ">=";
+			hasDomLT = hasDomLT || c.operator === "<" || c.operator === "<=";
+			if (gt) {
+				if (needDomGTPre) {
+					if (c.semver.prerelease && c.semver.prerelease.length && c.semver.major === needDomGTPre.major && c.semver.minor === needDomGTPre.minor && c.semver.patch === needDomGTPre.patch) needDomGTPre = false;
+				}
+				if (c.operator === ">" || c.operator === ">=") {
+					higher = higherGT(gt, c, options);
+					if (higher === c && higher !== gt) return false;
+				} else if (gt.operator === ">=" && !satisfies(gt.semver, String(c), options)) return false;
+			}
+			if (lt) {
+				if (needDomLTPre) {
+					if (c.semver.prerelease && c.semver.prerelease.length && c.semver.major === needDomLTPre.major && c.semver.minor === needDomLTPre.minor && c.semver.patch === needDomLTPre.patch) needDomLTPre = false;
+				}
+				if (c.operator === "<" || c.operator === "<=") {
+					lower = lowerLT(lt, c, options);
+					if (lower === c && lower !== lt) return false;
+				} else if (lt.operator === "<=" && !satisfies(lt.semver, String(c), options)) return false;
+			}
+			if (!c.operator && (lt || gt) && gtltComp !== 0) return false;
+		}
+		if (gt && hasDomLT && !lt && gtltComp !== 0) return false;
+		if (lt && hasDomGT && !gt && gtltComp !== 0) return false;
+		if (needDomGTPre || needDomLTPre) return false;
+		return true;
+	};
+	const higherGT = (a, b, options) => {
+		if (!a) return b;
+		const comp = compare(a.semver, b.semver, options);
+		return comp > 0 ? a : comp < 0 ? b : b.operator === ">" && a.operator === ">=" ? b : a;
+	};
+	const lowerLT = (a, b, options) => {
+		if (!a) return b;
+		const comp = compare(a.semver, b.semver, options);
+		return comp < 0 ? a : comp > 0 ? b : b.operator === "<" && a.operator === "<=" ? b : a;
+	};
+	module.exports = subset;
+}));
+//#endregion
 //#region ../../node_modules/.pnpm/eslint-scope@9.1.2/node_modules/eslint-scope/lib/assert.js
+var import_semver = /* @__PURE__ */ __toESM$1((/* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const internalRe = require_re();
+	const constants = require_constants$1();
+	const SemVer = require_semver$1();
+	const identifiers = require_identifiers();
+	module.exports = {
+		parse: require_parse$1(),
+		valid: require_valid$1(),
+		clean: require_clean(),
+		inc: require_inc(),
+		diff: require_diff(),
+		major: require_major(),
+		minor: require_minor(),
+		patch: require_patch(),
+		prerelease: require_prerelease(),
+		compare: require_compare(),
+		rcompare: require_rcompare(),
+		compareLoose: require_compare_loose(),
+		compareBuild: require_compare_build(),
+		sort: require_sort(),
+		rsort: require_rsort(),
+		gt: require_gt(),
+		lt: require_lt(),
+		eq: require_eq(),
+		neq: require_neq(),
+		gte: require_gte(),
+		lte: require_lte(),
+		cmp: require_cmp(),
+		coerce: require_coerce(),
+		Comparator: require_comparator(),
+		Range: require_range(),
+		satisfies: require_satisfies(),
+		toComparators: require_to_comparators(),
+		maxSatisfying: require_max_satisfying(),
+		minSatisfying: require_min_satisfying(),
+		minVersion: require_min_version(),
+		validRange: require_valid(),
+		outside: require_outside(),
+		gtr: require_gtr(),
+		ltr: require_ltr(),
+		intersects: require_intersects(),
+		simplifyRange: require_simplify(),
+		subset: require_subset(),
+		SemVer,
+		re: internalRe.re,
+		src: internalRe.src,
+		tokens: internalRe.t,
+		SEMVER_SPEC_VERSION: constants.SEMVER_SPEC_VERSION,
+		RELEASE_TYPES: constants.RELEASE_TYPES,
+		compareIdentifiers: identifiers.compareIdentifiers,
+		rcompareIdentifiers: identifiers.rcompareIdentifiers
+	};
+})))(), 1);
 /**
 * @fileoverview Assertion utilities.
 * @author Nicholas C. Zakas
@@ -24909,18 +26296,119 @@ const wrapCreateForReactJsxOnly = (create) => ((context) => {
 	return wrappedVisitors;
 });
 const defineRule = (rule) => {
+	if (!("create" in rule)) return {
+		...rule,
+		create: () => ({})
+	};
 	const tags = rule.tags;
-	const create = rule.create;
-	if (typeof create !== "function") return rule;
-	let wrappedCreate = create;
+	let wrappedCreate = rule.create;
 	if (tags?.includes("test-noise") && !tags?.includes("migration-hint")) wrappedCreate = wrapCreateForTestNoise(wrappedCreate);
 	if (tags?.includes("react-jsx-only")) wrappedCreate = wrapCreateForReactJsxOnly(wrappedCreate);
-	if (wrappedCreate === create) return rule;
+	if (wrappedCreate === rule.create) return rule;
 	return {
 		...rule,
 		create: wrappedCreate
 	};
 };
+const getLocationAtIndex = (content, matchIndex) => {
+	if (matchIndex < 0) return {
+		line: 1,
+		column: 1
+	};
+	const lines = content.slice(0, matchIndex).split(/\r?\n/);
+	return {
+		line: lines.length,
+		column: (lines[lines.length - 1]?.length ?? 0) + 1
+	};
+};
+const getMatchLocation = (content, pattern) => getLocationAtIndex(content, content.search(pattern));
+const TEXT_FILE_PATTERN = /\.(?:[cm]?[jt]sx?|json|jsonc|map|html?|mdx?|ya?ml|toml|sql|rules|env|txt|log|svg|xml|pem|key|crt|cert|pub|py|php)$/i;
+const DOTENV_FILE_PATTERN = /(?:^|\/)\.env(?:\.|$)/;
+const SOURCE_FILE_PATTERN$1 = /\.(?:[cm]?[jt]sx?)$/i;
+const SCRIPT_SOURCE_FILE_PATTERN = /\.(?:[cm]?[jt]sx?|py|php)$/i;
+const DATABASE_SOURCE_FILE_PATTERN = /\.(?:[cm]?[jt]sx?|py)$/i;
+const SERVER_CONTEXT_PATTERN = /(?:^|\/)(?:api|backend|server|servers|middleware|route|routes|functions|lambdas|workers)(?:\/|$)|(?:^|\/)[^/]+\.server\.[cm]?[jt]sx?$/i;
+const TEST_CONTEXT_PATTERN = /(?:^|\/)(?:__fixtures__|__mocks__|__tests__|fixtures|mocks|test|tests|testdata|test-data|e2e|playwright)(?:\/|$)|\.(?:test|spec|e2e|e2e-spec|integration-test|fixture|fixtures|stories|story)\.[cm]?[jt]sx?$|(?:^|\/)(?:test_[^/]+|[^/]+_test|conftest)\.py$|\.env\.[^/]*(?:test|e2e)[^/]*$/i;
+const BUILD_SCRIPT_CONTEXT_PATTERN = /(?:^|\/)scripts(?:\/|$)/i;
+const DEMO_CONTEXT_PATTERN = /(?:^|\/)(?:examples?|tutorials?|demos?|samples?|playgrounds?)(?:\/|$)/i;
+const DOCUMENTATION_CONTEXT_PATTERN = /(?:^|\/)(?:README|CHANGELOG|CONTRIBUTING|PUBLISHING|DOCS)\.mdx?$|\.mdx?$/i;
+const GENERATED_SOURCE_CONTEXT_PATTERN = /(?:^|\/)(?:generated|__generated__|dist|build|coverage|out|storybook-static|vendor|vendors|third[-_]?party|libraries)(?:\/|$)|(?:^|\/)\.next\/|(?:^|\/)\.yarn\/|(?:^|\/)public\/(?:chunks?|assets?|build|dist|static)\/|(?:generated|\.gen)\.[cm]?[jt]sx?$|@\d+\.\d+\.\d+(?:[-.][\w.]+)?\.[cm]?js$|[.-]min\.[cm]?js$|\.asm\.js$|(?:^|\/)[\w-]+[.@-]\d+\.\d+\.\d+(?:[-.][\w.]+)?\//i;
+const GENERATED_BUNDLE_FILE_PATTERN$1 = /\.(iife|umd|global|min)\.js$/i;
+const BROWSER_ARTIFACT_PATH_PATTERNS = [
+	/(?:^|\/)\.next\/static\//,
+	/(?:^|\/)\.output\/public\//,
+	/(?:^|\/)build\/static\//,
+	/(?:^|\/)dist\/assets\//,
+	/(?:^|\/)public\//,
+	/(?:^|\/)out\//,
+	/(?:^|\/)storybook-static\//
+];
+const AGENT_TOOL_DANGEROUS_CAPABILITY_PATTERN = /\b(?:exec|execSync|spawn|child_process|eval|new Function|vm\.run|readFile|writeFile|fs\.read|fs\.write|fetch|axios|http\.request|sandbox|runCode|executeCode)\b/;
+const SERVER_BUILD_ROOT_SEGMENTS = new Set([".next", ".output"]);
+const isNonShippedBuildArtifactPath = (relativePath) => {
+	const segments = relativePath.split("/");
+	for (let index = 0; index < segments.length; index += 1) {
+		if (!SERVER_BUILD_ROOT_SEGMENTS.has(segments[index])) continue;
+		if (segments[index] === ".next" && segments[index + 1] === "dev") return true;
+		if (segments[index + 1] === "server" && index + 2 < segments.length) return true;
+	}
+	return false;
+};
+const isBrowserArtifactPath = (relativePath, isGeneratedBundle) => {
+	if (isNonShippedBuildArtifactPath(relativePath)) return false;
+	if (isGeneratedBundle) return true;
+	if (relativePath.endsWith(".map")) return true;
+	return BROWSER_ARTIFACT_PATH_PATTERNS.some((pattern) => pattern.test(relativePath));
+};
+const isConfigOrCiPath = (relativePath) => /(?:^|\/)(?:package\.json|Dockerfile|docker-compose\.ya?ml|\.github\/workflows\/[^/]+\.ya?ml|vercel\.json|next\.config\.[cm]?[jt]s|netlify\.toml)$/i.test(relativePath);
+const isProductionFilePath = (relativePath, sourceFilePattern) => {
+	if (!sourceFilePattern.test(relativePath)) return false;
+	if (TEST_CONTEXT_PATTERN.test(relativePath)) return false;
+	if (BUILD_SCRIPT_CONTEXT_PATTERN.test(relativePath)) return false;
+	if (DOCUMENTATION_CONTEXT_PATTERN.test(relativePath)) return false;
+	if (GENERATED_SOURCE_CONTEXT_PATTERN.test(relativePath)) return false;
+	return true;
+};
+const isProductionSourcePath = (relativePath) => {
+	return isProductionFilePath(relativePath, SOURCE_FILE_PATTERN$1);
+};
+const SVG_ACTIVE_PATTERN = /<script\b|on(?:load|error|click|mouseover)\s*=/i;
+const DANGEROUS_ALLOW_SVG_PATTERN = /dangerouslyAllowSVG\s*:\s*true/i;
+const EXECUTABLE_SVG_EMBED_PATTERN = /<(?:object|embed|iframe)\b[^>]+(?:data|src)=["'][^"']+\.svg(?:\?[^"']*)?["']/i;
+const activeStaticAsset = defineRule({
+	id: "active-static-asset",
+	title: "Executable SVG exposure",
+	severity: "warn",
+	recommendation: "Prefer `<img>` for SVG images; if SVG must be served directly, use attachment disposition and a CSP that blocks scripts and objects.",
+	scan: (file) => {
+		const findings = [];
+		if (file.relativePath.endsWith(".svg") && isBrowserArtifactPath(file.relativePath, file.isGeneratedBundle)) {
+			if (SVG_ACTIVE_PATTERN.test(file.content)) {
+				const location = getMatchLocation(file.content, SVG_ACTIVE_PATTERN);
+				findings.push({
+					message: "A browser-reachable SVG contains script or event-handler code.",
+					line: location.line,
+					column: location.column,
+					severity: "error",
+					title: "Active SVG in public assets",
+					help: "Serve untrusted SVG as downloads, sanitize it, or isolate it on a cookieless asset origin with a restrictive CSP."
+				});
+			}
+			return findings;
+		}
+		if (!isProductionSourcePath(file.relativePath) && !isConfigOrCiPath(file.relativePath)) return findings;
+		const pattern = [DANGEROUS_ALLOW_SVG_PATTERN, EXECUTABLE_SVG_EMBED_PATTERN].find((candidate) => candidate.test(file.content));
+		if (pattern !== void 0) {
+			const location = getMatchLocation(file.content, pattern);
+			findings.push({
+				message: "The app enables or embeds SVG in an executable browser context.",
+				line: location.line,
+				column: location.column
+			});
+		}
+		return findings;
+	}
+});
 const HEAVY_LIBRARIES = new Set([
 	"@monaco-editor/react",
 	"monaco-editor",
@@ -25389,6 +26877,142 @@ const advancedEventHandlerRefs = defineRule({
 		});
 	} })
 });
+const WHITESPACE_PATTERN = /\s/;
+const quotedLiteralHasWhitespace = (content, openQuoteIndex, delimiter) => {
+	for (let cursor = openQuoteIndex + 1; cursor < content.length; cursor += 1) {
+		const character = content[cursor];
+		if (character === "\\") {
+			cursor += 1;
+			continue;
+		}
+		if (character === delimiter) return false;
+		if (WHITESPACE_PATTERN.test(character)) return true;
+	}
+	return false;
+};
+const blankNonCodePreservingPositions = (content, blankStringContents) => {
+	const characters = content.split("");
+	let stringDelimiter = null;
+	let isBlankingString = false;
+	const templateExpressionDepths = [];
+	let index = 0;
+	const blankUnlessNewline = (offset) => {
+		if (offset < content.length && content[offset] !== "\n") characters[offset] = " ";
+	};
+	while (index < content.length) {
+		const character = content[index];
+		const nextCharacter = content[index + 1];
+		if (stringDelimiter !== null) {
+			if (character === "\\") {
+				if (isBlankingString) {
+					blankUnlessNewline(index);
+					blankUnlessNewline(index + 1);
+				}
+				index += 2;
+				continue;
+			}
+			if (character === stringDelimiter) {
+				stringDelimiter = null;
+				index += 1;
+				continue;
+			}
+			if (blankStringContents && stringDelimiter === "`" && character === "$" && nextCharacter === "{") {
+				templateExpressionDepths.push(0);
+				stringDelimiter = null;
+				index += 2;
+				continue;
+			}
+			if (isBlankingString) blankUnlessNewline(index);
+			index += 1;
+			continue;
+		}
+		if (character === "\"" || character === "'") {
+			stringDelimiter = character;
+			isBlankingString = blankStringContents && quotedLiteralHasWhitespace(content, index, character);
+			index += 1;
+			continue;
+		}
+		if (character === "`") {
+			stringDelimiter = "`";
+			isBlankingString = blankStringContents;
+			index += 1;
+			continue;
+		}
+		if (character === "/" && nextCharacter === "/") {
+			while (index < content.length && content[index] !== "\n") {
+				characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "/" && nextCharacter === "*") {
+			while (index < content.length) {
+				if (content[index] === "*" && content[index + 1] === "/") {
+					characters[index] = " ";
+					characters[index + 1] = " ";
+					index += 2;
+					break;
+				}
+				blankUnlessNewline(index);
+				index += 1;
+			}
+			continue;
+		}
+		if (templateExpressionDepths.length > 0) {
+			const innermost = templateExpressionDepths.length - 1;
+			if (character === "{") templateExpressionDepths[innermost] += 1;
+			else if (character === "}") if (templateExpressionDepths[innermost] === 0) {
+				templateExpressionDepths.pop();
+				stringDelimiter = "`";
+				isBlankingString = blankStringContents;
+			} else templateExpressionDepths[innermost] -= 1;
+		}
+		index += 1;
+	}
+	return characters.join("");
+};
+const stripCommentsPreservingPositions = (content) => blankNonCodePreservingPositions(content, false);
+const stripCommentsAndStringLiteralsPreservingPositions = (content) => blankNonCodePreservingPositions(content, true);
+const strippedContentCache = /* @__PURE__ */ new WeakMap();
+const stringStrippedContentCache = /* @__PURE__ */ new WeakMap();
+const getScannableContent = (file, ignoreStringLiterals = false) => {
+	if (!SOURCE_FILE_PATTERN$1.test(file.relativePath)) return file.content;
+	const cache = ignoreStringLiterals ? stringStrippedContentCache : strippedContentCache;
+	const cachedContent = cache.get(file);
+	if (cachedContent !== void 0) return cachedContent;
+	const strippedContent = ignoreStringLiterals ? stripCommentsAndStringLiteralsPreservingPositions(file.content) : stripCommentsPreservingPositions(file.content);
+	cache.set(file, strippedContent);
+	return strippedContent;
+};
+const scanByPattern = ({ shouldScan, pattern, requireAll, suppressWhen, ignoreStringLiterals, message }) => (file) => {
+	if (!shouldScan(file)) return [];
+	const content = getScannableContent(file, ignoreStringLiterals);
+	if (requireAll !== void 0 && !requireAll.every((gate) => gate.test(content))) return [];
+	const matchedPattern = (pattern instanceof RegExp ? [pattern] : pattern).find((candidate) => candidate.test(content));
+	if (matchedPattern === void 0) return [];
+	if (suppressWhen !== void 0 && suppressWhen.test(content)) return [];
+	const { line, column } = getMatchLocation(content, matchedPattern);
+	return [{
+		message,
+		line,
+		column
+	}];
+};
+const AGENT_TOOL_DEFINITION_PATTERN = /\b(?:tool\s*\(\s*\{|createTool\s*\(|defineTool\s*\(|new\s+(?:DynamicTool|StructuredTool)\s*\()/;
+const AGENT_TOOL_CONTEXT_PATH_PATTERN = /(?:^|\/)(?:agents?|tools?|mcp)(?:\/|$)|(?:agent|tool|mcp)[^/]*\.[cm]?[jt]sx?$/i;
+const agentToolCapabilityRisk = defineRule({
+	id: "agent-tool-capability-risk",
+	title: "Agent tool exposes dangerous capability",
+	severity: "warn",
+	recommendation: "Treat tool inputs as prompt-injection controlled. Validate arguments, scope permissions per call, and avoid exposing shell/file/network primitives directly to agents.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath) && AGENT_TOOL_CONTEXT_PATH_PATTERN.test(file.relativePath),
+		pattern: AGENT_TOOL_DEFINITION_PATTERN,
+		requireAll: [AGENT_TOOL_DANGEROUS_CAPABILITY_PATTERN],
+		ignoreStringLiterals: true,
+		message: "An agent-callable tool appears to expose network, filesystem, shell, or code-execution capability."
+	})
+});
 const getJsxPropStringValue = (attribute) => {
 	const value = attribute.value;
 	if (!value) return null;
@@ -25519,6 +27143,11 @@ const getImportedNameFromModule = (contextNode, localIdentifierName, moduleSourc
 	if (!info) return null;
 	if (info.source !== moduleSource) return null;
 	return info.imported;
+};
+const getImportSourceForName = (contextNode, localIdentifierName) => {
+	const lookup = getImportLookup(contextNode);
+	if (!lookup) return null;
+	return lookup.get(localIdentifierName)?.source ?? null;
 };
 const FUNCTION_LIKE_TYPES$1 = new Set([
 	"FunctionDeclaration",
@@ -25732,6 +27361,15 @@ const isMemberProperty = (node, propertyName) => Boolean(node && isNodeOfType(no
 const NEXTJS_SOURCE_FILE_EXTENSION_GROUP = "(?:tsx?|jsx?|mts|mjs)";
 const PAGE_FILE_PATTERN = new RegExp(`/page\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
 const PAGE_OR_LAYOUT_FILE_PATTERN = new RegExp(`/(page|layout)\\.${NEXTJS_SOURCE_FILE_EXTENSION_GROUP}$`);
+const LAYOUT_FILE_NAMES = [
+	"layout.tsx",
+	"layout.jsx",
+	"layout.ts",
+	"layout.js",
+	"layout.mts",
+	"layout.mjs"
+];
+const METADATA_EXPORT_NAMES = ["metadata", "generateMetadata"];
 const INTERNAL_PAGE_PATH_PATTERN = /\/(?:(?:\((?:dashboard|admin|settings|account|internal|manage|console|portal|auth|onboarding|app|ee|protected)\))|(?:dashboard|admin|settings|account|internal|manage|console|portal))\//i;
 const PAGES_DIRECTORY_PATTERN = /\/pages\//;
 const NEXTJS_NAVIGATION_FUNCTIONS = new Set([
@@ -26224,7 +27862,7 @@ const anchorAmbiguousText = defineRule({
 		} };
 	}
 });
-const MESSAGE$51 = "Blind users can't follow this link because screen readers announce nothing, so add visible text, `aria-label`, or `aria-labelledby`.";
+const MESSAGE$59 = "Blind users can't follow this link because screen readers announce nothing, so add visible text, `aria-label`, or `aria-labelledby`.";
 const anchorHasContent = defineRule({
 	id: "anchor-has-content",
 	title: "Anchor has no content",
@@ -26240,7 +27878,7 @@ const anchorHasContent = defineRule({
 		for (const attribute of ["title", "aria-label"]) if (hasJsxPropIgnoreCase(opening.attributes, attribute)) return;
 		context.report({
 			node: opening.name,
-			message: MESSAGE$51
+			message: MESSAGE$59
 		});
 	} })
 });
@@ -26622,7 +28260,7 @@ const parseJsxValue = (value) => {
 	}
 	return null;
 };
-const MESSAGE$50 = "Keyboard users can't focus this element with `aria-activedescendant` because it isn't tabbable, so add `tabIndex={0}`.";
+const MESSAGE$58 = "Keyboard users can't focus this element with `aria-activedescendant` because it isn't tabbable, so add `tabIndex={0}`.";
 const ariaActivedescendantHasTabindex = defineRule({
 	id: "aria-activedescendant-has-tabindex",
 	title: "aria-activedescendant missing tabindex",
@@ -26640,14 +28278,14 @@ const ariaActivedescendantHasTabindex = defineRule({
 			if (tabIndexValue === null || tabIndexValue >= -1) return;
 			context.report({
 				node: node.name,
-				message: MESSAGE$50
+				message: MESSAGE$58
 			});
 			return;
 		}
 		if (isInteractiveElement(tag, node)) return;
 		context.report({
 			node: node.name,
-			message: MESSAGE$50
+			message: MESSAGE$58
 		});
 	} })
 });
@@ -27308,7 +28946,7 @@ const ABSTRACT_ROLES = new Set([
 	"widget",
 	"window"
 ]);
-const PRESENTATION_ROLES$2 = new Set(["presentation", "none"]);
+const PRESENTATION_ROLES$1 = new Set(["presentation", "none"]);
 const buildBaseMessage = (suffix) => `This \`role\` is not a valid ARIA role, so assistive tech cannot expose it correctly. Use a real, non-abstract role.${suffix}`;
 const resolveSettings$49 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
@@ -27415,6 +29053,316 @@ const ariaUnsupportedElements = defineRule({
 			});
 		}
 	} })
+});
+const artifactBaasAuthoritySurface = defineRule({
+	id: "artifact-baas-authority-surface",
+	title: "BaaS authority map shipped in browser artifact",
+	severity: "warn",
+	recommendation: "Client BaaS config is often public, but shipped collection names plus owner, role, tenant, or admin fields give attackers a precise authorization map. Verify rules/RLS enforce every boundary server-side.",
+	scan: scanByPattern({
+		shouldScan: (file) => isBrowserArtifactPath(file.relativePath, file.isGeneratedBundle),
+		pattern: /\b(?:collection\s*\(\s*["'](?:boosts|sessions|sessions_admin|users|orgs|candidateJobs|conversations|documents|profiles)|from\s*\(\s*["'](?:users|profiles|documents|organizations|memberships)|creatorID|creatorId|providerId|ghostOrg|ownerId|orgId|tenantId|workspaceId|role|roles|isAdmin|SuperAdmin)\b/i,
+		requireAll: [/\b(?:initializeApp|firebase|firestore|getFirestore)\b[\s\S]{0,700}\b(?:apiKey|authDomain|projectId|databaseURL|storageBucket)\b|\b(?:apiKey|authDomain|projectId|databaseURL|storageBucket)\b[\s\S]{0,700}\b(?:firebase|firestore|getFirestore|initializeApp)\b|\bcreateClient\b[\s\S]{0,700}\b(?:supabase|SUPABASE_URL)\b|\b(?:supabase|SUPABASE_URL)\b[\s\S]{0,700}\bcreateClient\b/i],
+		message: "A browser artifact exposes Firebase/Supabase config together with sensitive collections or authorization fields."
+	})
+});
+const AUTH_FUNCTION_NAMES = new Set([
+	"auth",
+	"getSession",
+	"getServerSession",
+	"getUser",
+	"requireAuth",
+	"checkAuth",
+	"verifyAuth",
+	"authenticate",
+	"currentUser",
+	"getAuth",
+	"validateSession"
+]);
+const AUTH_STRONG_TOKEN_PATTERN = /^auth(?:n|z|ed|enticate[ds]?|enticating|entication|orize[ds]?|orizing|orization|orizer)?$/;
+const AUTH_STANDALONE_NOUN_TOKENS = new Set([
+	"signedin",
+	"loggedin",
+	"signin"
+]);
+const AUTH_ASSERTIVE_VERB_TOKENS = new Set([
+	"require",
+	"ensure",
+	"assert",
+	"verify",
+	"validate",
+	"check",
+	"protect",
+	"enforce",
+	"guard",
+	"gate",
+	"restrict",
+	"is",
+	"has",
+	"can",
+	"must"
+]);
+const AUTH_GETTER_VERB_TOKENS = new Set([
+	"get",
+	"fetch",
+	"load",
+	"read",
+	"resolve",
+	"retrieve",
+	"use"
+]);
+const AUTH_QUALIFIER_TOKENS = new Set([
+	"current",
+	"my",
+	"own"
+]);
+const AUTH_STRONG_NOUN_TOKENS = new Set([
+	"session",
+	"sessions",
+	"login",
+	"admin",
+	"admins",
+	"superadmin",
+	"superuser",
+	"role",
+	"roles",
+	"permission",
+	"permissions",
+	"jwt",
+	"identity",
+	"principal",
+	"credential",
+	"credentials"
+]);
+const AUTH_WEAK_NOUN_TOKENS = new Set([
+	"user",
+	"users",
+	"account",
+	"accounts",
+	"token",
+	"tokens",
+	"access",
+	"me",
+	"viewer",
+	"caller",
+	"subject",
+	"scope",
+	"scopes"
+]);
+const GENERIC_AUTH_METHOD_NAMES = new Set(["getUser"]);
+const AUTH_OBJECT_PATTERN = /(?:^|[._])(?:auth|authn|authz|clerk|session|jwt|firebase|supabase|nextauth|kinde|workos|stytch|descope|cognito|propelauth|lucia)/i;
+const SECRET_PATTERNS = [
+	/^sk_live_/,
+	/^sk_test_/,
+	/^AKIA[0-9A-Z]{16}$/,
+	/^ghp_[a-zA-Z0-9]{36}$/,
+	/^gho_[a-zA-Z0-9]{36}$/,
+	/^github_pat_/,
+	/^glpat-/,
+	/^xox[bporas]-/,
+	/^sk-[a-zA-Z0-9]{32,}$/
+];
+const SECRET_VALUE_PATTERNS = [
+	/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/,
+	/\bAWS_SECRET_ACCESS_KEY\s*[:=]\s*["']?[A-Za-z0-9/+=]{35,}["']?/,
+	/\bgithub_pat_[A-Za-z0-9_]{30,}\b/,
+	/\bgh[pousr]_[A-Za-z0-9]{30,}\b/,
+	/\bglpat-[A-Za-z0-9_-]{20,}\b/,
+	/\bxox[baprs]-[A-Za-z0-9-]{20,}\b/,
+	/\bsk_(?:live|test)_[A-Za-z0-9]{16,}\b/,
+	/\brk_(?:live|test)_[A-Za-z0-9]{16,}\b/,
+	/\bsk-[A-Za-z0-9_-]{32,}\b/,
+	/\bsk-ant-api\d{2}-[A-Za-z0-9_-]{20,}\b/,
+	/\blin_(?:api|oauth)_[A-Za-z0-9]{20,}\b/,
+	/\bvercel_[A-Za-z0-9]{20,}\b/,
+	/\bsntrys_[A-Za-z0-9_-]{20,}\b/,
+	/\bkey-[a-f0-9]{32}\b/i,
+	/\bnpm_[A-Za-z0-9]{30,}\b/,
+	/\bSG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/,
+	/https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+/,
+	/https:\/\/discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9_-]+/,
+	/\bsb_secret_[A-Za-z0-9_]{20,}\b/,
+	/\bservice_role\b/i,
+	/"private_key"\s*:\s*"-----BEGIN PRIVATE KEY-----/,
+	/-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/,
+	/\b(?:postgres|mysql|mongodb(?:\+srv)?|redis):\/\/[^:\s/@]+:(?!(?:pass(?:word)?|my[a-z]*pass(?:word)?|mysecretpassword|myusername|postgres|mysql|redis|root|admin|minioadmin|secret|example|changeme|change_me|test|guest|placeholder|default|user(?:name)?|x{3,}|\*{2,}|\$\{[^}]*\}|\$[A-Z_]+|<[^>]*>|%[\w.]+%|\{\{[^}]*\}\})@)[^@\s/]+@(?!(?:localhost|127\.0\.0\.1|0\.0\.0\.0|host\.docker\.internal)(?:[:/\s]|$))[^\s:/@]*\./i
+];
+const PUBLIC_ENV_SECRET_NAME_PATTERN = /\b(?:NEXT_PUBLIC|VITE|REACT_APP|EXPO_PUBLIC)_[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PRIVATE|DATABASE_URL|SERVICE_ROLE|AWS_ACCESS_KEY|AWS_SECRET)[A-Z0-9_]*\b/i;
+const FULL_ENV_LEAK_CONTEXT_PATTERN = /\b(?:process\.env|import\.meta\.env|window\.__[A-Z0-9_]*ENV[A-Z0-9_]*__|__[A-Z0-9_]*ENV[A-Z0-9_]*__)\b/;
+const FULL_ENV_LEAK_SECRET_NAME_PATTERN = /\b(?:DATABASE_URL|AWS_SECRET_ACCESS_KEY|AWS_ACCESS_KEY_ID|MAILGUN_API_KEY|SALESFORCE_CLIENT_SECRET|OKTA_CLIENT_SECRET|SESSION_SECRET|COOKIE_SECRET|PRIVATE_KEY|SERVICE_ROLE)\b/;
+const TRUSTED_PUBLIC_SECRET_NAME_PATTERN = /(?:SENTRY_DSN|PUBLIC_KEY|PUBLISHABLE|ANON_KEY|POSTHOG_(?:PROJECT_)?TOKEN|POSTHOG_KEY|TLDRAW_LICENSE_KEY|CLERK_PUBLISHABLE_KEY|ALGOLIA_SEARCH_KEY|GC_API_KEY|GOOGLE_MAPS_API_KEY|MAPBOX_TOKEN|MIXPANEL_TOKEN|(?:NEXT_PUBLIC|VITE|REACT_APP|EXPO_PUBLIC)_(?:DISABLE|ENABLE|ALLOW|REQUIRE)_)/i;
+const PUBLIC_CLIENT_KEY_PATTERNS = [
+	/^appl_/,
+	/^goog_/,
+	/^amzn_/,
+	/^strp_/,
+	/^pk_(?:live|test)_/,
+	/^sb_publishable_/,
+	/^phc_/,
+	/^public-token-(?:live|test)-/,
+	/^pk\.eyJ/
+];
+const SECRET_UNAMBIGUOUS_PLACEHOLDER_VALUE_PATTERNS = [
+	/^[\s._\-*\u2022xX]{8,}$/,
+	/(?:\.{3,}|\u2026|[*\u2022]{3,})/,
+	/(?:^|[_\-\s])(?:your|redacted|masked|placeholder|replace[_\-\s]?me|changeme)(?:$|[_\-\s])/i,
+	/<[^>]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^>]*>/i,
+	/\[[^\]]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^\]]*\]/i,
+	/\{[^}]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^}]*\}/i
+];
+const SECRET_CONTEXTUAL_PLACEHOLDER_VALUE_PATTERNS = [/(?:^|[_\-\s])(?:example|sample|dummy)(?:$|[_\-\s])/i];
+const SECRET_PLACEHOLDER_CONTEXT_PATTERN = /(?:placeholder|example|sample|dummy|masked|redacted|mask)/i;
+const SECRET_VARIABLE_PATTERN = /(?:api_?key|secret|token|password|credential|auth)/i;
+const SECRET_TOOLING_FILE_PATTERN = /(?:^|\/)[^/]+\.config\.[cm]?[jt]s$/;
+const SECRET_TOOLING_RC_FILE_PATTERN = /(?:^|\/)(?:\.[a-z-]+rc|[a-z-]+\.rc)\.[cm]?[jt]s$/;
+const SECRET_TEST_FILE_PATTERN = /(?:^|\/)[^/]+\.(?:test|spec|stories|story|fixture|fixtures)\.[cm]?[jt]sx?$/;
+const SECRET_SERVER_FILE_SUFFIX_PATTERN = /(?:^|\/)[^/]+\.server\.[cm]?[jt]sx?$/;
+const SECRET_SERVER_ENTRY_FILE_PATTERN = /(?:^|\/)(?:middleware|proxy|route)\.[cm]?[jt]sx?$/;
+const SECRET_NEXT_PAGES_API_FILE_PATTERN = /(?:^|\/)pages\/api\/.+\.[cm]?[jt]sx?$/;
+const SECRET_CLIENT_FILE_SUFFIX_PATTERN = /(?:^|\/)[^/]+\.(?:client|browser|web)\.[cm]?[jt]sx?$/;
+const SECRET_CLIENT_ENTRY_FILE_PATTERN = /(?:^|\/)(?:src\/)?(?:main|index|[Aa]pp|client)\.[cm]?[jt]sx?$/;
+const SECRET_SERVER_DIRECTORY_NAMES = new Set([
+	"backend",
+	"functions",
+	"lambdas",
+	"lambda",
+	"middleware",
+	"server",
+	"servers"
+]);
+const SECRET_SERVER_SOURCE_ROOT_OWNER_NAMES = new Set([
+	"api",
+	"backend",
+	"edge",
+	"function",
+	"functions",
+	"lambda",
+	"lambdas",
+	"server",
+	"servers",
+	"worker",
+	"workers"
+]);
+const SECRET_TEST_DIRECTORY_NAMES = new Set([
+	"__fixtures__",
+	"__mocks__",
+	"__tests__",
+	"fixtures",
+	"mocks",
+	"test",
+	"tests"
+]);
+const SECRET_TOOLING_DIRECTORY_NAMES = new Set([
+	"bin",
+	"config",
+	"configs",
+	"script",
+	"scripts",
+	"tooling",
+	"tools"
+]);
+const SECRET_CLIENT_SOURCE_DIRECTORY_NAMES = new Set([
+	"components",
+	"features",
+	"hooks",
+	"pages",
+	"ui",
+	"views",
+	"widgets"
+]);
+const SECRET_FALSE_POSITIVE_SUFFIXES = new Set([
+	"modal",
+	"label",
+	"text",
+	"title",
+	"name",
+	"id",
+	"url",
+	"path",
+	"route",
+	"page",
+	"param",
+	"field",
+	"column",
+	"header",
+	"placeholder",
+	"prefix",
+	"description",
+	"type",
+	"icon",
+	"class",
+	"style",
+	"variant",
+	"event",
+	"action",
+	"status",
+	"state",
+	"mode",
+	"flag",
+	"option",
+	"config",
+	"message",
+	"error",
+	"display",
+	"view",
+	"component",
+	"element",
+	"container",
+	"wrapper",
+	"button",
+	"link",
+	"input",
+	"select",
+	"dialog",
+	"menu",
+	"form",
+	"step",
+	"index",
+	"count",
+	"length",
+	"role",
+	"scope",
+	"context",
+	"provider",
+	"ref",
+	"handler",
+	"query",
+	"schema",
+	"constant"
+]);
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const findSuspiciousPublicEnvSecretNamePattern = (content) => {
+	for (const match of content.matchAll(new RegExp(PUBLIC_ENV_SECRET_NAME_PATTERN.source, "gi"))) {
+		const value = match[0] ?? "";
+		if (!TRUSTED_PUBLIC_SECRET_NAME_PATTERN.test(value)) return new RegExp(escapeRegExp(value));
+	}
+};
+const hasFullEnvLeakShape = (content) => FULL_ENV_LEAK_CONTEXT_PATTERN.test(content) && FULL_ENV_LEAK_SECRET_NAME_PATTERN.test(content);
+const scanArtifactLeak = (file, findLeakPattern, message) => {
+	if (DOCUMENTATION_CONTEXT_PATTERN.test(file.relativePath)) return [];
+	if (!isBrowserArtifactPath(file.relativePath, file.isGeneratedBundle)) return [];
+	const leakPattern = findLeakPattern(file.content);
+	if (leakPattern === void 0) return [];
+	const location = getMatchLocation(file.content, leakPattern);
+	return [{
+		message,
+		line: location.line,
+		column: location.column
+	}];
+};
+const artifactEnvLeak = defineRule({
+	id: "artifact-env-leak",
+	title: "Server env leaked to browser artifact",
+	severity: "error",
+	recommendation: "Treat public env prefixes as publication, not secrecy; keep secret env vars server-only and rebuild after rotating leaked keys.",
+	scan: (file) => scanArtifactLeak(file, (content) => findSuspiciousPublicEnvSecretNamePattern(content) ?? (hasFullEnvLeakShape(content) ? FULL_ENV_LEAK_SECRET_NAME_PATTERN : void 0), "A browser artifact contains server-secret environment names or a full environment dump shape.")
+});
+const artifactSecretLeak = defineRule({
+	id: "artifact-secret-leak",
+	title: "Secret shipped in browser artifact",
+	severity: "error",
+	recommendation: "Remove the secret from client bundles/static assets, rotate it, and route privileged service calls through server-only code.",
+	scan: (file) => scanArtifactLeak(file, (content) => SECRET_VALUE_PATTERNS.find((pattern) => pattern.test(content)), "A browser-delivered artifact contains a secret-looking credential value.")
 });
 const LOOP_TYPES = [
 	"ForStatement",
@@ -28255,6 +30203,56 @@ const asyncParallel = defineRule({
 		};
 	}
 });
+const MESSAGE$57 = "Storing an auth token in `localStorage`/`sessionStorage` exposes it to any XSS on the page: JavaScript can read web storage and exfiltrate the token. Keep tokens in an `HttpOnly`, `Secure`, `SameSite` cookie instead.";
+const STORAGE_NAMES = new Set(["localStorage", "sessionStorage"]);
+const STORAGE_GLOBALS = new Set([
+	"window",
+	"globalThis",
+	"self"
+]);
+const SENSITIVE_KEY_PATTERN = /token|jwt|secret|password|passwd|credential|api[-_]?key|bearer|private[-_]?key/i;
+const isWebStorageObject = (node) => {
+	if (isNodeOfType(node, "Identifier")) return STORAGE_NAMES.has(node.name);
+	if (isNodeOfType(node, "MemberExpression") && !node.computed && isNodeOfType(node.object, "Identifier") && STORAGE_GLOBALS.has(node.object.name) && isNodeOfType(node.property, "Identifier")) return STORAGE_NAMES.has(node.property.name);
+	return false;
+};
+const staticMemberName = (member) => {
+	if (!member.computed && isNodeOfType(member.property, "Identifier")) return member.property.name;
+	if (member.computed && isNodeOfType(member.property, "Literal") && typeof member.property.value === "string") return member.property.value;
+	return null;
+};
+const authTokenInWebStorage = defineRule({
+	id: "auth-token-in-web-storage",
+	title: "Auth token in web storage",
+	severity: "warn",
+	recommendation: "Don't persist auth tokens (JWTs, access/refresh tokens, secrets) in `localStorage`/`sessionStorage`; they're readable by any XSS. Use an `HttpOnly` cookie set by the server.",
+	create: (context) => ({
+		CallExpression(node) {
+			const callee = node.callee;
+			if (!isNodeOfType(callee, "MemberExpression") || callee.computed) return;
+			if (!isNodeOfType(callee.property, "Identifier") || callee.property.name !== "setItem") return;
+			if (!isWebStorageObject(callee.object)) return;
+			const keyArgument = node.arguments?.[0];
+			if (!keyArgument || !isNodeOfType(keyArgument, "Literal") || typeof keyArgument.value !== "string") return;
+			if (!SENSITIVE_KEY_PATTERN.test(keyArgument.value)) return;
+			context.report({
+				node,
+				message: MESSAGE$57
+			});
+		},
+		AssignmentExpression(node) {
+			const target = node.left;
+			if (!isNodeOfType(target, "MemberExpression")) return;
+			if (!isWebStorageObject(target.object)) return;
+			const propertyName = staticMemberName(target);
+			if (!propertyName || !SENSITIVE_KEY_PATTERN.test(propertyName)) return;
+			context.report({
+				node: target,
+				message: MESSAGE$57
+			});
+		}
+	})
+});
 const buildMessage$25 = (value) => `Users who rely on autofill can't fill this field because \`${value}\` isn't a known token, so use a valid \`autoComplete\` token.`;
 const AUTOFILL_TOKENS = new Set([
 	"off",
@@ -28351,6 +30349,17 @@ const autocompleteValid = defineRule({
 			}
 		} };
 	}
+});
+const buildPipelineSecretBoundary = defineRule({
+	id: "build-pipeline-secret-boundary",
+	title: "Build pipeline runs code near secrets",
+	severity: "warn",
+	recommendation: "Run dependency installs with scripts disabled before exposing secrets, isolate untrusted build code, and move signing/deploy authority into a narrow privileged step.",
+	scan: scanByPattern({
+		shouldScan: (file) => isConfigOrCiPath(file.relativePath) && !file.relativePath.endsWith("package.json"),
+		pattern: /(?:npm|pnpm|yarn|bun)\s+(?:install|ci)\b(?:(?!--ignore-scripts)[\s\S]){0,700}\bsecrets\.[A-Z0-9_]+|\bsecrets\.[A-Z0-9_]+(?:(?!--ignore-scripts)[\s\S]){0,700}(?:npm|pnpm|yarn|bun)\s+(?:install|ci)\b/i,
+		message: "The build or install pipeline can execute package lifecycle code while CI secrets may be present."
+	})
 });
 const memberChainContainsDocument = (memberExpression) => {
 	let current = memberExpression;
@@ -28569,6 +30578,12 @@ const checkedRequiresOnchangeOrReadonly = defineRule({
 		};
 	}
 });
+const isPresentationRole = (openingElement) => {
+	const roleAttribute = hasJsxPropIgnoreCase(openingElement.attributes, "role");
+	if (!roleAttribute) return false;
+	const value = getJsxPropStringValue(roleAttribute);
+	return value !== null && PRESENTATION_ROLES$1.has(value);
+};
 const BLOCKER_METHOD_NAMES = new Set([
 	"stopPropagation",
 	"preventDefault",
@@ -28603,8 +30618,7 @@ const isPureEventBlockerHandler = (attribute) => {
 	if (isNodeOfType(expression, "ArrowFunctionExpression") || isNodeOfType(expression, "FunctionExpression")) return isPureEventBlockerBody(expression.body);
 	return false;
 };
-const PRESENTATION_ROLES$1 = new Set(["presentation", "none"]);
-const MESSAGE$49 = "Keyboard users can't trigger this click handler because there's no keyboard one, so add `onKeyUp`, `onKeyDown`, or `onKeyPress`.";
+const MESSAGE$56 = "Keyboard users can't trigger this click handler because there's no keyboard one, so add `onKeyUp`, `onKeyDown`, or `onKeyPress`.";
 const KEY_HANDLERS = [
 	"onKeyUp",
 	"onKeyDown",
@@ -28628,18 +30642,25 @@ const clickEventsHaveKeyEvents = defineRule({
 			if (!onClick) return;
 			if (isPureEventBlockerHandler(onClick)) return;
 			if (isHiddenFromScreenReader(node, context.settings)) return;
-			const roleAttribute = hasJsxPropIgnoreCase(node.attributes, "role");
-			if (roleAttribute) {
-				const roleValue = getJsxPropStringValue(roleAttribute);
-				if (roleValue && PRESENTATION_ROLES$1.has(roleValue)) return;
-			}
+			if (isPresentationRole(node)) return;
 			if (KEY_HANDLERS.some((handler) => hasJsxPropIgnoreCase(node.attributes, handler))) return;
 			context.report({
 				node: node.name,
-				message: MESSAGE$49
+				message: MESSAGE$56
 			});
 		} };
 	}
+});
+const clickjackingRedirectRisk = defineRule({
+	id: "clickjacking-redirect-risk",
+	title: "Redirect or frame boundary risk",
+	severity: "warn",
+	recommendation: "Allowlist redirect origins/paths, set `frame-ancestors` for privileged pages, and avoid URL-prefilled privileged dialogs.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath) || isConfigOrCiPath(file.relativePath),
+		pattern: /\bredirect\s*\((?!\s*(?:await\s+)?[\w$]*(?:safe|valid|sanitiz|allowlist|whitelist)[\w$]*\s*\()[^)'"`\n]*\b(?:searchParams\.get|nextUrl\.searchParams|returnTo|callbackUrl|continue|next)\b|<iframe\b[\s\S]{0,700}\b(?:next=|continue=|redirect=|redirect_uri|userstoinvite|sharingaction|role=|\.\.)|frame-ancestors\s+(?:\*|'self'\s+\*)|X-Frame-Options["']?\s*:\s*["']?ALLOW/i,
+		message: "Redirect or framing configuration may let attacker-controlled URLs chain into privileged UI or clickjacking."
+	})
 });
 const VERSIONED_KEY_PATTERN = /(?:[._:-]v\d+|@\d+|\bv\d+\b)/i;
 const STORAGE_OBJECTS = new Set(["localStorage", "sessionStorage"]);
@@ -28705,13 +30726,26 @@ const clientPassiveEventListeners = defineRule({
 		});
 	} })
 });
+const isDevToolingPath = (relativePath) => /(?:^|\/)(?:tools?|scripts?)\/|(?:^|\/)management\/commands\/|(?:^|\/)(?:build|make|gulpfile|gruntfile)\.[cm]?[jt]s$/i.test(relativePath);
+const isProductionScriptSourcePath = (relativePath) => isProductionFilePath(relativePath, SCRIPT_SOURCE_FILE_PATTERN);
+const commandExecutionInputRisk = defineRule({
+	id: "command-execution-input-risk",
+	title: "Command execution uses caller-shaped input",
+	severity: "error",
+	recommendation: "Avoid shell execution for caller-controlled values. Use fixed commands, argument arrays, strict allowlists, and no shell interpolation.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionScriptSourcePath(file.relativePath) && !isDevToolingPath(file.relativePath),
+		pattern: /(?:(?<![.\w$])(?:exec(?:Sync)?|spawn(?:Sync)?|system|passthru|proc_open|shell_exec)|\b(?:os\.system|subprocess\.(?:run|Popen|call)|(?:child_process|childProcess|cp)\.(?:exec|spawn)\w*))\s*\([^)]{0,220}(?:req\.|request\.|params\.|query\.|body\.|searchParams|\$_(?:GET|POST|REQUEST)|shell\s*=\s*true|f['"`][^'"`]*\{)/i,
+		message: "Command execution appears to include request, query, body, or shell-interpolated input."
+	})
+});
 const isInteractiveRole = (role) => INTERACTIVE_ROLES.has(role);
 const isReactComponentName = (name) => {
 	if (name.length === 0) return false;
 	const firstCharacter = name.charCodeAt(0);
 	return firstCharacter >= 65 && firstCharacter <= 90;
 };
-const MESSAGE$48 = "Blind users can't tell what this control does because screen readers find no label, so add visible text, `aria-label`, or `aria-labelledby`.";
+const MESSAGE$55 = "Blind users can't tell what this control does because screen readers find no label, so add visible text, `aria-label`, or `aria-labelledby`.";
 const DEFAULT_IGNORE_ELEMENTS = ["link", "canvas"];
 const DEFAULT_LABELLING_PROPS = [
 	"alt",
@@ -28872,9 +30906,129 @@ const controlHasAssociatedLabel = defineRule({
 			for (const child of node.children) if (checkChildForLabel(child, 1, checkContext)) return;
 			context.report({
 				node: opening,
-				message: MESSAGE$48
+				message: MESSAGE$55
 			});
 		} };
+	}
+});
+const corsCookieTrustRisk = defineRule({
+	id: "cors-cookie-trust-risk",
+	title: "Broad cookie or credentialed CORS trust",
+	severity: "warn",
+	recommendation: "Keep auth cookies host-only and HttpOnly, avoid credentialed CORS for less-trusted docs/vendor origins, and isolate documentation domains from app sessions.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath) || isConfigOrCiPath(file.relativePath),
+		pattern: /Access-Control-Allow-Credentials["']?\s*[:,]\s*["']?true[\s\S]{0,700}Access-Control-Allow-Origin["']?\s*[:,]\s*["']?(?:\*|https:\/\/docs\.|https:\/\/.*mintlify)|\b(?:session|auth|token|jwt)[^=\n]{0,80}\bDomain=\./i,
+		message: "Credentialed CORS or broad auth-cookie scope can make a docs/custom-domain XSS become account compromise."
+	})
+});
+const DANGEROUS_HTML_PATTERN = /dangerouslySetInnerHTML|\.(?:inner|outer)HTML\s*[+]?=(?!=)|\.insertAdjacentHTML\s*\(|\bdocument\.write(?:ln)?\s*\(|\.(?:createContextualFragment|setHTMLUnsafe)\s*\(/;
+const HTML_VALUE_START_PATTERN = /(?:__html\s*:|\.(?:inner|outer)HTML\s*[+]?=(?!=)|\.insertAdjacentHTML\s*\(\s*[^,]*,|\bdocument\.write(?:ln)?\s*\(|\.(?:createContextualFragment|setHTMLUnsafe)\s*\()\s*([\s\S]*)/;
+const HTML_TAINT_PATTERN = /searchParams|query|params|request|req\.|response\.|result\.|data\.|await|fetch|props\.|children|content|html|body|text|message|\blocation\b|document\.cookie|\breferrer\b|\blocalStorage\b|\bsessionStorage\b|URLSearchParams|window\.name/i;
+const STRING_LITERAL_VALUE_PATTERN = /^(?:["'][^"']*["']|`[^`$]*`)\s*(?:\/\/[^\n]*)?\s*(?:[;,})\n]|$)/;
+const MODULE_CONSTANT_VALUE_PATTERN = /^[A-Z][A-Z0-9_]*\s*(?:\/\/[^\n]*)?\s*(?:[;,})\n]|$)/;
+const DOM_CONTENT_SOURCE_VALUE_PATTERN = /^[\w$]+(?:\??\.[\w$]+)*\??\.(?:inner|outer)HTML\b/;
+const SANITIZER_PATTERN = /\b(?:DOMPurify|sanitize\w*|purify|(?:escape|encode)[A-Za-z]*(?:Html|HTML|Entit\w*)|insane|xss)\b|(?<!un)safe|(?<!un)saniti[sz]/i;
+const SANITIZED_ASSIGNMENT_PATTERN = /=\s*[^\n;]*\b(?:DOMPurify\b|sanitize\w*\s*\(|purify\w*\s*\()/i;
+const DOM_CONTENT_ASSIGNMENT_PATTERN = /=\s*[\w$.?[\]]*\.(?:inner|outer)HTML\s*(?:[;,)\n]|$)/;
+const ENV_CONFIG_VALUE_PATTERN = /process\.env/;
+const I18N_VALUE_PATTERN = /\b(?:t|i18n|translate|formatMessage|intl)\s*[.(]/;
+const ESCAPING_SERIALIZER_CALL_PATTERN = /^(?:[\w$.]+\.)?(?:toHtml|render[A-Za-z]*(?:Html|HTML)|renderToString|renderToStaticMarkup|codeToHtml|codeToHast|highlight[A-Za-z]*)\s*\(/;
+const HIGHLIGHTER_LIBRARY_PATTERN = /\b(?:shiki|prism|hljs|highlightjs|getHighlighter|codeToHtml|codeToHast|refractor|lowlight|starry-night)\b|highlight\.js/i;
+const SERIALIZER_ASSIGNMENT_PATTERN = /=\s*[^\n;]*(?:\b(?:katex|shiki|hljs|prism|mermaid)\b|hast-util-to-html|renderHtmlFromRichText|(?:toHtml|render[A-Za-z]*(?:Html|HTML)|renderToString|renderToStaticMarkup|codeToHtml|codeToHast)\s*\()/i;
+const BARE_IDENTIFIER_VALUE_PATTERN = /^[\w$]+\s*(?:[;,})\n]|$)/;
+const MEMBER_OR_INDEX_ACCESS_VALUE_PATTERN = /^[\w$]+(?:\.[\w$]+|\[[^\]]*\])+\s*(?:[;,})\n]|$)/;
+const STYLE_TAG_BEFORE_SINK_PATTERN = /<style\b[^<>]*$/;
+const STYLE_TAG_LOOKBEHIND_LINES = 5;
+const EMAIL_TEMPLATE_PATH_PATTERN = /(?:^|\/)emails?(?:\/|$)|email[-_.]templates?(?:\/|$)|RawHtml|[A-Za-z]*[Ee]mail[A-Za-z]*\.(?:t|j)sx?/i;
+const INNERHTML_TARGET_PATTERN = /(?:^|[^\w$.])([\w$]+(?:\.[\w$]+)*)\.(?:(?:inner|outer)HTML\s*[+]?=(?!=)|insertAdjacentHTML\s*\()/;
+const LIVE_DOM_ATTACH_PATTERN = /\b(?:appendChild|append|prepend|before|after|replaceWith|replaceChild|replaceChildren|insertBefore|insertAdjacentElement)\s*\(/;
+const VALUE_LOOKAHEAD_LINES = 4;
+const VALUE_EXPRESSION_MAX_CHARS = 300;
+const STATIC_TEMPLATE_LOOKAHEAD_LINES = 60;
+const STATIC_TEMPLATE_MAX_CHARS = 5e3;
+const getTemplateInterpolations = (valueTail) => {
+	if (!valueTail.startsWith("`")) return null;
+	const closingBacktickIndex = valueTail.indexOf("`", 1);
+	if (closingBacktickIndex < 0 || closingBacktickIndex > STATIC_TEMPLATE_MAX_CHARS) return null;
+	const interpolations = valueTail.slice(1, closingBacktickIndex).match(/\$\{[^}]*\}/g);
+	return interpolations === null ? "" : interpolations.join(" ");
+};
+const isInertParseTarget = (target, fileContent) => {
+	const escapedTarget = escapeRegExp(target);
+	const escapedRoot = escapeRegExp(target.split(".")[0] ?? target);
+	if (new RegExp(`\\b${escapedRoot}\\s*=\\s*[^\\n;]*(?:getElementById|querySelector|getElementsBy|\\.current\\b|document\\.(?:body|head|documentElement))`).test(fileContent)) return false;
+	if (new RegExp(`${escapedTarget}\\s*=\\s*document\\.createElement\\(\\s*["'\`]template["'\`]`).test(fileContent)) return true;
+	if (new RegExp(`${escapedRoot}\\s*=\\s*[^\\n;]*\\bcreateElement\\(\\s*["'\`](?:style|textarea)["'\`]`).test(fileContent)) return true;
+	if (new RegExp(`${escapedRoot}\\s*=\\s*[^\\n;]*\\bcreateHTMLDocument\\s*\\(`).test(fileContent)) return true;
+	if (!new RegExp(`${escapedRoot}\\s*=\\s*[^\\n;]*\\bcreateElement\\s*\\(`).test(fileContent)) return false;
+	const attachedToLiveTreePattern = new RegExp(`${LIVE_DOM_ATTACH_PATTERN.source}[^)]*\\b${escapedRoot}\\b`);
+	const returnedAsNodePattern = new RegExp(`\\breturn\\b[^\\n]*\\b${escapedRoot}\\b(?!\\s*\\.\\s*(?:textContent|innerText|innerHTML|outerHTML))`);
+	if (attachedToLiveTreePattern.test(fileContent) || returnedAsNodePattern.test(fileContent)) return false;
+	return new RegExp(`\\b${escapedRoot}\\.(?:textContent|innerText|querySelector|querySelectorAll|children|childNodes)\\b`).test(fileContent);
+};
+const dangerousHtmlSink = defineRule({
+	id: "dangerous-html-sink",
+	title: "HTML injection sink with dynamic content",
+	severity: "warn",
+	recommendation: "Prefer rendering structured React nodes. If HTML is required, sanitize with a well-reviewed sanitizer and keep the trust boundary close to the sink.",
+	scan: (file) => {
+		if (file.isGeneratedBundle) return [];
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		if (EMAIL_TEMPLATE_PATH_PATTERN.test(file.relativePath)) return [];
+		if (!DANGEROUS_HTML_PATTERN.test(file.content)) return [];
+		const findings = [];
+		const lines = file.content.split("\n");
+		for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+			const line = lines[lineIndex] ?? "";
+			if (!DANGEROUS_HTML_PATTERN.test(line)) continue;
+			const codeBeforeSinkOnLine = line.slice(0, line.search(DANGEROUS_HTML_PATTERN)).replace(/"[^"]*"|'[^']*'|`[^`]*`/g, "");
+			if (/(?:^|[^:])\/\//.test(codeBeforeSinkOnLine) || /^\s*[/*]/.test(line)) continue;
+			const sinkWindow = lines.slice(lineIndex, lineIndex + 1 + VALUE_LOOKAHEAD_LINES).join("\n");
+			const valueMatch = HTML_VALUE_START_PATTERN.exec(sinkWindow);
+			if (valueMatch === null) continue;
+			const fullValueTail = (valueMatch[1] ?? "").trimStart();
+			const valueTail = fullValueTail.slice(0, VALUE_EXPRESSION_MAX_CHARS);
+			const terminatorIndex = valueTail.search(/[;}]/);
+			const valueExpression = terminatorIndex >= 0 ? valueTail.slice(0, terminatorIndex + 1) : valueTail;
+			if (STRING_LITERAL_VALUE_PATTERN.test(valueExpression)) continue;
+			if (MODULE_CONSTANT_VALUE_PATTERN.test(valueExpression)) continue;
+			if (DOM_CONTENT_SOURCE_VALUE_PATTERN.test(valueExpression) && !valueExpression.includes("+")) {
+				const afterDomRead = valueExpression.replace(DOM_CONTENT_SOURCE_VALUE_PATTERN, "");
+				if (!HTML_TAINT_PATTERN.test(afterDomRead)) continue;
+			}
+			const longValueTail = HTML_VALUE_START_PATTERN.exec(lines.slice(lineIndex, lineIndex + 1 + STATIC_TEMPLATE_LOOKAHEAD_LINES).join("\n"))?.[1]?.trimStart();
+			const templateInterpolations = getTemplateInterpolations(longValueTail ?? fullValueTail);
+			if (templateInterpolations === "") continue;
+			const judgedExpression = templateInterpolations ?? valueExpression;
+			if (SANITIZER_PATTERN.test(judgedExpression)) continue;
+			if (ENV_CONFIG_VALUE_PATTERN.test(judgedExpression)) continue;
+			if (I18N_VALUE_PATTERN.test(judgedExpression)) continue;
+			if (!HTML_TAINT_PATTERN.test(judgedExpression)) continue;
+			if (ESCAPING_SERIALIZER_CALL_PATTERN.test(valueExpression)) continue;
+			if (/highlighted/i.test(valueExpression)) continue;
+			if (/highlight/i.test(valueExpression) && HIGHLIGHTER_LIBRARY_PATTERN.test(file.content)) continue;
+			if (BARE_IDENTIFIER_VALUE_PATTERN.test(valueExpression) || MEMBER_OR_INDEX_ACCESS_VALUE_PATTERN.test(valueExpression)) {
+				const valueIdentifier = valueExpression.match(/^[\w$]+/)?.[0];
+				if (valueIdentifier !== void 0) {
+					const escapedIdentifier = escapeRegExp(valueIdentifier);
+					const fromSerializer = new RegExp(`\\b${escapedIdentifier}\\b\\s*${SERIALIZER_ASSIGNMENT_PATTERN.source}`, "i");
+					const fromSanitizer = new RegExp(`\\b${escapedIdentifier}\\b\\s*${SANITIZED_ASSIGNMENT_PATTERN.source}`, "i");
+					const fromDomContent = new RegExp(`\\b${escapedIdentifier}\\b\\s*${DOM_CONTENT_ASSIGNMENT_PATTERN.source}`);
+					if (fromSerializer.test(file.content) || fromSanitizer.test(file.content) || fromDomContent.test(file.content)) continue;
+				}
+			}
+			const sinkTargetMatch = INNERHTML_TARGET_PATTERN.exec(line);
+			if (sinkTargetMatch?.[1] !== void 0 && isInertParseTarget(sinkTargetMatch[1], file.content)) continue;
+			const textBeforeSink = lines.slice(Math.max(0, lineIndex - STYLE_TAG_LOOKBEHIND_LINES), lineIndex + 1).join("\n").slice(0, -line.length + line.search(DANGEROUS_HTML_PATTERN));
+			if (STYLE_TAG_BEFORE_SINK_PATTERN.test(textBeforeSink)) continue;
+			findings.push({
+				message: "HTML is injected from a dynamic-looking source, which can become XSS if the value is user-controlled or unsanitized.",
+				line: lineIndex + 1,
+				column: line.search(/\S/) + 1
+			});
+		}
+		return findings;
 	}
 });
 const LONG_TRANSITION_DURATION_THRESHOLD_MS = 1e3;
@@ -29149,6 +31303,34 @@ const noVagueButtonLabel = defineRule({
 		});
 	} })
 });
+const hasJsxSpreadAttribute$1 = (attributes) => attributes.some((attribute) => isNodeOfType(attribute, "JSXSpreadAttribute"));
+const MESSAGE$54 = "This dialog has no accessible name, so screen readers announce it as just “dialog.” Add `aria-label` or point `aria-labelledby` at its heading.";
+const DIALOG_ROLES = new Set(["dialog", "alertdialog"]);
+const NAME_PROVIDING_ATTRIBUTES = [
+	"aria-label",
+	"aria-labelledby",
+	"title"
+];
+const dialogHasAccessibleName = defineRule({
+	id: "dialog-has-accessible-name",
+	title: "Dialog without accessible name",
+	severity: "warn",
+	recommendation: "Give every `<dialog>` / `role=\"dialog\"` an accessible name with `aria-label` or `aria-labelledby` (referencing the dialog's title element).",
+	create: (context) => ({ JSXOpeningElement(node) {
+		if (!isNodeOfType(node.name, "JSXIdentifier")) return;
+		const tagName = node.name.name;
+		if (tagName[0] !== tagName[0]?.toLowerCase()) return;
+		const roleAttribute = hasJsxPropIgnoreCase(node.attributes, "role");
+		const roleValue = roleAttribute ? getJsxPropStringValue(roleAttribute) : null;
+		if (!(tagName === "dialog" || roleValue !== null && DIALOG_ROLES.has(roleValue))) return;
+		if (hasJsxSpreadAttribute$1(node.attributes)) return;
+		if (NAME_PROVIDING_ATTRIBUTES.some((attribute) => hasJsxPropIgnoreCase(node.attributes, attribute))) return;
+		context.report({
+			node: node.name,
+			message: MESSAGE$54
+		});
+	} })
+});
 const PRAGMA$2 = "React";
 const CREATE_CLASS = "createReactClass";
 const isEs5Component = (node) => {
@@ -29178,7 +31360,7 @@ const isEs6Component = (node) => {
 	if (isNodeOfType(superClass, "Identifier")) return superClass.name === COMPONENT || superClass.name === PURE_COMPONENT;
 	return false;
 };
-const MESSAGE$47 = "This component shows up as Anonymous in React DevTools because it has no `displayName`.";
+const MESSAGE$53 = "This component shows up as Anonymous in React DevTools because it has no `displayName`.";
 const DEFAULT_ADDITIONAL_HOCS = [
 	"observer",
 	"lazy",
@@ -29377,11 +31559,11 @@ const displayName = defineRule({
 	category: "Architecture",
 	create: (context) => {
 		const settings = resolveSettings$44(context.settings);
-		const ignoreNamed = settings.ignoreTranspilerName ? false : true;
+		const ignoreNamed = !settings.ignoreTranspilerName;
 		const reportAt = (node) => {
 			context.report({
 				node,
-				message: MESSAGE$47
+				message: MESSAGE$53
 			});
 		};
 		return {
@@ -30287,6 +32469,18 @@ const isReactHookName = (name) => {
 	return fourthCharacter >= 65 && fourthCharacter <= 90 || fourthCharacter >= 48 && fourthCharacter <= 57;
 };
 const isReactComponentOrHookName = (name) => isReactComponentName(name) || isReactHookName(name);
+const reactHocCalleeName = (callee) => {
+	if (isNodeOfType(callee, "Identifier")) return callee.name;
+	if (isNodeOfType(callee, "MemberExpression") && !callee.computed && isNodeOfType(callee.object, "Identifier") && callee.object.name === "React" && isNodeOfType(callee.property, "Identifier")) return `React.${callee.property.name}`;
+	return null;
+};
+const isReactHocCallbackArgument = (functionNode) => {
+	const parent = functionNode.parent;
+	if (!parent || !isNodeOfType(parent, "CallExpression")) return false;
+	if (parent.arguments[0] !== functionNode) return false;
+	const calleeName = reactHocCalleeName(parent.callee);
+	return calleeName !== null && REACT_HOC_NAMES.has(calleeName);
+};
 /**
 * Lowest-level helpers consumed by both the main `exhaustive-deps`
 * rule body AND the symbol-stability cluster
@@ -30508,6 +32702,7 @@ const findEnclosingComponentOrHookFunction$1 = (node) => {
 	let current = node.parent;
 	while (current) {
 		if (isNodeOfType(current, "FunctionDeclaration") || isNodeOfType(current, "FunctionExpression") || isNodeOfType(current, "ArrowFunctionExpression")) {
+			if (isReactHocCallbackArgument(current)) return current;
 			const functionName = inferFunctionName$1(current);
 			if (functionName && isReactComponentOrHookName(functionName)) return current;
 		}
@@ -31195,6 +33390,46 @@ const expoNoNonInlinedEnv = defineRule({
 		};
 	}
 });
+const isClientSourcePath = (relativePath) => {
+	if (!isProductionSourcePath(relativePath)) return false;
+	if (SERVER_CONTEXT_PATTERN.test(relativePath)) return false;
+	return true;
+};
+const CLIENT_DATABASE_EVIDENCE_PATTERN = /firebase|firestore|supabase|\b(?:setDoc|addDoc)\s*\(/i;
+const firebaseClientOwnedAuthzField = defineRule({
+	id: "firebase-client-owned-authz-field",
+	title: "Client writes authorization field",
+	severity: "error",
+	recommendation: "Derive authority fields on the server or enforce them in Firebase/Supabase rules; never trust client-provided owner, org, or role values.",
+	scan: scanByPattern({
+		shouldScan: (file) => isClientSourcePath(file.relativePath) && (CLIENT_DATABASE_EVIDENCE_PATTERN.test(file.content) || CLIENT_DATABASE_EVIDENCE_PATTERN.test(file.relativePath)),
+		pattern: /(?:\b(?:setDoc|updateDoc|addDoc)\s*\(|(?:\b(?:firebase|firestore|getFirestore)\b|\bcollection\s*\(|\.collection\s*\()[\s\S]{0,500}\.(?:set|update|add)\s*\()[\s\S]{0,700}\b(?:ownerId|ownerID|creatorId|creatorID|providerId|providerID|orgId|orgID|tenantId|tenantID|workspaceId|workspaceID|ghostOrg|role|roles|isAdmin)\b/i,
+		message: "Client code writes an ownership, tenant, or role field that should be server-owned and immutable."
+	})
+});
+const isFirebaseRulesPath = (relativePath) => /(?:^|\/)(?:firestore\.rules|storage\.rules|database\.rules\.json)$/.test(relativePath);
+const firebasePermissiveRules = defineRule({
+	id: "firebase-permissive-rules",
+	title: "Permissive Firebase security rule",
+	severity: "error",
+	recommendation: "Bind every read/write to `request.auth.uid`, immutable ownership, and tenant membership instead of treating sign-in as authorization.",
+	scan: scanByPattern({
+		shouldScan: (file) => isFirebaseRulesPath(file.relativePath),
+		pattern: /allow\s+(?:read|write|create|update|delete|list|get|read,\s*write)\s*:\s*if\s+(?:true|request\.auth\s*!=\s*null)\s*;?/i,
+		message: "Firebase rules grant broad access to everyone or to any signed-in user, which is the Chattr/Firewreck failure mode."
+	})
+});
+const firebaseQueryFilterAsAuth = defineRule({
+	id: "firebase-query-filter-as-auth",
+	title: "Firestore query filter used as authorization",
+	severity: "warn",
+	recommendation: "Make sure Firestore rules compare the requested document against `request.auth.uid` and trusted membership data.",
+	scan: scanByPattern({
+		shouldScan: (file) => isClientSourcePath(file.relativePath),
+		pattern: /\.where\s*\(\s*["'](?:uid|userId|userID|ownerId|ownerID|orgId|orgID|tenantId|tenantID|role)["']\s*,\s*["']==["']/i,
+		message: "Firestore query code filters by an auth-shaped field; filtering is not authorization unless rules enforce the same boundary."
+	})
+});
 /**
 * Compiles a simple glob pattern (only `*` as a wildcard) into an
 * anchored RegExp. Used by allow-list / deny-list rules
@@ -31420,7 +33655,7 @@ const forbidElements = defineRule({
 		};
 	}
 });
-const MESSAGE$46 = "The parent can't reach this component's node because the `forwardRef` wrapper ignores `ref`.";
+const MESSAGE$52 = "The parent can't reach this component's node because the `forwardRef` wrapper ignores `ref`.";
 const forwardRefUsesRef = defineRule({
 	id: "forward-ref-uses-ref",
 	title: "forwardRef without ref parameter",
@@ -31440,11 +33675,40 @@ const forwardRefUsesRef = defineRule({
 		if (isNodeOfType(onlyParam, "RestElement")) return;
 		context.report({
 			node: inner,
-			message: MESSAGE$46
+			message: MESSAGE$52
 		});
 	} })
 });
-const MESSAGE$45 = "Blind users can't use this heading to navigate because screen readers skip it empty, so add text, `aria-label`, or `aria-labelledby`.";
+const GIT_PROVIDER_HOST_PATTERN = /api\.github\.com|github\.com|gitlab\.com|bitbucket\.org/gi;
+const TEMPLATE_INTERPOLATION_PATTERN = /\$\{([^}]*)\}/g;
+const EXTERNAL_INPUT_PATTERN = /\b(?:params|searchParams|query|req|request|input|payload)\s*[.[]|\buntrusted|\bdecodeURI\w*/;
+const ENCODED_INTERPOLATION_PATTERN = /encodeURIComponent\s*\(/;
+const INTERPOLATION_LOOKAHEAD_CHARS = 200;
+const gitProviderUrlInjectionRisk = defineRule({
+	id: "git-provider-url-injection-risk",
+	title: "Git provider URL built from interpolation",
+	severity: "warn",
+	recommendation: "Validate owner, repo, org, and branch identifiers against strict slugs and build URLs with URL/path encoders instead of raw interpolation.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		const findings = [];
+		for (const hostMatch of file.content.matchAll(GIT_PROVIDER_HOST_PATTERN)) {
+			const rawTail = file.content.slice(hostMatch.index, hostMatch.index + INTERPOLATION_LOOKAHEAD_CHARS);
+			const templateEndIndex = rawTail.indexOf("`");
+			const urlTail = templateEndIndex >= 0 ? rawTail.slice(0, templateEndIndex) : rawTail;
+			if (!Array.from(urlTail.matchAll(TEMPLATE_INTERPOLATION_PATTERN)).some((interpolation) => EXTERNAL_INPUT_PATTERN.test(interpolation[1] ?? "") && !ENCODED_INTERPOLATION_PATTERN.test(interpolation[1] ?? ""))) continue;
+			const location = getLocationAtIndex(file.content, hostMatch.index);
+			findings.push({
+				message: "GitHub/GitLab/Bitbucket URL construction interpolates path components that may be attacker-controlled.",
+				line: location.line,
+				column: location.column
+			});
+			break;
+		}
+		return findings;
+	}
+});
+const MESSAGE$51 = "Blind users can't use this heading to navigate because screen readers skip it empty, so add text, `aria-label`, or `aria-labelledby`.";
 const DEFAULT_HEADING_TAGS = [
 	"h1",
 	"h2",
@@ -31477,7 +33741,7 @@ const headingHasContent = defineRule({
 			if (isHiddenFromScreenReader(node, context.settings)) return;
 			context.report({
 				node,
-				message: MESSAGE$45
+				message: MESSAGE$51
 			});
 		} };
 	}
@@ -31609,7 +33873,7 @@ const hooksNoNanInDeps = defineRule({
 		}
 	} })
 });
-const MESSAGE$44 = "Screen readers may mispronounce this page because it doesn't declare a language, so add a `lang` attribute like `en`.";
+const MESSAGE$50 = "Screen readers may mispronounce this page because it doesn't declare a language, so add a `lang` attribute like `en`.";
 const resolveSettings$38 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { htmlTags: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.htmlHasLang ?? {} : {}).htmlTags ?? ["html"] };
@@ -31652,26 +33916,17 @@ const htmlHasLang = defineRule({
 		return { JSXOpeningElement(node) {
 			const tag = getElementType(node, context.settings);
 			if (!tagSet.has(tag)) return;
-			const hasSpread = node.attributes.some((attribute) => isNodeOfType(attribute, "JSXSpreadAttribute"));
 			const lang = hasJsxPropIgnoreCase(node.attributes, "lang");
 			if (!lang) {
 				context.report({
 					node: node.name,
-					message: MESSAGE$44
+					message: MESSAGE$50
 				});
 				return;
 			}
-			const verdict = evaluateLang(lang.value);
-			if (verdict === "missing" || verdict === "empty") {
-				context.report({
-					node: lang,
-					message: MESSAGE$44
-				});
-				return;
-			}
-			if (hasSpread && !lang) context.report({
-				node: node.name,
-				message: MESSAGE$44
+			if (evaluateLang(lang.value) === "empty") context.report({
+				node: lang,
+				message: MESSAGE$50
 			});
 		} };
 	}
@@ -31877,7 +34132,7 @@ const htmlNoNestedInteractive = defineRule({
 		});
 	} })
 });
-const MESSAGE$43 = "Screen reader users cannot identify this `<iframe>` because it has no title. Add a `title` that describes its content.";
+const MESSAGE$49 = "Screen reader users cannot identify this `<iframe>` because it has no title. Add a `title` that describes its content.";
 const evaluateTitleValue = (value) => {
 	if (!value) return "missing";
 	if (isNodeOfType(value, "Literal")) {
@@ -31917,14 +34172,14 @@ const iframeHasTitle = defineRule({
 		if (!titleAttr) {
 			if (hasSpread || tag === "iframe") context.report({
 				node: node.name,
-				message: MESSAGE$43
+				message: MESSAGE$49
 			});
 			return;
 		}
 		const verdict = evaluateTitleValue(titleAttr.value);
 		if (verdict === "missing" || verdict === "empty") context.report({
 			node: titleAttr,
-			message: MESSAGE$43
+			message: MESSAGE$49
 		});
 	} })
 });
@@ -32024,7 +34279,7 @@ const iframeMissingSandbox = defineRule({
 		}
 	})
 });
-const MESSAGE$42 = "Screen reader users hear \"image\" or \"photo\" twice because they already announce it, so describe what the image shows instead.";
+const MESSAGE$48 = "Screen reader users hear \"image\" or \"photo\" twice because they already announce it, so describe what the image shows instead.";
 const DEFAULT_COMPONENTS = ["img"];
 const DEFAULT_REDUNDANT_WORDS = [
 	"image",
@@ -32089,9 +34344,223 @@ const imgRedundantAlt = defineRule({
 			if (!altAttribute) return;
 			if (altValueRedundant(altAttribute, settings.words)) context.report({
 				node: altAttribute,
-				message: MESSAGE$42
+				message: MESSAGE$48
 			});
 		} };
+	}
+});
+const PROCESS_MODULE_EVIDENCE_PATTERN = /child_process|childProcess|execa|subprocess|Deno\.run/;
+const EXECUTION_WITH_BARE_CALLS_PATTERN = /(?:\b(?:eval|new\s+Function|vm\.runIn\w*)|(?<![.\w$])(?:exec(?:File)?(?:Sync)?|spawn(?:Sync)?)|\b(?:child_process|childProcess|cp)\.(?:exec|spawn)\w*)\s*\([^;]{0,200}(?<!["'])\b(?:exif|metadata|manifest|preset|plugin|upload|drop(?:ped|s)?\b|archive|zip|unzip|untar)(?!\w*["'])/;
+const EXECUTION_WITHOUT_BARE_CALLS_PATTERN = /(?:\b(?:eval|new\s+Function|vm\.runIn\w*)|\b(?:child_process|childProcess|cp)\.(?:exec|spawn)\w*)\s*\([^;]{0,200}(?<!["'])\b(?:exif|metadata|manifest|preset|plugin|upload|drop(?:ped|s)?\b|archive|zip|unzip|untar)(?!\w*["'])/;
+const EXECUTION_RISK_MESSAGE = "Imported metadata, uploads, or plugin manifests appear to reach code execution.";
+const scanWithBareCalls = scanByPattern({
+	shouldScan: () => true,
+	pattern: EXECUTION_WITH_BARE_CALLS_PATTERN,
+	message: EXECUTION_RISK_MESSAGE
+});
+const scanWithoutBareCalls = scanByPattern({
+	shouldScan: () => true,
+	pattern: EXECUTION_WITHOUT_BARE_CALLS_PATTERN,
+	message: EXECUTION_RISK_MESSAGE
+});
+const importMetadataExecutionRisk = defineRule({
+	id: "import-metadata-execution-risk",
+	title: "Imported metadata reaches code execution",
+	severity: "error",
+	recommendation: "Parse imported metadata as data with strict schemas; do not evaluate EXIF, manifests, presets, dropped files, or archives.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		return PROCESS_MODULE_EVIDENCE_PATTERN.test(file.content) ? scanWithBareCalls(file) : scanWithoutBareCalls(file);
+	}
+});
+const WEAK_HASH_PATTERN = /createHash\s*\(\s*["'](?:md5|sha1)["']|\bmd5\s*\(/gi;
+const SECURITY_CONTEXT_PATTERN = /\b(?:password|token|secret|signature|signing|auth|credential|session|cookie|csrf|api.?key)\b/i;
+const DEPRECATED_CIPHER_API_PATTERN = /(?<!cipher\.)\bcreate(?:Cipher|Decipher)\s*\(/;
+const WEAK_CIPHER_ALGORITHM_PATTERN = /\bcreate(?:Cipher|Decipher)iv\s*\(\s*["'](?:des|des3|des-?ede3?|rc4|rc2|bf|blowfish)\b/i;
+const WEAK_CIPHER_NAME_PATTERN = /\b(?:DES|RC4|Blowfish)\b/;
+const CIPHER_CONTEXT_PATTERN = /\b(?:cipher|decipher|encrypt|decrypt|crypto)\b/i;
+const UNSAFE_SIGNATURE_COMPARISON_PATTERN = /[A-Za-z_$][\w$.]*signature[\w$]*(?:\([^)]*\))?\s*(?:===?|!==?)\s*[A-Za-z_$][\w$.]*(?:\([^)]*\))?|[A-Za-z_$][\w$.]*(?:\([^)]*\))?\s*(?:===?|!==?)\s*[A-Za-z_$][\w$.]*signature[\w$]*(?:\([^)]*\))?/i;
+const ENUM_MEMBER_COMPARAND_PATTERN = /(?:===?|!==?)\s*[A-Z](?:[a-z]|[A-Z0-9_]*\b(?!\s*[.(]))|^[A-Z](?:[a-z]|[A-Z0-9_]*\b(?!\s*[.(]))[\w$.]*(?:\([^)]*\))?\s*(?:===?|!==?)/;
+const SIGNATURE_METADATA_IDENTIFIER_PATTERN = /signature(?:Method|Type|Status|Algorithm|Kind|Mode|Version)\b/i;
+const BOOLEAN_COMPARAND_PATTERN = /(?:===?|!==?)\s*(?:true|false|null|undefined)\b/;
+const CLIENT_COMPONENT_FILE_PATTERN = /\.[cm]?[jt]sx$/i;
+const TIMING_SAFE_COMPARISON_PATTERN = /timingSafeEqual|timing.?safe/i;
+const PROTOCOL_MANDATED_HASH_CONTEXT_PATTERN = /gravatar|digest[-_ ]?auth|oauth[-_ ]?1|\b_id\b|\betag\b|checksum|cache[-_ ]?key|fingerprint/i;
+const SECURITY_RANDOM_CONTEXT_PATTERN = /token|secret|password|nonce|salt|csrf|credential|otp/i;
+const UI_NONCE_CONTEXT_PATTERN = /(?:focus|render|refresh|remount|redraw|animation|layout|cache|update)[-_]?nonce/i;
+const MATH_RANDOM_CALL_PATTERN = /Math\.random\s*\(/g;
+const SECURITY_CONTEXT_WINDOW_CHARS = 250;
+const findMatchIndexNearContext = (content, pattern, contextPattern, excludeContextPattern) => {
+	for (const callMatch of content.matchAll(pattern)) {
+		const surroundingText = content.slice(Math.max(0, callMatch.index - SECURITY_CONTEXT_WINDOW_CHARS), callMatch.index + SECURITY_CONTEXT_WINDOW_CHARS);
+		if (!contextPattern.test(surroundingText)) continue;
+		if (excludeContextPattern?.test(surroundingText)) continue;
+		return callMatch.index;
+	}
+	return -1;
+};
+const findRandomCallIndexWithSameLineContext = (content, pattern, contextPattern, excludeContextPattern) => {
+	for (const callMatch of content.matchAll(pattern)) {
+		const lineStartIndex = content.lastIndexOf("\n", callMatch.index) + 1;
+		const lineEndCandidate = content.indexOf("\n", callMatch.index);
+		const lineEndIndex = lineEndCandidate < 0 ? content.length : lineEndCandidate;
+		const lineText = content.slice(lineStartIndex, lineEndIndex);
+		if (excludeContextPattern.test(lineText)) continue;
+		if (contextPattern.test(lineText)) return callMatch.index;
+	}
+	return -1;
+};
+const insecureCryptoRisk = defineRule({
+	id: "insecure-crypto-risk",
+	title: "Weak cryptography in security context",
+	severity: "warn",
+	recommendation: "Use modern primitives, `crypto.randomBytes` / Web Crypto randomness, and timing-safe comparisons for signatures, digests, tokens, and auth material.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		if (DEMO_CONTEXT_PATTERN.test(file.relativePath)) return [];
+		if (PROTOCOL_MANDATED_HASH_CONTEXT_PATTERN.test(file.relativePath)) return [];
+		let matchIndex = findMatchIndexNearContext(file.content, WEAK_HASH_PATTERN, SECURITY_CONTEXT_PATTERN, PROTOCOL_MANDATED_HASH_CONTEXT_PATTERN);
+		if (matchIndex < 0) matchIndex = file.content.search(WEAK_CIPHER_ALGORITHM_PATTERN);
+		if (matchIndex < 0) matchIndex = file.content.search(DEPRECATED_CIPHER_API_PATTERN);
+		if (matchIndex < 0 && CIPHER_CONTEXT_PATTERN.test(file.content)) matchIndex = file.content.search(WEAK_CIPHER_NAME_PATTERN);
+		if (matchIndex < 0 && !TIMING_SAFE_COMPARISON_PATTERN.test(file.content) && !CLIENT_COMPONENT_FILE_PATTERN.test(file.relativePath)) {
+			const comparisonMatch = UNSAFE_SIGNATURE_COMPARISON_PATTERN.exec(file.content);
+			if (comparisonMatch !== null && !ENUM_MEMBER_COMPARAND_PATTERN.test(comparisonMatch[0]) && !SIGNATURE_METADATA_IDENTIFIER_PATTERN.test(comparisonMatch[0]) && !BOOLEAN_COMPARAND_PATTERN.test(comparisonMatch[0])) matchIndex = comparisonMatch.index;
+		}
+		if (matchIndex < 0) matchIndex = findRandomCallIndexWithSameLineContext(file.content, MATH_RANDOM_CALL_PATTERN, SECURITY_RANDOM_CONTEXT_PATTERN, UI_NONCE_CONTEXT_PATTERN);
+		if (matchIndex < 0) return [];
+		const location = getLocationAtIndex(file.content, matchIndex);
+		return [{
+			message: "Code uses weak hashes, deprecated ciphers, timing-unsafe comparisons, or Math.random in a security-shaped context.",
+			line: location.line,
+			column: location.column
+		}];
+	}
+});
+const findMatchingBracket = (content, openIndex) => {
+	const open = content[openIndex];
+	const close = open === "(" ? ")" : open === "{" ? "}" : open === "[" ? "]" : "";
+	if (close === "") return -1;
+	let depth = 0;
+	let stringDelimiter = null;
+	for (let index = openIndex; index < content.length; index += 1) {
+		const character = content[index];
+		if (stringDelimiter !== null) {
+			if (character === "\\") index += 1;
+			else if (character === stringDelimiter) stringDelimiter = null;
+			continue;
+		}
+		if (character === "\"" || character === "'" || character === "`") stringDelimiter = character;
+		else if (character === open) depth += 1;
+		else if (character === close) {
+			depth -= 1;
+			if (depth === 0) return index;
+		}
+	}
+	return -1;
+};
+const AUTH_COOKIE_NAME_TOKEN = `(?<![A-Za-z0-9])(?:session|sess|sid|connect\\.sid|auth|jwt|access[_-]?token|refresh[_-]?token|id[_-]?token)(?![A-Za-z0-9])`;
+const AUTH_COOKIE_NAME_LITERAL = `[\`"'][^\`"']*?${AUTH_COOKIE_NAME_TOKEN}[^\`"']*[\`"']`;
+const AUTH_COOKIE_SET_CALL_PATTERN = new RegExp(`(?:\\.cookies\\.set|cookies\\(\\s*\\)\\.set|\\.cookie)\\s*\\(\\s*${AUTH_COOKIE_NAME_LITERAL}`, "gi");
+const HTTP_ONLY_DISABLED_PATTERN = /httpOnly\s*:\s*false\b/i;
+const STRING_LITERAL_PATTERN = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
+const blankStringContents = (text) => {
+	const characters = text.split("");
+	let index = 0;
+	let stringDelimiter = null;
+	while (index < text.length) {
+		const character = text[index];
+		if (stringDelimiter !== null) {
+			if (character === "\\") {
+				index += 2;
+				continue;
+			}
+			if (character === stringDelimiter) stringDelimiter = null;
+			else if (character !== "\n") characters[index] = " ";
+			index += 1;
+			continue;
+		}
+		if (character === "\"" || character === "'" || character === "`") stringDelimiter = character;
+		index += 1;
+	}
+	return characters.join("");
+};
+const COOKIE_CONFIG_OPENER_PATTERN = /cookie\s*:\s*\{/gi;
+const CLIENT_AUTH_COOKIE_WRITE_PATTERN = new RegExp(`document\\.cookie\\s*=\\s*[\`"'][^\`"'=;]*?${AUTH_COOKIE_NAME_TOKEN}[^\`"'=;]*=`, "gi");
+const countTopLevelArguments = (argumentsSource) => {
+	if (argumentsSource.trim().length === 0) return 0;
+	let depth = 0;
+	let stringDelimiter = null;
+	let count = 1;
+	for (let index = 0; index < argumentsSource.length; index += 1) {
+		const character = argumentsSource[index];
+		if (stringDelimiter !== null) {
+			if (character === "\\") index += 1;
+			else if (character === stringDelimiter) stringDelimiter = null;
+			continue;
+		}
+		if (character === "\"" || character === "'" || character === "`") stringDelimiter = character;
+		else if (character === "(" || character === "[" || character === "{") depth += 1;
+		else if (character === ")" || character === "]" || character === "}") depth -= 1;
+		else if (character === "," && depth === 0) count += 1;
+	}
+	return count;
+};
+const addMatchFindings = (content, pattern, message, isInsecure, findings) => {
+	pattern.lastIndex = 0;
+	for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
+		if (!isInsecure(match.index, match[0])) continue;
+		const location = getLocationAtIndex(content, match.index);
+		findings.push({
+			message,
+			line: location.line,
+			column: location.column
+		});
+	}
+};
+const insecureSessionCookie = defineRule({
+	id: "insecure-session-cookie",
+	title: "Auth cookie missing HttpOnly protection",
+	severity: "warn",
+	recommendation: "Set auth/session cookies server-side with `httpOnly: true`, `secure: true`, and `sameSite`. Cookies set via `document.cookie` or with `httpOnly: false` are readable by any XSS payload and can be stolen.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		const content = getScannableContent(file);
+		if (!/cookie/i.test(content)) return [];
+		const findings = [];
+		const message = "An auth/session cookie is exposed to JavaScript (set via document.cookie, with httpOnly: false, or without cookie options), letting an XSS payload steal it.";
+		AUTH_COOKIE_SET_CALL_PATTERN.lastIndex = 0;
+		for (let match = AUTH_COOKIE_SET_CALL_PATTERN.exec(content); match !== null; match = AUTH_COOKIE_SET_CALL_PATTERN.exec(content)) {
+			const openParenIndex = match.index + match[0].lastIndexOf("(");
+			const closeParenIndex = findMatchingBracket(content, openParenIndex);
+			if (closeParenIndex < 0) continue;
+			const argumentsSource = content.slice(openParenIndex + 1, closeParenIndex);
+			const hasNoOptions = countTopLevelArguments(argumentsSource) < 3;
+			const argumentsWithoutStrings = argumentsSource.replace(STRING_LITERAL_PATTERN, "");
+			if (!hasNoOptions && !HTTP_ONLY_DISABLED_PATTERN.test(argumentsWithoutStrings)) continue;
+			const location = getLocationAtIndex(content, match.index);
+			findings.push({
+				message,
+				line: location.line,
+				column: location.column
+			});
+		}
+		const blankedContent = blankStringContents(content);
+		COOKIE_CONFIG_OPENER_PATTERN.lastIndex = 0;
+		for (let match = COOKIE_CONFIG_OPENER_PATTERN.exec(blankedContent); match !== null; match = COOKIE_CONFIG_OPENER_PATTERN.exec(blankedContent)) {
+			const braceIndex = match.index + match[0].length - 1;
+			const closeBraceIndex = findMatchingBracket(blankedContent, braceIndex);
+			const block = closeBraceIndex >= 0 ? blankedContent.slice(braceIndex, closeBraceIndex) : blankedContent.slice(braceIndex, braceIndex + 400);
+			if (!HTTP_ONLY_DISABLED_PATTERN.test(block)) continue;
+			const location = getLocationAtIndex(blankedContent, match.index);
+			findings.push({
+				message,
+				line: location.line,
+				column: location.column
+			});
+		}
+		addMatchFindings(content, CLIENT_AUTH_COOKIE_WRITE_PATTERN, message, () => true, findings);
+		return findings;
 	}
 });
 const MOUSE_EVENT_HANDLERS = [
@@ -32141,12 +34610,6 @@ const isNonInteractiveElement = (elementType, openingElement) => {
 	return NON_INTERACTIVE_ELEMENTS.has(elementType);
 };
 const isNonInteractiveRole = (role) => NON_INTERACTIVE_ROLES.has(role);
-const isPresentationRole = (openingElement) => {
-	const roleAttribute = hasJsxPropIgnoreCase(openingElement.attributes, "role");
-	if (!roleAttribute) return false;
-	const value = getJsxPropStringValue(roleAttribute);
-	return value !== null && PRESENTATION_ROLES$2.has(value);
-};
 const buildTabbableMessage = (role) => `Keyboard users can't tab to this '${role}' because it isn't focusable, so add \`tabIndex={0}\`.`;
 const buildFocusableMessage = (role) => `Keyboard users can't focus this '${role}' because it can't receive focus, so add \`tabIndex={0}\` or \`tabIndex={-1}\`.`;
 const DEFAULT_TABBABLE_ROLES = [
@@ -33861,6 +36324,22 @@ const hasJsxKeyAttribute = (openingElement) => {
 	}
 	return false;
 };
+const ascendThroughJsxValueWrappers = (node) => {
+	let current = node;
+	while (current.parent) {
+		const parent = current.parent;
+		if (!(isNodeOfType(parent, "ChainExpression") || isNodeOfType(parent, "TSAsExpression") || isNodeOfType(parent, "TSSatisfiesExpression") || isNodeOfType(parent, "TSNonNullExpression") || isNodeOfType(parent, "LogicalExpression") || isNodeOfType(parent, "ConditionalExpression") && parent.test !== current)) break;
+		current = parent;
+	}
+	return current;
+};
+const isNonChildrenJsxAttributeValue = (node) => {
+	const container = ascendThroughJsxValueWrappers(node).parent;
+	if (!container || !isNodeOfType(container, "JSXExpressionContainer")) return false;
+	const attribute = container.parent;
+	if (!attribute || !isNodeOfType(attribute, "JSXAttribute")) return false;
+	return getJsxAttributeName(attribute.name) !== "children";
+};
 const ITERATOR_METHOD_NAMES = new Set([
 	"map",
 	"flatMap",
@@ -33898,6 +36377,7 @@ const findEnclosingIteratorContext = (jsxNode) => {
 			const arrayParent = parent.parent;
 			if (arrayParent && isNodeOfType(arrayParent, "Property")) return null;
 			if (arrayParent && isNodeOfType(arrayParent, "ArrayExpression")) return null;
+			if (isNonChildrenJsxAttributeValue(parent)) return null;
 			return { kind: "array" };
 		} else if (isNodeOfType(parent, "CallExpression")) {
 			const callee = parent.callee;
@@ -33910,10 +36390,13 @@ const findEnclosingIteratorContext = (jsxNode) => {
 			if (!targetArg) return null;
 			let walker = current;
 			while (walker && walker !== parent) {
-				if (walker === targetArg) return {
-					kind: "iterator",
-					callExpression: parent
-				};
+				if (walker === targetArg) {
+					if (isNonChildrenJsxAttributeValue(parent)) return null;
+					return {
+						kind: "iterator",
+						callExpression: parent
+					};
+				}
 				walker = walker.parent ?? null;
 			}
 			return null;
@@ -34148,7 +36631,7 @@ const jsxMaxDepth = defineRule({
 		};
 	}
 });
-const MESSAGE$41 = "Your users see this comment as text on the page because `//` & `/*` aren't hidden in JSX.";
+const MESSAGE$47 = "Your users see this comment as text on the page because `//` & `/*` aren't hidden in JSX.";
 const LITERAL_TEXT_TAGS = new Set([
 	"code",
 	"pre",
@@ -34184,7 +36667,7 @@ const jsxNoCommentTextnodes = defineRule({
 		if (isInsideLiteralTextTag(node)) return;
 		context.report({
 			node,
-			message: MESSAGE$41
+			message: MESSAGE$47
 		});
 	} })
 });
@@ -34209,7 +36692,7 @@ const isInsideFunctionScope = (node) => {
 	}
 	return false;
 };
-const MESSAGE$40 = "Every reader of this context redraws on each render because you build its `value` inline.";
+const MESSAGE$46 = "Every reader of this context redraws on each render because you build its `value` inline.";
 const CONTEXT_MODULES$1 = [
 	"react",
 	"use-context-selector",
@@ -34307,7 +36790,7 @@ const jsxNoConstructedContextValues = defineRule({
 					if (!isConstructedValue(innerExpression)) continue;
 					context.report({
 						node: attribute,
-						message: MESSAGE$40
+						message: MESSAGE$46
 					});
 				}
 			}
@@ -34385,7 +36868,7 @@ const isJsxAttributeOnIntrinsicHtmlElement = (attribute) => {
 	const firstCharacterCode = elementName.name.charCodeAt(0);
 	return firstCharacterCode >= 97 && firstCharacterCode <= 122;
 };
-const MESSAGE$39 = "This child redraws every render because the prop gets brand new JSX each time.";
+const MESSAGE$45 = "This child redraws every render because the prop gets brand new JSX each time.";
 const KNOWN_SLOT_PROP_NAMES = new Set([
 	"icon",
 	"Icon",
@@ -34654,7 +37137,7 @@ const jsxNoJsxAsProp = defineRule({
 				if (!isJsxProducingExpression(expressionNode) && !followsRenderLocalJsxBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$39
+					message: MESSAGE$45
 				});
 			}
 		};
@@ -34938,7 +37421,7 @@ const DATA_ARRAY_PROP_SUFFIXES = [
 	"Vehicles",
 	"Devices"
 ];
-const MESSAGE$38 = "This child redraws every render because the prop gets a brand new array each time.";
+const MESSAGE$44 = "This child redraws every render because the prop gets a brand new array each time.";
 const isDataArrayPropName = (propName) => {
 	if (DATA_ARRAY_PROP_NAMES.has(propName)) return true;
 	for (const suffix of DATA_ARRAY_PROP_SUFFIXES) if (propName.length > suffix.length && propName.endsWith(suffix)) return true;
@@ -35022,7 +37505,7 @@ const jsxNoNewArrayAsProp = defineRule({
 				if (!isArrayProducingExpression(expressionNode) && !followsRenderLocalArrayBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$38
+					message: MESSAGE$44
 				});
 			}
 		};
@@ -35276,7 +37759,7 @@ const SAFE_RECEIVER_NAMES = new Set([
 	"Set",
 	"Symbol"
 ]);
-const MESSAGE$37 = "This child redraws every render because the prop gets a brand new function each time.";
+const MESSAGE$43 = "This child redraws every render because the prop gets a brand new function each time.";
 const isAccessorPredicateName = (propName) => {
 	for (const prefix of ACCESSOR_PREDICATE_PREFIXES) {
 		if (propName.length <= prefix.length) continue;
@@ -35482,7 +37965,7 @@ const jsxNoNewFunctionAsProp = defineRule({
 				if (!isFunctionProducingExpression(expressionNode) && !followsRenderLocalFunctionBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$37
+					message: MESSAGE$43
 				});
 			}
 		};
@@ -35698,7 +38181,7 @@ const CONFIG_OBJECT_PROP_SUFFIXES = [
 	"Modifiers",
 	"Strategy"
 ];
-const MESSAGE$36 = "This child redraws every render because the prop gets a brand new object each time.";
+const MESSAGE$42 = "This child redraws every render because the prop gets a brand new object each time.";
 const isConfigObjectPropName = (propName) => {
 	if (CONFIG_OBJECT_PROP_NAMES.has(propName)) return true;
 	for (const suffix of CONFIG_OBJECT_PROP_SUFFIXES) if (propName.length > suffix.length && propName.endsWith(suffix)) return true;
@@ -35786,13 +38269,13 @@ const jsxNoNewObjectAsProp = defineRule({
 				if (!isObjectProducingExpression(expressionNode) && !followsRenderLocalObjectBinding(expressionNode, node)) return;
 				context.report({
 					node,
-					message: MESSAGE$36
+					message: MESSAGE$42
 				});
 			}
 		};
 	}
 });
-const MESSAGE$35 = "A `javascript:` URL is an XSS hole that runs injected input as code.";
+const MESSAGE$41 = "A `javascript:` URL is an XSS hole that runs injected input as code.";
 const JAVASCRIPT_URL_PATTERN = /j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
 const resolveSettings$28 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
@@ -35833,7 +38316,7 @@ const jsxNoScriptUrl = defineRule({
 				if (!value || !isNodeOfType(value, "Literal") || typeof value.value !== "string") continue;
 				if (JAVASCRIPT_URL_PATTERN.test(value.value)) context.report({
 					node: attribute,
-					message: MESSAGE$35
+					message: MESSAGE$41
 				});
 			}
 		} };
@@ -36138,7 +38621,7 @@ const jsxPropsNoSpreadMulti = defineRule({
 		}
 	} })
 });
-const MESSAGE$34 = "You can't tell what props reach this element when you spread them.";
+const MESSAGE$40 = "You can't tell what props reach this element when you spread them.";
 const resolveSettings$25 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.jsxPropsNoSpreading ?? {} : {};
@@ -36179,11 +38662,79 @@ const jsxPropsNoSpreading = defineRule({
 				}
 				context.report({
 					node: attribute,
-					message: MESSAGE$34
+					message: MESSAGE$40
 				});
 			}
 		} };
 	}
+});
+const NONE_ALGORITHM_PATTERN = /\b(?:alg|algorithms?)\s*:\s*\[?\s*["'`]none["'`]/gi;
+const isIndexInsideStringLiteral = (content, index) => {
+	let stringDelimiter = null;
+	const templateExpressionDepths = [];
+	for (let cursor = 0; cursor < index; cursor += 1) {
+		const character = content[cursor];
+		if (stringDelimiter === "`") {
+			if (character === "\\") cursor += 1;
+			else if (character === "`") stringDelimiter = null;
+			else if (character === "$" && content[cursor + 1] === "{") {
+				templateExpressionDepths.push(0);
+				stringDelimiter = null;
+				cursor += 1;
+			}
+			continue;
+		}
+		if (stringDelimiter !== null) {
+			if (character === "\\") cursor += 1;
+			else if (character === stringDelimiter) stringDelimiter = null;
+			continue;
+		}
+		if (character === "\"" || character === "'" || character === "`") stringDelimiter = character;
+		else if (templateExpressionDepths.length > 0) {
+			const top = templateExpressionDepths.length - 1;
+			if (character === "{") templateExpressionDepths[top] += 1;
+			else if (character === "}") if (templateExpressionDepths[top] === 0) {
+				templateExpressionDepths.pop();
+				stringDelimiter = "`";
+			} else templateExpressionDepths[top] -= 1;
+		}
+	}
+	return stringDelimiter !== null;
+};
+const jwtInsecureVerification = defineRule({
+	id: "jwt-insecure-verification",
+	title: "JWT verified with the 'none' algorithm",
+	severity: "error",
+	recommendation: "Never accept the `none` algorithm; it disables signature verification and lets any forged token through. Pin the real algorithm(s) explicitly (`jwt.verify(token, key, { algorithms: ['RS256'] })`).",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		const content = getScannableContent(file);
+		if (!/\bjwt\b|jsonwebtoken|\bjose\b/i.test(content)) return [];
+		const findings = [];
+		NONE_ALGORITHM_PATTERN.lastIndex = 0;
+		for (let noneMatch = NONE_ALGORITHM_PATTERN.exec(content); noneMatch !== null; noneMatch = NONE_ALGORITHM_PATTERN.exec(content)) {
+			if (isIndexInsideStringLiteral(content, noneMatch.index)) continue;
+			const location = getLocationAtIndex(content, noneMatch.index);
+			findings.push({
+				message: "JWT is configured with the 'none' algorithm, which disables signature verification, so any forged token is accepted.",
+				line: location.line,
+				column: location.column
+			});
+		}
+		return findings;
+	}
+});
+const keyLifecycleRisk = defineRule({
+	id: "key-lifecycle-risk",
+	title: "Long-lived key material in repository",
+	severity: "error",
+	committedFilesOnly: true,
+	recommendation: "Remove private keys from source, rotate exposed credentials, prefer short-lived deploy credentials, and document revocation/expiry for release keys.",
+	scan: scanByPattern({
+		shouldScan: (file) => !TEST_CONTEXT_PATTERN.test(file.relativePath) && !DOCUMENTATION_CONTEXT_PATTERN.test(file.relativePath),
+		pattern: /(?<!(?:placeholder|example|sample|dummy|fake)[\s\S]{0,40})-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----(?:\s|\\r|\\n)*[A-Za-z0-9+/=][A-Za-z0-9+/=\s]{38,}(?![^-]{0,160}\.\.\.)|\b(?:SSH_PRIVATE_KEY|GPG_PRIVATE_KEY|DEPLOY_KEY|SIGNING_KEY)\b\s*[:=]\s*["'][^"'\n]{16,}["']/i,
+		message: "Private or long-lived release key material appears in the repository."
+	})
 });
 const MESSAGE_NO_LABEL = "Blind users can't identify this field because screen readers find no label text, so add visible text, `aria-label`, or `aria-labelledby`.";
 const MESSAGE_NO_CONTROL = "Screen reader users can't tell which input this label names because it's tied to none, so add `htmlFor` or wrap the input inside it.";
@@ -36331,7 +38882,7 @@ const labelHasAssociatedControl = defineRule({
 		} };
 	}
 });
-const MESSAGE$33 = "Screen readers can't pick the right voice because this `lang` isn't a real language code, so use a valid one like `en` or `en-US`.";
+const MESSAGE$39 = "Screen readers can't pick the right voice because this `lang` isn't a real language code, so use a valid one like `en` or `en-US`.";
 const COMMON_LANGUAGE_PRIMARY_TAGS = new Set([
 	"aa",
 	"ab",
@@ -36543,7 +39094,7 @@ const lang = defineRule({
 			if (expression.type === "Identifier" && expression.name === "undefined" || expression.type === "Literal" && expression.value === null) {
 				context.report({
 					node: langAttr,
-					message: MESSAGE$33
+					message: MESSAGE$39
 				});
 				return;
 			}
@@ -36552,11 +39103,46 @@ const lang = defineRule({
 		if (value === null) return;
 		if (!isValidLangTag(value)) context.report({
 			node: langAttr,
-			message: MESSAGE$33
+			message: MESSAGE$39
 		});
 	} })
 });
-const MESSAGE$32 = "Deaf and hard-of-hearing users need captions for this media. Add a `<track kind=\"captions\">` inside the `<audio>` or `<video>`.";
+const localRpcNativeBridgeRisk = defineRule({
+	id: "local-rpc-native-bridge-risk",
+	title: "Weak localhost native bridge boundary",
+	severity: "warn",
+	recommendation: "Use exact origin allowlists after URL parsing, per-request nonces, narrow methods, and never expose install/update commands to arbitrary web pages.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: /\b(?:127\.0\.0\.1|localhost|Access-Control-Allow-Origin|websocket|WebSocket)\b[\s\S]{0,700}(?:\b(?:UpdateApp|InstallApp|child_process)\b|(?<![.\w$])(?:exec(?:File)?(?:Sync)?|spawn(?:Sync)?)\s*\()/i,
+		message: "Code appears to bridge browser code to localhost/native capabilities with weak origin or update/install checks."
+	})
+});
+const mcpToolCapabilityRisk = defineRule({
+	id: "mcp-tool-capability-risk",
+	title: "MCP tool exposes dangerous capability",
+	severity: "warn",
+	recommendation: "MCP tool calls run with the connecting client's authority. Validate inputs, enforce per-tool authorization, and avoid raw filesystem/shell/network access where possible.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: /\bserver\.\s*tool\s*\(|\bregisterTool\s*\(|\bsetRequestHandler\s*\(\s*CallToolRequestSchema/,
+		requireAll: [/\bfrom\s+["']@modelcontextprotocol\/sdk[^"']*["']|\bMcpServer\b|\bMcpAgent\b/, AGENT_TOOL_DANGEROUS_CAPABILITY_PATTERN],
+		ignoreStringLiterals: true,
+		message: "An MCP tool/resource/prompt handler appears to expose file, shell, network, or code-execution capability."
+	})
+});
+const mdxSsrExecutionRisk = defineRule({
+	id: "mdx-ssr-execution-risk",
+	title: "Server-rendered MDX can execute code",
+	severity: "warn",
+	recommendation: "Use a constrained compiler for untrusted content, disable expressions/raw HTML, sandbox renderers, and avoid caching attacker-controlled output across tenants.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: /(?:@mdx-js\/mdx|next-mdx-remote|\b(?:MDXRemote|compileMDX|evaluateMdx)\b)[\s\S]{0,700}\b(?:repo|customer|tenant|user[-_]?(?:content|markdown|mdx|input|provided|generated|submitted)|untrusted|searchParams|req\.|request\.|fetch\s*\(|prisma\.|db\.|database|rehypeRaw|allowDangerousHtml)/i,
+		message: "MDX/markdown rendering code may evaluate user or repository content during SSR or static generation."
+	})
+});
+const MESSAGE$38 = "Deaf and hard-of-hearing users need captions for this media. Add a `<track kind=\"captions\">` inside the `<audio>` or `<video>`.";
 const DEFAULT_AUDIO = ["audio"];
 const DEFAULT_VIDEO = ["video"];
 const DEFAULT_TRACK = ["track"];
@@ -36597,7 +39183,7 @@ const mediaHasCaption = defineRule({
 			if (!parent || !isNodeOfType(parent, "JSXElement")) {
 				context.report({
 					node: node.name,
-					message: MESSAGE$32
+					message: MESSAGE$38
 				});
 				return;
 			}
@@ -36614,7 +39200,7 @@ const mediaHasCaption = defineRule({
 				return kindValue.value.toLowerCase() === "captions";
 			})) context.report({
 				node: node.name,
-				message: MESSAGE$32
+				message: MESSAGE$38
 			});
 		} };
 	}
@@ -36810,6 +39396,54 @@ const nextjsInlineScriptMissingId = defineRule({
 		});
 	} })
 });
+const getSpecifierName = (rawName) => rawName.replace(/^type\s+/, "").trim();
+const parseExportSpecifiers = (specifiersText, declarationIsTypeOnly) => specifiersText.split(",").map((specifierText) => specifierText.trim()).filter(Boolean).map((specifierText) => {
+	const isTypeOnly = declarationIsTypeOnly || specifierText.startsWith("type ");
+	const [rawLocalName, rawExportedName] = specifierText.split(/\s+as\s+/);
+	const localName = getSpecifierName(rawLocalName ?? "");
+	return {
+		localName,
+		exportedName: getSpecifierName(rawExportedName ?? localName),
+		isTypeOnly
+	};
+});
+const BLOCK_COMMENT_PATTERN = /\/\*[\s\S]*?\*\//g;
+const LINE_COMMENT_PATTERN = /^\s*\/\/.*$/gm;
+const stripJsComments = (sourceText) => sourceText.replace(BLOCK_COMMENT_PATTERN, "").replace(LINE_COMMENT_PATTERN, "");
+const DEFAULT_EXPORT_DECLARATION_PATTERN = /^\s*export\s+default\b/m;
+const NAMED_EXPORT_DECLARATION_PATTERN = /^\s*export\s+(?:declare\s+)?(?:(?:async\s+)?function|(?:abstract\s+)?class|const|let|var|enum|interface|type)\s+([\w$]+)/gm;
+const LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1 = /^\s*export\s+(?:type\s+)?\{([\s\S]*?)\}(?:\s+from\s+["'][^"']+["'])?\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
+const doesSourceTextExportName = (sourceText, exportedName) => {
+	const strippedSource = stripJsComments(sourceText);
+	if (exportedName === "default" && DEFAULT_EXPORT_DECLARATION_PATTERN.test(strippedSource)) return true;
+	for (const match of strippedSource.matchAll(NAMED_EXPORT_DECLARATION_PATTERN)) if (match[1] === exportedName) return true;
+	for (const match of strippedSource.matchAll(LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1)) if (parseExportSpecifiers(match[1] ?? "", false).map((specifier) => specifier.exportedName).includes(exportedName)) return true;
+	return false;
+};
+const doesModuleExportName = (filePath, exportedName) => {
+	try {
+		return doesSourceTextExportName(fs$1.readFileSync(filePath, "utf8"), exportedName);
+	} catch {
+		return false;
+	}
+};
+const hasAncestorLayoutMatching = (pageFilename, matchesLayout) => {
+	const normalizedPage = pageFilename.replaceAll("\\", "/");
+	let currentDirectory = path$1.dirname(normalizedPage);
+	for (let level = 0; level < 30; level++) {
+		for (const layoutFileName of LAYOUT_FILE_NAMES) {
+			const layoutPath = path$1.join(currentDirectory, layoutFileName);
+			if (layoutPath.replaceAll("\\", "/") === normalizedPage) continue;
+			if (matchesLayout(layoutPath)) return true;
+		}
+		const parentDirectory = path$1.dirname(currentDirectory);
+		if (path$1.basename(currentDirectory) === "app" && path$1.basename(parentDirectory) !== "app") break;
+		if (parentDirectory === currentDirectory) break;
+		currentDirectory = parentDirectory;
+	}
+	return false;
+};
+const hasAncestorMetadataLayout = (pageFilename) => hasAncestorLayoutMatching(pageFilename, (layoutPath) => METADATA_EXPORT_NAMES.some((exportName) => doesModuleExportName(layoutPath, exportName)));
 const nextjsMissingMetadata = defineRule({
 	id: "nextjs-missing-metadata",
 	title: "Page missing metadata for search previews",
@@ -36821,13 +39455,15 @@ const nextjsMissingMetadata = defineRule({
 		const filename = normalizeFilename$1(context.filename ?? "");
 		if (!PAGE_FILE_PATTERN.test(filename)) return;
 		if (INTERNAL_PAGE_PATH_PATTERN.test(filename)) return;
-		if (!programNode.body?.some((statement) => {
+		if (programNode.body?.some((statement) => {
 			if (!isNodeOfType(statement, "ExportNamedDeclaration")) return false;
 			const declaration = statement.declaration;
-			if (isNodeOfType(declaration, "VariableDeclaration")) return declaration.declarations?.some((declarator) => isNodeOfType(declarator.id, "Identifier") && (declarator.id.name === "metadata" || declarator.id.name === "generateMetadata"));
+			if (isNodeOfType(declaration, "VariableDeclaration")) return declaration.declarations?.some((declarator) => isNodeOfType(declarator.id, "Identifier") && METADATA_EXPORT_NAMES.includes(declarator.id.name));
 			if (isNodeOfType(declaration, "FunctionDeclaration")) return declaration.id?.name === "generateMetadata";
-			return false;
-		})) context.report({
+			return (statement.specifiers ?? []).some((specifier) => isNodeOfType(specifier, "ExportSpecifier") && isNodeOfType(specifier.exported, "Identifier") && METADATA_EXPORT_NAMES.includes(specifier.exported.name));
+		})) return;
+		if (hasAncestorMetadataLayout(context.filename ?? "")) return;
+		context.report({
 			node: programNode,
 			message: "This page has no metadata, so search engines and social previews get no title or description."
 		});
@@ -37614,6 +40250,20 @@ const FILENAME_TO_LANG = {
 const resolveLang = (filename) => {
 	return FILENAME_TO_LANG[path$1.extname(filename).toLowerCase()] ?? "tsx";
 };
+const parseSourceText = (filename, sourceText) => {
+	try {
+		const result = parseSync(filename, sourceText, {
+			astType: "ts",
+			lang: resolveLang(filename)
+		});
+		if (result.errors.some((parseError) => parseError.severity === "Error")) return null;
+		const parsedProgram = result.program;
+		attachParentReferences(parsedProgram);
+		return parsedProgram;
+	} catch {
+		return null;
+	}
+};
 const parseCache = /* @__PURE__ */ new Map();
 const parseSourceFile = (absoluteFilePath) => {
 	let fileStat;
@@ -37645,56 +40295,13 @@ const parseSourceFile = (absoluteFilePath) => {
 		});
 		return null;
 	}
-	let parsedProgram = null;
-	try {
-		const result = parseSync(absoluteFilePath, sourceText, {
-			astType: "ts",
-			lang: resolveLang(absoluteFilePath)
-		});
-		if (!result.errors.some((parseError) => parseError.severity === "Error")) {
-			parsedProgram = result.program;
-			attachParentReferences(parsedProgram);
-		}
-	} catch {
-		parsedProgram = null;
-	}
+	const parsedProgram = parseSourceText(absoluteFilePath, sourceText);
 	parseCache.set(absoluteFilePath, {
 		mtimeMs: fileStat.mtimeMs,
 		size: fileStat.size,
 		program: parsedProgram
 	});
 	return parsedProgram;
-};
-const getSpecifierName = (rawName) => rawName.replace(/^type\s+/, "").trim();
-const parseExportSpecifiers = (specifiersText, declarationIsTypeOnly) => specifiersText.split(",").map((specifierText) => specifierText.trim()).filter(Boolean).map((specifierText) => {
-	const isTypeOnly = declarationIsTypeOnly || specifierText.startsWith("type ");
-	const [rawLocalName, rawExportedName] = specifierText.split(/\s+as\s+/);
-	const localName = getSpecifierName(rawLocalName ?? "");
-	return {
-		localName,
-		exportedName: getSpecifierName(rawExportedName ?? localName),
-		isTypeOnly
-	};
-});
-const BLOCK_COMMENT_PATTERN = /\/\*[\s\S]*?\*\//g;
-const LINE_COMMENT_PATTERN = /^\s*\/\/.*$/gm;
-const stripJsComments = (sourceText) => sourceText.replace(BLOCK_COMMENT_PATTERN, "").replace(LINE_COMMENT_PATTERN, "");
-const DEFAULT_EXPORT_DECLARATION_PATTERN = /^\s*export\s+default\b/m;
-const NAMED_EXPORT_DECLARATION_PATTERN = /^\s*export\s+(?:declare\s+)?(?:(?:async\s+)?function|(?:abstract\s+)?class|const|let|var|enum|interface|type)\s+([\w$]+)/gm;
-const LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1 = /^\s*export\s+(?:type\s+)?\{([\s\S]*?)\}(?:\s+from\s+["'][^"']+["'])?\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
-const doesSourceTextExportName = (sourceText, exportedName) => {
-	const strippedSource = stripJsComments(sourceText);
-	if (exportedName === "default" && DEFAULT_EXPORT_DECLARATION_PATTERN.test(strippedSource)) return true;
-	for (const match of strippedSource.matchAll(NAMED_EXPORT_DECLARATION_PATTERN)) if (match[1] === exportedName) return true;
-	for (const match of strippedSource.matchAll(LOCAL_EXPORT_SPECIFIER_DECLARATION_PATTERN$1)) if (parseExportSpecifiers(match[1] ?? "", false).map((specifier) => specifier.exportedName).includes(exportedName)) return true;
-	return false;
-};
-const doesModuleExportName = (filePath, exportedName) => {
-	try {
-		return doesSourceTextExportName(fs$1.readFileSync(filePath, "utf8"), exportedName);
-	} catch {
-		return false;
-	}
 };
 const INDEX_MODULE_FILE_PATTERN = /^index\.(?:[cm]?[jt]sx?|mjs)$/;
 const BINDING_IMPORT_DECLARATION_PATTERN = /^\s*import\s+(type\s+)?(?!["'])([^;]*?)\s+from\s+["']([^"']+)["']\s*;?\s*(?:(?:\/\/[^\n]*)?\s*)/gm;
@@ -38164,29 +40771,10 @@ const astMentionsSuspense = (programNode) => {
 	});
 	return didDetect;
 };
-const LAYOUT_FILE_NAMES = [
-	"layout.tsx",
-	"layout.jsx",
-	"layout.ts",
-	"layout.js"
-];
-const hasAncestorSuspenseLayout = (pageFilename) => {
-	const normalizedPage = pageFilename.replaceAll("\\", "/");
-	let currentDirectory = path$1.dirname(normalizedPage);
-	for (let level = 0; level < 30; level++) {
-		for (const layoutFileName of LAYOUT_FILE_NAMES) {
-			const layoutPath = path$1.join(currentDirectory, layoutFileName);
-			if (layoutPath.replaceAll("\\", "/") === normalizedPage) continue;
-			const programRoot = parseSourceFile(layoutPath);
-			if (programRoot && astMentionsSuspense(programRoot)) return true;
-		}
-		if (path$1.basename(currentDirectory) === "app") break;
-		const parentDirectory = path$1.dirname(currentDirectory);
-		if (parentDirectory === currentDirectory) break;
-		currentDirectory = parentDirectory;
-	}
-	return false;
-};
+const hasAncestorSuspenseLayout = (pageFilename) => hasAncestorLayoutMatching(pageFilename, (layoutPath) => {
+	const programRoot = parseSourceFile(layoutPath);
+	return Boolean(programRoot && astMentionsSuspense(programRoot));
+});
 const astContainsUseSearchParams = (root) => {
 	let didFind = false;
 	walkAst(root, (child) => {
@@ -38303,7 +40891,7 @@ const nextjsNoVercelOgImport = defineRule({
 		});
 	} })
 });
-const MESSAGE$31 = "Screen reader users can lose their shortcuts because `accessKey` clashes with them, so remove it.";
+const MESSAGE$37 = "Screen reader users can lose their shortcuts because `accessKey` clashes with them, so remove it.";
 const isUndefinedIdentifier = (expression) => isNodeOfType(expression, "Identifier") && expression.name === "undefined";
 const noAccessKey = defineRule({
 	id: "no-access-key",
@@ -38320,7 +40908,7 @@ const noAccessKey = defineRule({
 		if (isNodeOfType(attributeValue, "Literal") && typeof attributeValue.value === "string") {
 			context.report({
 				node: accessKey,
-				message: MESSAGE$31
+				message: MESSAGE$37
 			});
 			return;
 		}
@@ -38330,7 +40918,7 @@ const noAccessKey = defineRule({
 			if (isUndefinedIdentifier(expression)) return;
 			context.report({
 				node: accessKey,
-				message: MESSAGE$31
+				message: MESSAGE$37
 			});
 		}
 	} })
@@ -38801,7 +41389,7 @@ const noAdjustStateOnPropChange = defineRule({
 		}
 	} })
 });
-const MESSAGE$30 = "Screen reader users tab to this focusable element but hear nothing because `aria-hidden` skips it, so remove `aria-hidden` or stop it being focusable.";
+const MESSAGE$36 = "Screen reader users tab to this focusable element but hear nothing because `aria-hidden` skips it, so remove `aria-hidden` or stop it being focusable.";
 const noAriaHiddenOnFocusable = defineRule({
 	id: "no-aria-hidden-on-focusable",
 	title: "aria-hidden on focusable element",
@@ -38828,7 +41416,7 @@ const noAriaHiddenOnFocusable = defineRule({
 		const isImplicitlyFocusable = isInteractiveElement(tag, node);
 		if (isExplicitlyFocusable || isImplicitlyFocusable) context.report({
 			node: ariaHidden,
-			message: MESSAGE$30
+			message: MESSAGE$36
 		});
 	} })
 });
@@ -39188,7 +41776,7 @@ const noArrayIndexAsKey = defineRule({
 		});
 	} })
 });
-const MESSAGE$29 = "Your users can see & submit the wrong data when this list reorders.";
+const MESSAGE$35 = "Your users can see & submit the wrong data when this list reorders.";
 const SECOND_INDEX_METHODS = new Set([
 	"every",
 	"filter",
@@ -39392,7 +41980,7 @@ const noArrayIndexKey = defineRule({
 			}
 			context.report({
 				node: keyAttribute,
-				message: MESSAGE$29
+				message: MESSAGE$35
 			});
 		},
 		CallExpression(node) {
@@ -39412,13 +42000,31 @@ const noArrayIndexKey = defineRule({
 				if (propName !== "key") continue;
 				if (expressionUsesIndex(property.value, indexBinding.name)) context.report({
 					node: property,
-					message: MESSAGE$29
+					message: MESSAGE$35
 				});
 			}
 		}
 	})
 });
-const MESSAGE$28 = "`autoFocus` moves focus on load, which can disrupt screen reader and keyboard users. Remove it and let users choose where to focus.";
+const MESSAGE$34 = "The `useEffect` callback is `async`, so it returns a Promise instead of a cleanup function. React calls that Promise as cleanup (a no-op) and the effect can race on unmount. Put the async work in an inner function and call it.";
+const noAsyncEffectCallback = defineRule({
+	id: "no-async-effect-callback",
+	title: "Async effect callback",
+	severity: "warn",
+	recommendation: "Don't make the effect callback `async`. Define an async function inside the effect and call it, then return a real cleanup function if you need one.",
+	create: (context) => ({ CallExpression(node) {
+		if (!isHookCall$1(node, EFFECT_HOOK_NAMES$1)) return;
+		const callback = getEffectCallback(node);
+		if (!callback) return;
+		if (!isNodeOfType(callback, "ArrowFunctionExpression") && !isNodeOfType(callback, "FunctionExpression")) return;
+		if (!callback.async) return;
+		context.report({
+			node: callback,
+			message: MESSAGE$34
+		});
+	} })
+});
+const MESSAGE$33 = "`autoFocus` moves focus on load, which can disrupt screen reader and keyboard users. Remove it and let users choose where to focus.";
 const resolveSettings$21 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { ignoreNonDOM: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noAutofocus ?? {} : {}).ignoreNonDOM ?? true };
@@ -39474,7 +42080,7 @@ const noAutofocus = defineRule({
 			}
 			context.report({
 				node: autoFocusAttribute,
-				message: MESSAGE$28
+				message: MESSAGE$33
 			});
 		} };
 	}
@@ -39485,6 +42091,174 @@ const createRelativeImportSource = (filename, targetFilePath) => {
 	const relativePath = path$1.relative(path$1.dirname(filename), targetModulePath).split(path$1.sep).join("/");
 	return relativePath.startsWith(".") ? relativePath : `./${relativePath}`;
 };
+const EXPO_MANAGED_DEPENDENCY_NAMES = new Set([
+	"expo",
+	"expo-router",
+	"@expo/cli",
+	"@expo/metro-config",
+	"@expo/metro-runtime"
+]);
+const REACT_NATIVE_DEPENDENCY_NAMES = new Set([
+	"react-native",
+	"react-native-tvos",
+	...EXPO_MANAGED_DEPENDENCY_NAMES,
+	"react-native-windows",
+	"react-native-macos"
+]);
+const REACT_NATIVE_DEPENDENCY_PREFIXES = ["@react-native/", "@react-native-"];
+const isExpoManagedDependencyName = (dependencyName) => EXPO_MANAGED_DEPENDENCY_NAMES.has(dependencyName);
+const isReactNativeDependencyName$1 = (dependencyName) => {
+	if (REACT_NATIVE_DEPENDENCY_NAMES.has(dependencyName)) return true;
+	for (const prefix of REACT_NATIVE_DEPENDENCY_PREFIXES) if (dependencyName.startsWith(prefix)) return true;
+	return false;
+};
+const WEB_FRAMEWORK_DEPENDENCY_NAMES = new Set([
+	"next",
+	"vite",
+	"react-scripts",
+	"gatsby",
+	"@remix-run/react",
+	"@remix-run/node",
+	"@docusaurus/core",
+	"@docusaurus/preset-classic",
+	"@storybook/react",
+	"@storybook/react-vite",
+	"@storybook/react-webpack5",
+	"@storybook/nextjs",
+	"@storybook/web-components",
+	"storybook",
+	"react-dom",
+	"@vitejs/plugin-react",
+	"@vitejs/plugin-react-swc"
+]);
+const cachedPlatformByPackageDirectory = /* @__PURE__ */ new Map();
+const cachedPackageDirectoryByFilename$1 = /* @__PURE__ */ new Map();
+const findNearestPackageDirectory$2 = (filename) => {
+	if (!filename) return null;
+	const fromCache = cachedPackageDirectoryByFilename$1.get(filename);
+	if (fromCache !== void 0) return fromCache;
+	let currentDirectory = path$1.dirname(filename);
+	while (true) {
+		const candidatePackageJsonPath = path$1.join(currentDirectory, "package.json");
+		let hasPackageJson = false;
+		try {
+			hasPackageJson = fs$1.statSync(candidatePackageJsonPath).isFile();
+		} catch {
+			hasPackageJson = false;
+		}
+		if (hasPackageJson) {
+			cachedPackageDirectoryByFilename$1.set(filename, currentDirectory);
+			return currentDirectory;
+		}
+		const parentDirectory = path$1.dirname(currentDirectory);
+		if (parentDirectory === currentDirectory) {
+			cachedPackageDirectoryByFilename$1.set(filename, null);
+			return null;
+		}
+		currentDirectory = parentDirectory;
+	}
+};
+const readPackageJsonSafe = (packageJsonPath) => {
+	let rawContents;
+	try {
+		rawContents = fs$1.readFileSync(packageJsonPath, "utf-8");
+	} catch {
+		return null;
+	}
+	try {
+		const parsed = JSON.parse(rawContents);
+		if (typeof parsed === "object" && parsed !== null) return parsed;
+		return null;
+	} catch {
+		return null;
+	}
+};
+const DEPENDENCY_SECTION_NAMES = [
+	"dependencies",
+	"devDependencies",
+	"peerDependencies",
+	"optionalDependencies"
+];
+const iterateDependencyNames = function* (packageJson) {
+	for (const sectionName of DEPENDENCY_SECTION_NAMES) {
+		const section = packageJson[sectionName];
+		if (!section) continue;
+		for (const dependencyName of Object.keys(section)) yield dependencyName;
+	}
+};
+const isReactNativeAware = (packageJson) => {
+	if (typeof packageJson["react-native"] === "string") return true;
+	for (const dependencyName of iterateDependencyNames(packageJson)) if (isReactNativeDependencyName$1(dependencyName)) return true;
+	return false;
+};
+const isExpoManaged = (packageJson) => {
+	for (const dependencyName of iterateDependencyNames(packageJson)) if (isExpoManagedDependencyName(dependencyName)) return true;
+	return false;
+};
+const isWebFrameworkOnly = (packageJson) => {
+	for (const dependencyName of iterateDependencyNames(packageJson)) if (WEB_FRAMEWORK_DEPENDENCY_NAMES.has(dependencyName)) return true;
+	return false;
+};
+const classifyPackagePlatform = (filename) => {
+	const packageDirectory = findNearestPackageDirectory$2(filename);
+	if (!packageDirectory) return "unknown";
+	const cached = cachedPlatformByPackageDirectory.get(packageDirectory);
+	if (cached !== void 0) return cached;
+	const packageJson = readPackageJsonSafe(path$1.join(packageDirectory, "package.json"));
+	if (!packageJson) {
+		cachedPlatformByPackageDirectory.set(packageDirectory, "unknown");
+		return "unknown";
+	}
+	let result;
+	if (isExpoManaged(packageJson)) result = "expo";
+	else if (isReactNativeAware(packageJson)) result = "react-native";
+	else if (isWebFrameworkOnly(packageJson)) result = "web";
+	else result = "unknown";
+	cachedPlatformByPackageDirectory.set(packageDirectory, result);
+	return result;
+};
+const readReactDoctorSettingsBag = (settings) => {
+	const reactDoctorSettings = settings?.["react-doctor"];
+	if (typeof reactDoctorSettings !== "object" || reactDoctorSettings === null || Array.isArray(reactDoctorSettings)) return null;
+	return reactDoctorSettings;
+};
+const readOwnPropertyValue = (bag, settingName) => Object.getOwnPropertyDescriptor(bag, settingName)?.value;
+const getReactDoctorStringSetting = (settings, settingName) => {
+	const bag = readReactDoctorSettingsBag(settings);
+	if (!bag) return void 0;
+	const settingValue = readOwnPropertyValue(bag, settingName);
+	return typeof settingValue === "string" ? settingValue : void 0;
+};
+const getReactDoctorNumberSetting = (settings, settingName) => {
+	const bag = readReactDoctorSettingsBag(settings);
+	if (!bag) return void 0;
+	const settingValue = readOwnPropertyValue(bag, settingName);
+	return typeof settingValue === "number" && Number.isFinite(settingValue) ? settingValue : void 0;
+};
+const getReactDoctorStringArraySetting = (settings, settingName) => {
+	const bag = readReactDoctorSettingsBag(settings);
+	if (!bag) return [];
+	const settingValue = readOwnPropertyValue(bag, settingName);
+	if (!Array.isArray(settingValue)) return [];
+	return settingValue.filter((entry) => typeof entry === "string" && entry.length > 0);
+};
+const WEB_FILE_EXTENSION_PATTERN = /\.web\.[cm]?[jt]sx?$/;
+const NATIVE_FILE_EXTENSION_PATTERN = /\.(?:ios|android|native)\.[cm]?[jt]sx?$/;
+const classifyReactNativeFileTarget = (context) => {
+	const rawFilename = context.filename;
+	if (!rawFilename) return "unknown";
+	const filename = normalizeFilename$1(rawFilename);
+	if (NATIVE_FILE_EXTENSION_PATTERN.test(filename)) return "react-native";
+	if (WEB_FILE_EXTENSION_PATTERN.test(filename)) return "web";
+	const packagePlatform = classifyPackagePlatform(filename);
+	if (packagePlatform === "web") return "web";
+	if (packagePlatform === "expo" || packagePlatform === "react-native") return "react-native";
+	const framework = getReactDoctorStringSetting(context.settings, "framework");
+	if (framework === "react-native" || framework === "expo") return "react-native";
+	if (framework === "nextjs" || framework === "vite" || framework === "cra" || framework === "remix" || framework === "gatsby" || framework === "tanstack-start") return "web";
+	return "unknown";
+};
+const isReactNativeFileActive = (context) => classifyReactNativeFileTarget(context) !== "web";
 const getLiteralName = (node) => {
 	if (node.type === "Identifier" && typeof node.name === "string") return node.name;
 	if (node.type === "Literal" && typeof node.value === "string") return node.value;
@@ -39501,7 +42275,8 @@ const getRuntimeImportRequests = (node) => {
 		return [{ importedName: null }];
 	});
 };
-const buildReportMessage = (filename, barrelFilePath, importRequests) => {
+const buildReportMessage = (filename, barrelFilePath, importRequests, isReactNativeTarget) => {
+	const costSentence = isReactNativeTarget ? "This ships extra code in your app bundle & slows startup." : "This ships extra code to your users & slows page load.";
 	const directImportSources = /* @__PURE__ */ new Set();
 	for (const request of importRequests) {
 		if (!request.importedName) continue;
@@ -39510,9 +42285,9 @@ const buildReportMessage = (filename, barrelFilePath, importRequests) => {
 	}
 	if (directImportSources.size === 1) {
 		const [directImportSource] = directImportSources;
-		return `This ships extra code to your users & slows page load. Import directly from "${directImportSource}".`;
+		return `${costSentence} Import directly from "${directImportSource}".`;
 	}
-	if (directImportSources.size > 1) return `This ships extra code to your users & slows page load. Import directly from: ${[...directImportSources].map((source) => `"${source}"`).join(", ")}.`;
+	if (directImportSources.size > 1) return `${costSentence} Import directly from: ${[...directImportSources].map((source) => `"${source}"`).join(", ")}.`;
 	return "Importing from an index file pulls in extra code. Import directly from the source file instead.";
 };
 const noBarrelImport = defineRule({
@@ -39536,10 +42311,107 @@ const noBarrelImport = defineRule({
 				didReportForFile = true;
 				context.report({
 					node,
-					message: buildReportMessage(filename, resolvedImportPath, importRequests)
+					message: buildReportMessage(filename, resolvedImportPath, importRequests, classifyReactNativeFileTarget(context) === "react-native")
 				});
 			}
 		} };
+	}
+});
+const NESTED_RENDER_EVIDENCE_BOUNDARY_TYPES = new Set([
+	"FunctionDeclaration",
+	"FunctionExpression",
+	"ArrowFunctionExpression",
+	"ClassDeclaration",
+	"ClassExpression"
+]);
+const isReactImport$1 = (symbol) => {
+	let importDeclaration = symbol.declarationNode?.parent;
+	while (importDeclaration && !isNodeOfType(importDeclaration, "ImportDeclaration")) importDeclaration = importDeclaration.parent ?? null;
+	if (!importDeclaration || !isNodeOfType(importDeclaration, "ImportDeclaration")) return false;
+	return importDeclaration.source.value === "react";
+};
+const getImportedName$2 = (symbol) => {
+	if (symbol.kind !== "import") return null;
+	if (!isReactImport$1(symbol)) return null;
+	return getImportedName$1(symbol.declarationNode) ?? null;
+};
+const isReactNamespaceImport = (symbol) => {
+	if (symbol.kind !== "import") return false;
+	if (!isReactImport$1(symbol)) return false;
+	return isNodeOfType(symbol.declarationNode, "ImportDefaultSpecifier") || isNodeOfType(symbol.declarationNode, "ImportNamespaceSpecifier");
+};
+const isReactCreateElementIdentifierCall = (callee, scopes) => {
+	if (!isNodeOfType(callee, "Identifier")) return false;
+	const symbol = scopes.symbolFor(callee);
+	return Boolean(symbol && getImportedName$2(symbol) === "createElement");
+};
+const isReactCreateElementMemberCall = (callee, scopes) => {
+	if (!isNodeOfType(callee, "MemberExpression")) return false;
+	if (callee.computed) return false;
+	if (!isNodeOfType(callee.object, "Identifier")) return false;
+	if (!isNodeOfType(callee.property, "Identifier")) return false;
+	if (callee.property.name !== "createElement") return false;
+	const symbol = scopes.symbolFor(callee.object);
+	return Boolean(symbol && isReactNamespaceImport(symbol));
+};
+const isReactCreateElementCall = (node, scopes) => {
+	if (!isNodeOfType(node, "CallExpression")) return false;
+	return isReactCreateElementIdentifierCall(node.callee, scopes) || isReactCreateElementMemberCall(node.callee, scopes);
+};
+const containsRenderOutput = (node, rootNode, scopes) => {
+	if (node !== rootNode && NESTED_RENDER_EVIDENCE_BOUNDARY_TYPES.has(node.type)) return false;
+	if (node.type === "JSXElement" || node.type === "JSXFragment") return true;
+	if (isReactCreateElementCall(node, scopes)) return true;
+	const nodeRecord = node;
+	for (const key of Object.keys(nodeRecord)) {
+		if (key === "parent") continue;
+		const child = nodeRecord[key];
+		if (Array.isArray(child)) {
+			for (const innerChild of child) if (isAstNode(innerChild) && containsRenderOutput(innerChild, rootNode, scopes)) return true;
+		} else if (isAstNode(child) && containsRenderOutput(child, rootNode, scopes)) return true;
+	}
+	return false;
+};
+const functionContainsReactRenderOutput = (functionNode, scopes) => containsRenderOutput(functionNode, functionNode, scopes);
+const isComponentDeclaration = (node) => isNodeOfType(node, "FunctionDeclaration") && node.id !== null && Boolean(node.id?.name) && isUppercaseName(node.id.name);
+const message = (name) => `\`${name}\` is a component, so calling it as a plain function (\`${name}(...)\`) runs it outside React: its hooks break, it gets no fiber/state, and memoization is lost. Render it as \`<${name} />\` instead.`;
+const symbolIsLocalComponent = (symbol, context) => {
+	const declaration = symbol.declarationNode;
+	if (isComponentDeclaration(declaration)) return functionContainsReactRenderOutput(declaration, context.scopes);
+	if (isComponentAssignment(declaration) && symbol.initializer) return functionContainsReactRenderOutput(symbol.initializer, context.scopes);
+	return false;
+};
+const noCallComponentAsFunction = defineRule({
+	id: "no-call-component-as-function",
+	title: "Component called as a function",
+	severity: "warn",
+	tags: ["test-noise"],
+	recommendation: "Render components as JSX (`<Component />`), never call them like functions (`Component(props)`). A direct call runs the component outside React and breaks hooks, state, and memoization.",
+	create: (context) => {
+		const renderedJsxNames = /* @__PURE__ */ new Set();
+		const candidateCalls = [];
+		return {
+			JSXOpeningElement(node) {
+				if (isNodeOfType(node.name, "JSXIdentifier") && isUppercaseName(node.name.name)) renderedJsxNames.add(node.name.name);
+			},
+			CallExpression(node) {
+				if (isNodeOfType(node.callee, "Identifier") && isUppercaseName(node.callee.name)) candidateCalls.push({
+					node,
+					callee: node.callee,
+					name: node.callee.name
+				});
+			},
+			"Program:exit"() {
+				for (const candidate of candidateCalls) {
+					const symbol = context.scopes.symbolFor(candidate.callee);
+					if (!symbol) continue;
+					if (symbolIsLocalComponent(symbol, context) || symbol.kind === "import" && renderedJsxNames.has(candidate.name)) context.report({
+						node: candidate.node,
+						message: message(candidate.name)
+					});
+				}
+			}
+		};
 	}
 });
 const isSetterIdentifier = (name) => SETTER_PATTERN.test(name);
@@ -39680,7 +42552,7 @@ const noChainStateUpdates = defineRule({
 		}
 	} })
 });
-const MESSAGE$27 = "A `children` prop can override or hide nested children, so the component may render different content than the JSX shows.";
+const MESSAGE$32 = "A `children` prop can override or hide nested children, so the component may render different content than the JSX shows.";
 const noChildrenProp = defineRule({
 	id: "no-children-prop",
 	title: "Children passed as a prop",
@@ -39692,7 +42564,7 @@ const noChildrenProp = defineRule({
 			if (node.name.name !== "children") return;
 			context.report({
 				node: node.name,
-				message: MESSAGE$27
+				message: MESSAGE$32
 			});
 		},
 		CallExpression(node) {
@@ -39705,13 +42577,13 @@ const noChildrenProp = defineRule({
 				const propertyKey = property.key;
 				if (isNodeOfType(propertyKey, "Identifier") && propertyKey.name === "children" || isNodeOfType(propertyKey, "Literal") && propertyKey.value === "children") context.report({
 					node: propertyKey,
-					message: MESSAGE$27
+					message: MESSAGE$32
 				});
 			}
 		}
 	})
 });
-const MESSAGE$26 = "`React.cloneElement` couples the parent to the child's prop shape, so child prop changes can silently break injected behavior.";
+const MESSAGE$31 = "`React.cloneElement` couples the parent to the child's prop shape, so child prop changes can silently break injected behavior.";
 const noCloneElement = defineRule({
 	id: "no-clone-element",
 	title: "cloneElement makes child props fragile",
@@ -39724,7 +42596,7 @@ const noCloneElement = defineRule({
 		if (isNodeOfType(callee, "Identifier") && callee.name === "cloneElement") {
 			if (isImportedFromModule(node, "cloneElement", "react")) context.report({
 				node: callee,
-				message: MESSAGE$26
+				message: MESSAGE$31
 			});
 			return;
 		}
@@ -39737,7 +42609,7 @@ const noCloneElement = defineRule({
 			if (!isImportedFromModule(node, callee.object.name, "react")) return;
 			context.report({
 				node: callee,
-				message: MESSAGE$26
+				message: MESSAGE$31
 			});
 		}
 	} })
@@ -39780,7 +42652,7 @@ const enclosingComponentOrHookName = (node) => {
 	const functionNode = nearestEnclosingFunction(node);
 	return functionNode ? componentOrHookDisplayNameForFunction(functionNode) : null;
 };
-const MESSAGE$25 = "createContext() builds a new context every render, so every consumer gets cut off & resets.";
+const MESSAGE$30 = "createContext() builds a new context every render, so every consumer gets cut off & resets.";
 const CONTEXT_MODULES = [
 	"react",
 	"use-context-selector",
@@ -39816,7 +42688,30 @@ const noCreateContextInRender = defineRule({
 		if (!componentOrHookName) return;
 		context.report({
 			node,
-			message: `${MESSAGE$25} (called inside "${componentOrHookName}")`
+			message: `${MESSAGE$30} (called inside "${componentOrHookName}")`
+		});
+	} })
+});
+const MESSAGE$29 = "`createRef()` in a function component allocates a brand-new ref on every render, so it never holds a value between renders. Use the `useRef()` hook instead.";
+const noCreateRefInFunctionComponent = defineRule({
+	id: "no-create-ref-in-function-component",
+	title: "createRef in function component",
+	severity: "warn",
+	recommendation: "Replace `createRef()` with the `useRef()` hook inside function components and hooks. `createRef` is only for class components.",
+	create: (context) => ({ CallExpression(node) {
+		if (!isReactFunctionCall(node, "createRef")) return;
+		if (isNodeOfType(node.callee, "Identifier")) {
+			const symbol = context.scopes.symbolFor(node.callee);
+			if (symbol && symbol.kind !== "import") return;
+		}
+		const enclosingFunction = nearestEnclosingFunction(node);
+		if (!enclosingFunction) return;
+		const displayName = componentOrHookDisplayNameForFunction(enclosingFunction);
+		if (!displayName) return;
+		if (!(isReactHookName(displayName) || functionContainsReactRenderOutput(enclosingFunction, context.scopes))) return;
+		context.report({
+			node,
+			message: MESSAGE$29
 		});
 	} })
 });
@@ -39952,12 +42847,13 @@ const noCreateStoreInRender = defineRule({
 		});
 	} })
 });
-const MESSAGE$24 = "`dangerouslySetInnerHTML` is an XSS hole that runs attacker-controlled HTML in your users' browsers.";
+const MESSAGE$28 = "`dangerouslySetInnerHTML` is an XSS hole that runs attacker-controlled HTML in your users' browsers.";
 const noDanger = defineRule({
 	id: "no-danger",
 	title: "Raw HTML injection can run unsafe markup",
 	severity: "warn",
 	category: "Security",
+	defaultEnabled: false,
 	recommendation: "Render trusted content as React children so attacker-controlled HTML cannot run in users' browsers.",
 	create: (context) => ({
 		JSXOpeningElement(node) {
@@ -39965,7 +42861,7 @@ const noDanger = defineRule({
 			if (!propAttribute) return;
 			context.report({
 				node: propAttribute.name,
-				message: MESSAGE$24
+				message: MESSAGE$28
 			});
 		},
 		CallExpression(node) {
@@ -39977,13 +42873,13 @@ const noDanger = defineRule({
 				const propertyKey = property.key;
 				if (isNodeOfType(propertyKey, "Identifier") && propertyKey.name === "dangerouslySetInnerHTML" || isNodeOfType(propertyKey, "Literal") && propertyKey.value === "dangerouslySetInnerHTML") context.report({
 					node: propertyKey,
-					message: MESSAGE$24
+					message: MESSAGE$28
 				});
 			}
 		}
 	})
 });
-const MESSAGE$23 = "React throws an error when you set both children & `dangerouslySetInnerHTML`.";
+const MESSAGE$27 = "React throws an error when you set both children & `dangerouslySetInnerHTML`.";
 const isLineBreak = (child) => {
 	if (!isNodeOfType(child, "JSXText")) return false;
 	return child.value.trim().length === 0 && child.value.includes("\n");
@@ -40053,7 +42949,7 @@ const noDangerWithChildren = defineRule({
 			if (!hasChildrenProp && !hasNestedChildren) return;
 			if (hasJsxPropIgnoreCase(opening.attributes, "dangerouslySetInnerHTML") || spreadPropsShape.hasDangerously) context.report({
 				node: opening,
-				message: MESSAGE$23
+				message: MESSAGE$27
 			});
 		},
 		CallExpression(node) {
@@ -40065,7 +42961,7 @@ const noDangerWithChildren = defineRule({
 			if (!propsShape.hasDangerously) return;
 			if (node.arguments.length >= 3 || propsShape.hasChildren) context.report({
 				node,
-				message: MESSAGE$23
+				message: MESSAGE$27
 			});
 		}
 	})
@@ -40608,7 +43504,7 @@ const isSetStateCallInLifecycle = (setStateCall, lifecycleNames, options = {}) =
 	return false;
 };
 const LIFECYCLE_NAMES$2 = new Set(["componentDidMount"]);
-const MESSAGE$22 = "Your users see an extra render right after mount when you call `setState` in `componentDidMount`.";
+const MESSAGE$26 = "Your users see an extra render right after mount when you call `setState` in `componentDidMount`.";
 const resolveSettings$20 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { mode: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noDidMountSetState ?? {} : {}).mode ?? "allowed" };
@@ -40627,13 +43523,13 @@ const noDidMountSetState = defineRule({
 			if (!isSetStateCallInLifecycle(node, LIFECYCLE_NAMES$2, { disallowInNestedFunctions: mode === "disallow-in-func" })) return;
 			context.report({
 				node: node.callee,
-				message: MESSAGE$22
+				message: MESSAGE$26
 			});
 		} };
 	}
 });
 const LIFECYCLE_NAMES$1 = new Set(["componentDidUpdate"]);
-const MESSAGE$21 = "Calling setState in componentDidUpdate can trigger another update immediately, loop forever, and freeze the component.";
+const MESSAGE$25 = "Calling setState in componentDidUpdate can trigger another update immediately, loop forever, and freeze the component.";
 const resolveSettings$19 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { mode: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noDidUpdateSetState ?? {} : {}).mode ?? "allowed" };
@@ -40652,7 +43548,7 @@ const noDidUpdateSetState = defineRule({
 			if (!isSetStateCallInLifecycle(node, LIFECYCLE_NAMES$1, { disallowInNestedFunctions: mode === "disallow-in-func" })) return;
 			context.report({
 				node: node.callee,
-				message: MESSAGE$21
+				message: MESSAGE$25
 			});
 		} };
 	}
@@ -40669,7 +43565,7 @@ const isStateMemberExpression = (node) => {
 	if (!isNodeOfType(node.property, "Identifier")) return false;
 	return node.property.name === "state";
 };
-const MESSAGE$20 = "Your users see stale data because mutating `this.state` by hand never redraws & gets overwritten.";
+const MESSAGE$24 = "Your users see stale data because mutating `this.state` by hand never redraws & gets overwritten.";
 const shouldIgnoreMutation = (node) => {
 	let isConstructor = false;
 	let isInsideCallExpression = false;
@@ -40691,7 +43587,7 @@ const reportIfStateMutation = (context, reportNode, target) => {
 	if (shouldIgnoreMutation(reportNode)) return;
 	context.report({
 		node: reportNode,
-		message: MESSAGE$20
+		message: MESSAGE$24
 	});
 };
 const noDirectMutationState = defineRule({
@@ -40887,6 +43783,24 @@ const noDocumentStartViewTransition = defineRule({
 		context.report({
 			node,
 			message: "Calling `document.startViewTransition()` directly can bypass React's `<ViewTransition>` animation lifecycle."
+		});
+	} })
+});
+const MESSAGE$23 = "`document.write()` blocks parsing, is ignored (or wipes the page) after load, and is flagged by browsers as a performance anti-pattern. Build DOM nodes or set `innerHTML`/`textContent` on a target element instead.";
+const WRITE_METHODS = new Set(["write", "writeln"]);
+const noDocumentWrite = defineRule({
+	id: "no-document-write",
+	title: "document.write/writeln",
+	severity: "warn",
+	recommendation: "Don't use `document.write()`/`document.writeln()`. Append DOM nodes or set `innerHTML`/`textContent` on a specific element instead.",
+	create: (context) => ({ CallExpression(node) {
+		const callee = node.callee;
+		if (!isNodeOfType(callee, "MemberExpression") || callee.computed) return;
+		if (!isNodeOfType(callee.object, "Identifier") || callee.object.name !== "document") return;
+		if (!isNodeOfType(callee.property, "Identifier") || !WRITE_METHODS.has(callee.property.name)) return;
+		context.report({
+			node,
+			message: MESSAGE$23
 		});
 	} })
 });
@@ -42227,7 +45141,7 @@ const ALLOWED_NAMESPACES = new Set([
 	"ReactDOM",
 	"ReactDom"
 ]);
-const MESSAGE$19 = "`findDOMNode` crashes your app in React 19 because it was removed.";
+const MESSAGE$22 = "`findDOMNode` crashes your app in React 19 because it was removed.";
 const noFindDomNode = defineRule({
 	id: "no-find-dom-node",
 	title: "findDOMNode breaks component encapsulation",
@@ -42238,7 +45152,7 @@ const noFindDomNode = defineRule({
 		if (isNodeOfType(callee, "Identifier") && callee.name === "findDOMNode") {
 			context.report({
 				node: callee,
-				message: MESSAGE$19
+				message: MESSAGE$22
 			});
 			return;
 		}
@@ -42249,7 +45163,7 @@ const noFindDomNode = defineRule({
 			if (callee.property.name !== "findDOMNode") return;
 			context.report({
 				node: callee.property,
-				message: MESSAGE$19
+				message: MESSAGE$22
 			});
 		}
 	} })
@@ -42305,62 +45219,6 @@ const noGenericHandlerNames = defineRule({
 		});
 	} })
 });
-const NESTED_RENDER_EVIDENCE_BOUNDARY_TYPES = new Set([
-	"FunctionDeclaration",
-	"FunctionExpression",
-	"ArrowFunctionExpression",
-	"ClassDeclaration",
-	"ClassExpression"
-]);
-const isReactImport$1 = (symbol) => {
-	let importDeclaration = symbol.declarationNode?.parent;
-	while (importDeclaration && !isNodeOfType(importDeclaration, "ImportDeclaration")) importDeclaration = importDeclaration.parent ?? null;
-	if (!importDeclaration || !isNodeOfType(importDeclaration, "ImportDeclaration")) return false;
-	return importDeclaration.source.value === "react";
-};
-const getImportedName$2 = (symbol) => {
-	if (symbol.kind !== "import") return null;
-	if (!isReactImport$1(symbol)) return null;
-	return getImportedName$1(symbol.declarationNode) ?? null;
-};
-const isReactNamespaceImport = (symbol) => {
-	if (symbol.kind !== "import") return false;
-	if (!isReactImport$1(symbol)) return false;
-	return isNodeOfType(symbol.declarationNode, "ImportDefaultSpecifier") || isNodeOfType(symbol.declarationNode, "ImportNamespaceSpecifier");
-};
-const isReactCreateElementIdentifierCall = (callee, scopes) => {
-	if (!isNodeOfType(callee, "Identifier")) return false;
-	const symbol = scopes.symbolFor(callee);
-	return Boolean(symbol && getImportedName$2(symbol) === "createElement");
-};
-const isReactCreateElementMemberCall = (callee, scopes) => {
-	if (!isNodeOfType(callee, "MemberExpression")) return false;
-	if (callee.computed) return false;
-	if (!isNodeOfType(callee.object, "Identifier")) return false;
-	if (!isNodeOfType(callee.property, "Identifier")) return false;
-	if (callee.property.name !== "createElement") return false;
-	const symbol = scopes.symbolFor(callee.object);
-	return Boolean(symbol && isReactNamespaceImport(symbol));
-};
-const isReactCreateElementCall = (node, scopes) => {
-	if (!isNodeOfType(node, "CallExpression")) return false;
-	return isReactCreateElementIdentifierCall(node.callee, scopes) || isReactCreateElementMemberCall(node.callee, scopes);
-};
-const containsRenderOutput = (node, rootNode, scopes) => {
-	if (node !== rootNode && NESTED_RENDER_EVIDENCE_BOUNDARY_TYPES.has(node.type)) return false;
-	if (node.type === "JSXElement" || node.type === "JSXFragment") return true;
-	if (isReactCreateElementCall(node, scopes)) return true;
-	const nodeRecord = node;
-	for (const key of Object.keys(nodeRecord)) {
-		if (key === "parent") continue;
-		const child = nodeRecord[key];
-		if (Array.isArray(child)) {
-			for (const innerChild of child) if (isAstNode(innerChild) && containsRenderOutput(innerChild, rootNode, scopes)) return true;
-		} else if (isAstNode(child) && containsRenderOutput(child, rootNode, scopes)) return true;
-	}
-	return false;
-};
-const functionContainsReactRenderOutput = (functionNode, scopes) => containsRenderOutput(functionNode, functionNode, scopes);
 const noGiantComponent = defineRule({
 	id: "no-giant-component",
 	title: "Large component is hard to read and change",
@@ -42527,6 +45385,24 @@ const noGrayOnColoredBackground = defineRule({
 		});
 	} })
 });
+const MESSAGE$21 = "`<img loading=\"lazy\">` defers the request while `fetchPriority=\"high\"` asks the browser to rush it, so the two directives contradict each other. Drop one: keep `fetchPriority=\"high\"` (and eager loading) for an LCP image, or `loading=\"lazy\"` for a below-the-fold one.";
+const noImgLazyWithHighFetchpriority = defineRule({
+	id: "no-img-lazy-with-high-fetchpriority",
+	title: "Lazy image with high fetchPriority",
+	severity: "warn",
+	recommendation: "Don't combine `loading=\"lazy\"` with `fetchPriority=\"high\"`. A high-priority image (usually the LCP) should load eagerly; a lazy image is by definition not high priority.",
+	create: (context) => ({ JSXOpeningElement(node) {
+		if (!isNodeOfType(node.name, "JSXIdentifier") || node.name.name !== "img") return;
+		const loadingAttribute = hasJsxPropIgnoreCase(node.attributes, "loading");
+		if (!loadingAttribute || getJsxPropStringValue(loadingAttribute)?.toLowerCase() !== "lazy") return;
+		const fetchPriorityAttribute = hasJsxPropIgnoreCase(node.attributes, "fetchPriority");
+		if (!fetchPriorityAttribute || getJsxPropStringValue(fetchPriorityAttribute)?.toLowerCase() !== "high") return;
+		context.report({
+			node: node.name,
+			message: MESSAGE$21
+		});
+	} })
+});
 const noInitializeState = defineRule({
 	id: "no-initialize-state",
 	title: "State initialized from a mount effect",
@@ -42614,15 +45490,20 @@ const noInlineExhaustiveStyle = defineRule({
 	severity: "warn",
 	tags: ["test-noise", "react-jsx-only"],
 	recommendation: "Move the styles to a CSS class, CSS module, Tailwind utilities, or a styled component. Big inline objects are hard to read and rebuild on every update.",
-	create: (context) => ({ JSXAttribute(node) {
-		const expression = getInlineStyleExpression(node);
-		if (!expression) return;
-		const propertyCount = expression.properties?.filter((property) => isNodeOfType(property, "Property")).length ?? 0;
-		if (propertyCount >= 8) context.report({
-			node: expression,
-			message: `This inline style has ${propertyCount} properties, which is hard to read & rebuilds every render. Move it to a CSS class, CSS module, or styled component.`
-		});
-	} })
+	create: (context) => {
+		if (isGeneratedImageRenderContext(context)) return {};
+		return { JSXAttribute(node) {
+			const expression = getInlineStyleExpression(node);
+			if (!expression) return;
+			const propertyCount = expression.properties?.filter((property) => isNodeOfType(property, "Property")).length ?? 0;
+			if (propertyCount < 8) return;
+			if (isGeneratedImageRenderContext(context, node.parent ?? void 0)) return;
+			context.report({
+				node: expression,
+				message: `This inline style has ${propertyCount} properties, which is hard to read & rebuilds every render. Move it to a CSS class, CSS module, or styled component.`
+			});
+		} };
+	}
 });
 const isMemoCall = (node) => {
 	if (!isNodeOfType(node, "CallExpression")) return false;
@@ -42744,7 +45625,28 @@ const noIsMounted = defineRule({
 		}
 	} })
 });
-const MESSAGE$18 = "`JSX.Element` is too narrow: it excludes `null`, strings, numbers, and fragments that components commonly return. Use `React.ReactNode` instead.";
+const MESSAGE$20 = "`JSON.parse(JSON.stringify(x))` deep-clones by re-serializing: it is slow on large objects and silently drops `undefined`, functions, `Date`/`Map`/`Set`, and cyclic references. Use `structuredClone(x)`.";
+const isJsonMethodCall = (node, method) => {
+	if (!isNodeOfType(node, "CallExpression")) return false;
+	const callee = node.callee;
+	return isNodeOfType(callee, "MemberExpression") && !callee.computed && isNodeOfType(callee.object, "Identifier") && callee.object.name === "JSON" && isNodeOfType(callee.property, "Identifier") && callee.property.name === method;
+};
+const noJsonParseStringifyClone = defineRule({
+	id: "no-json-parse-stringify-clone",
+	title: "JSON parse/stringify deep clone",
+	severity: "warn",
+	recommendation: "Replace `JSON.parse(JSON.stringify(value))` with `structuredClone(value)`. It is faster and preserves Dates, Maps, Sets, and cyclic references.",
+	create: (context) => ({ CallExpression(node) {
+		if (!isJsonMethodCall(node, "parse")) return;
+		const firstArgument = node.arguments?.[0];
+		if (!firstArgument || !isJsonMethodCall(firstArgument, "stringify")) return;
+		context.report({
+			node,
+			message: MESSAGE$20
+		});
+	} })
+});
+const MESSAGE$19 = "`JSX.Element` is too narrow: it excludes `null`, strings, numbers, and fragments that components commonly return. Use `React.ReactNode` instead.";
 const isJsxElementTypeReference = (node) => {
 	if (!isNodeOfType(node, "TSTypeReference")) return false;
 	const typeName = node.typeName;
@@ -42761,7 +45663,7 @@ const checkReturnType = (context, returnType) => {
 	if (!typeAnnotation) return;
 	if (isJsxElementTypeReference(typeAnnotation)) context.report({
 		node: typeAnnotation,
-		message: MESSAGE$18
+		message: MESSAGE$19
 	});
 };
 const noJsxElementType = defineRule({
@@ -43048,7 +45950,6 @@ const noLongTransitionDuration = defineRule({
 });
 const BOOLEAN_PROP_PREFIX_PATTERN = /^(?:is|has|should|can|show|hide|enable|disable|with)[A-Z]/;
 const isBooleanPrefixedPropName = (propName) => BOOLEAN_PROP_PREFIX_PATTERN.test(propName);
-const isComponentDeclaration = (node) => isNodeOfType(node, "FunctionDeclaration") && node.id !== null && Boolean(node.id?.name) && isUppercaseName(node.id.name);
 const collectBooleanLikePropsFromBody = (componentBody, propsParamName) => {
 	const found = /* @__PURE__ */ new Set();
 	if (!componentBody) return found;
@@ -43193,7 +46094,7 @@ const noMoment = defineRule({
 		});
 	} })
 });
-const MESSAGE$17 = "This file declares several components, so each component is harder to find, test, and change.";
+const MESSAGE$18 = "This file declares several components, so each component is harder to find, test, and change.";
 const resolveSettings$16 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	return { ignoreStateless: (typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noMultiComp ?? {} : {}).ignoreStateless ?? false };
@@ -43515,7 +46416,7 @@ const noMultiComp = defineRule({
 			if (isSmallFeatureModule || isLargeFeatureModule || isVeryLargeFeatureModule) return;
 			for (const component of flagged.slice(1)) context.report({
 				node: component.reportNode,
-				message: MESSAGE$17
+				message: MESSAGE$18
 			});
 		} };
 	}
@@ -43675,7 +46576,7 @@ const resolveReducerFunction = (node, currentFilename) => {
 	}
 	return null;
 };
-const MESSAGE$16 = "This reducer changes state in place, so your update is silently skipped.";
+const MESSAGE$17 = "This reducer changes state in place, so your update is silently skipped.";
 const SAME_REFERENCE_ARRAY_RETURN_METHODS = new Set([
 	"copyWithin",
 	"fill",
@@ -43885,7 +46786,7 @@ const analyzeReactUseReducerFunctionForStateMutation = (context, functionNode, r
 			reportedNodes.add(options.crossFileConsumerCallSite);
 			context.report({
 				node: options.crossFileConsumerCallSite,
-				message: `${MESSAGE$16} (mutation in imported reducer at \`${options.crossFileSourceDisplay}\`)`
+				message: `${MESSAGE$17} (mutation in imported reducer at \`${options.crossFileSourceDisplay}\`)`
 			});
 			return;
 		}
@@ -43894,7 +46795,7 @@ const analyzeReactUseReducerFunctionForStateMutation = (context, functionNode, r
 			reportedNodes.add(mutation.node);
 			context.report({
 				node: mutation.node,
-				message: MESSAGE$16
+				message: MESSAGE$17
 			});
 		}
 	};
@@ -44156,7 +47057,7 @@ const noNoninteractiveElementToInteractiveRole = defineRule({
 		} };
 	}
 });
-const MESSAGE$15 = "Keyboard users get stuck focusing this element they can't act on because `tabIndex` makes it tabbable, so remove it.";
+const MESSAGE$16 = "Keyboard users get stuck focusing this element they can't act on because `tabIndex` makes it tabbable, so remove it.";
 const resolveSettings$14 = (settings) => {
 	const reactDoctor = settings?.["react-doctor"];
 	const ruleSettings = typeof reactDoctor === "object" && reactDoctor !== null ? reactDoctor.noNoninteractiveTabindex ?? {} : {};
@@ -44184,7 +47085,7 @@ const noNoninteractiveTabindex = defineRule({
 			if (numeric === null) {
 				if (isNodeOfType(tabIndexValue, "JSXExpressionContainer") && !settings.allowExpressionValues) context.report({
 					node: tabIndex,
-					message: MESSAGE$15
+					message: MESSAGE$16
 				});
 				return;
 			}
@@ -44197,7 +47098,7 @@ const noNoninteractiveTabindex = defineRule({
 			if (!roleAttribute) {
 				context.report({
 					node: tabIndex,
-					message: MESSAGE$15
+					message: MESSAGE$16
 				});
 				return;
 			}
@@ -44211,7 +47112,7 @@ const noNoninteractiveTabindex = defineRule({
 			}
 			context.report({
 				node: tabIndex,
-				message: MESSAGE$15
+				message: MESSAGE$16
 			});
 		} };
 	}
@@ -44610,31 +47511,6 @@ const noPolymorphicChildren = defineRule({
 		});
 	} })
 });
-const readReactDoctorSettingsBag = (settings) => {
-	const reactDoctorSettings = settings?.["react-doctor"];
-	if (typeof reactDoctorSettings !== "object" || reactDoctorSettings === null || Array.isArray(reactDoctorSettings)) return null;
-	return reactDoctorSettings;
-};
-const readOwnPropertyValue = (bag, settingName) => Object.getOwnPropertyDescriptor(bag, settingName)?.value;
-const getReactDoctorStringSetting = (settings, settingName) => {
-	const bag = readReactDoctorSettingsBag(settings);
-	if (!bag) return void 0;
-	const settingValue = readOwnPropertyValue(bag, settingName);
-	return typeof settingValue === "string" ? settingValue : void 0;
-};
-const getReactDoctorNumberSetting = (settings, settingName) => {
-	const bag = readReactDoctorSettingsBag(settings);
-	if (!bag) return void 0;
-	const settingValue = readOwnPropertyValue(bag, settingName);
-	return typeof settingValue === "number" && Number.isFinite(settingValue) ? settingValue : void 0;
-};
-const getReactDoctorStringArraySetting = (settings, settingName) => {
-	const bag = readReactDoctorSettingsBag(settings);
-	if (!bag) return [];
-	const settingValue = readOwnPropertyValue(bag, settingName);
-	if (!Array.isArray(settingValue)) return [];
-	return settingValue.filter((entry) => typeof entry === "string" && entry.length > 0);
-};
 const PREVENT_DEFAULT_ELEMENTS = new Map([["form", ["onSubmit"]], ["a", ["onClick"]]]);
 const SERVER_CAPABLE_FRAMEWORKS = new Set([
 	"nextjs",
@@ -44897,7 +47773,7 @@ const noRandomKey = defineRule({
 		});
 	} })
 });
-const MESSAGE$14 = "`React.Children` traversal depends on the runtime child shape, so wrapping or unwrapping a child can silently change what gets visited.";
+const MESSAGE$15 = "`React.Children` traversal depends on the runtime child shape, so wrapping or unwrapping a child can silently change what gets visited.";
 const isChildrenIdentifier = (node, contextNode) => {
 	if (!isNodeOfType(node, "Identifier") || node.name !== "Children") return false;
 	return isImportedFromModule(contextNode, "Children", "react");
@@ -44923,13 +47799,13 @@ const noReactChildren = defineRule({
 		if (isChildrenIdentifier(memberObject, node)) {
 			context.report({
 				node: calleeOuter,
-				message: MESSAGE$14
+				message: MESSAGE$15
 			});
 			return;
 		}
 		if (isReactNamespaceMember(memberObject, node)) context.report({
 			node: calleeOuter,
-			message: MESSAGE$14
+			message: MESSAGE$15
 		});
 	} })
 });
@@ -45236,7 +48112,7 @@ const noRenderPropChildren = defineRule({
 		});
 	} })
 });
-const MESSAGE$13 = "Your app breaks in React 19 because `ReactDOM.render` returns nothing there.";
+const MESSAGE$14 = "Your app breaks in React 19 because `ReactDOM.render` returns nothing there.";
 const isReactDomRenderCall = (node) => {
 	if (!isNodeOfType(node.callee, "MemberExpression")) return false;
 	if (!isNodeOfType(node.callee.object, "Identifier")) return false;
@@ -45260,7 +48136,7 @@ const noRenderReturnValue = defineRule({
 		if (!isUsedAsReturnValue(node.parent)) return;
 		context.report({
 			node: node.callee,
-			message: MESSAGE$13
+			message: MESSAGE$14
 		});
 	} })
 });
@@ -45268,7 +48144,7 @@ const isUndefinedNode = (node) => {
 	if (node === null || node === void 0) return true;
 	return isNodeOfType(node, "Identifier") && node.name === "undefined";
 };
-const getNodeText = (node) => {
+const getNodeText$1 = (node) => {
 	if (!node) return "";
 	return JSON.stringify(node, (key, value) => {
 		if (key === "parent" || key === "loc" || key === "range" || key === "start" || key === "end") return;
@@ -45286,7 +48162,7 @@ const isSetStateToInitialValue = (analysis, setterRef) => {
 	if (isUndefinedNode(setStateToValue) && isUndefinedNode(stateInitialValue)) return true;
 	if (setStateToValue == null && stateInitialValue == null) return true;
 	if (setStateToValue && !stateInitialValue || !setStateToValue && stateInitialValue) return false;
-	return getNodeText(setStateToValue) === getNodeText(stateInitialValue);
+	return getNodeText$1(setStateToValue) === getNodeText$1(stateInitialValue);
 };
 const countUseStates = (analysis, componentNode) => {
 	if (!componentNode) return 0;
@@ -45347,171 +48223,6 @@ const noScaleFromZero = defineRule({
 		}
 	} })
 });
-const AUTH_FUNCTION_NAMES = new Set([
-	"auth",
-	"getSession",
-	"getServerSession",
-	"getUser",
-	"requireAuth",
-	"checkAuth",
-	"verifyAuth",
-	"authenticate",
-	"currentUser",
-	"getAuth",
-	"validateSession"
-]);
-const GENERIC_AUTH_METHOD_NAMES = new Set(["getUser"]);
-const AUTH_OBJECT_PATTERN = /(?:^|[._])(?:auth|authn|authz|clerk|session|jwt|firebase|supabase|nextauth|kinde|workos|stytch|descope|cognito|propelauth|lucia)/i;
-const SECRET_PATTERNS = [
-	/^sk_live_/,
-	/^sk_test_/,
-	/^AKIA[0-9A-Z]{16}$/,
-	/^ghp_[a-zA-Z0-9]{36}$/,
-	/^gho_[a-zA-Z0-9]{36}$/,
-	/^github_pat_/,
-	/^glpat-/,
-	/^xox[bporas]-/,
-	/^sk-[a-zA-Z0-9]{32,}$/
-];
-const PUBLIC_CLIENT_KEY_PATTERNS = [
-	/^appl_/,
-	/^goog_/,
-	/^amzn_/,
-	/^strp_/,
-	/^pk_(?:live|test)_/,
-	/^sb_publishable_/,
-	/^phc_/,
-	/^public-token-(?:live|test)-/,
-	/^pk\.eyJ/
-];
-const SECRET_UNAMBIGUOUS_PLACEHOLDER_VALUE_PATTERNS = [
-	/^[\s._\-*\u2022xX]{8,}$/,
-	/(?:\.{3,}|\u2026|[*\u2022]{3,})/,
-	/(?:^|[_\-\s])(?:your|redacted|masked|placeholder|replace[_\-\s]?me|changeme)(?:$|[_\-\s])/i,
-	/<[^>]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^>]*>/i,
-	/\[[^\]]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^\]]*\]/i,
-	/\{[^}]*(?:auth|credential|key|password|secret|token|your|redacted|placeholder|masked)[^}]*\}/i
-];
-const SECRET_CONTEXTUAL_PLACEHOLDER_VALUE_PATTERNS = [/(?:^|[_\-\s])(?:example|sample|dummy)(?:$|[_\-\s])/i];
-const SECRET_PLACEHOLDER_CONTEXT_PATTERN = /(?:placeholder|example|sample|dummy|masked|redacted|mask)/i;
-const SECRET_VARIABLE_PATTERN = /(?:api_?key|secret|token|password|credential|auth)/i;
-const SECRET_TOOLING_FILE_PATTERN = /(?:^|\/)[^/]+\.config\.[cm]?[jt]s$/;
-const SECRET_TOOLING_RC_FILE_PATTERN = /(?:^|\/)(?:\.[a-z-]+rc|[a-z-]+\.rc)\.[cm]?[jt]s$/;
-const SECRET_TEST_FILE_PATTERN = /(?:^|\/)[^/]+\.(?:test|spec|stories|story|fixture|fixtures)\.[cm]?[jt]sx?$/;
-const SECRET_SERVER_FILE_SUFFIX_PATTERN = /(?:^|\/)[^/]+\.server\.[cm]?[jt]sx?$/;
-const SECRET_SERVER_ENTRY_FILE_PATTERN = /(?:^|\/)(?:middleware|proxy|route)\.[cm]?[jt]sx?$/;
-const SECRET_NEXT_PAGES_API_FILE_PATTERN = /(?:^|\/)pages\/api\/.+\.[cm]?[jt]sx?$/;
-const SECRET_CLIENT_FILE_SUFFIX_PATTERN = /(?:^|\/)[^/]+\.(?:client|browser|web)\.[cm]?[jt]sx?$/;
-const SECRET_CLIENT_ENTRY_FILE_PATTERN = /(?:^|\/)(?:src\/)?(?:main|index|[Aa]pp|client)\.[cm]?[jt]sx?$/;
-const SECRET_SERVER_DIRECTORY_NAMES = new Set([
-	"backend",
-	"functions",
-	"lambdas",
-	"lambda",
-	"middleware",
-	"server",
-	"servers"
-]);
-const SECRET_SERVER_SOURCE_ROOT_OWNER_NAMES = new Set([
-	"api",
-	"backend",
-	"edge",
-	"function",
-	"functions",
-	"lambda",
-	"lambdas",
-	"server",
-	"servers",
-	"worker",
-	"workers"
-]);
-const SECRET_TEST_DIRECTORY_NAMES = new Set([
-	"__fixtures__",
-	"__mocks__",
-	"__tests__",
-	"fixtures",
-	"mocks",
-	"test",
-	"tests"
-]);
-const SECRET_TOOLING_DIRECTORY_NAMES = new Set([
-	"bin",
-	"config",
-	"configs",
-	"script",
-	"scripts",
-	"tooling",
-	"tools"
-]);
-const SECRET_CLIENT_SOURCE_DIRECTORY_NAMES = new Set([
-	"components",
-	"features",
-	"hooks",
-	"pages",
-	"ui",
-	"views",
-	"widgets"
-]);
-const SECRET_FALSE_POSITIVE_SUFFIXES = new Set([
-	"modal",
-	"label",
-	"text",
-	"title",
-	"name",
-	"id",
-	"url",
-	"path",
-	"route",
-	"page",
-	"param",
-	"field",
-	"column",
-	"header",
-	"placeholder",
-	"prefix",
-	"description",
-	"type",
-	"icon",
-	"class",
-	"style",
-	"variant",
-	"event",
-	"action",
-	"status",
-	"state",
-	"mode",
-	"flag",
-	"option",
-	"config",
-	"message",
-	"error",
-	"display",
-	"view",
-	"component",
-	"element",
-	"container",
-	"wrapper",
-	"button",
-	"link",
-	"input",
-	"select",
-	"dialog",
-	"menu",
-	"form",
-	"step",
-	"index",
-	"count",
-	"length",
-	"role",
-	"scope",
-	"context",
-	"provider",
-	"ref",
-	"handler",
-	"query",
-	"schema",
-	"constant"
-]);
 const SOURCE_FILE_EXTENSION_PATTERN = /\.[cm]?[jt]sx?$/;
 const CLIENT_SOURCE_FILE_EXTENSION_PATTERN = /\.[cm]?[jt]sx$/;
 const CLIENT_APP_DIRECTORY_FRAMEWORKS = new Set([
@@ -45578,9 +48289,13 @@ const classifySecretFileExposure = (filename, options = {}) => {
 	if (isClientSourceFile(normalizedFilename, pathSegments, classifiablePathSegments, options)) return "client";
 	return "unknown";
 };
-const getIdentifierTrailingWord = (identifierName) => {
-	return identifierName.match(/[A-Z]+(?=[A-Z][a-z]|\b)|[A-Z]?[a-z]+|\d+/g)?.at(-1)?.toLowerCase() ?? identifierName.toLowerCase();
+const IDENTIFIER_WORD_PATTERN = /[A-Z]+(?=[A-Z][a-z]|\b)|[A-Z]?[a-z]+|\d+/g;
+const tokenizeIdentifierWords = (identifierName) => {
+	const words = identifierName.match(IDENTIFIER_WORD_PATTERN);
+	if (!words) return [];
+	return words.map((word) => word.toLowerCase());
 };
+const getIdentifierTrailingWord = (identifierName) => tokenizeIdentifierWords(identifierName).at(-1) ?? identifierName.toLowerCase();
 const TANSTACK_ROUTE_FILE_PATTERN = /\/routes\//;
 const TANSTACK_ROOT_ROUTE_FILE_PATTERN = /__root\.(tsx?|jsx?)$/;
 const TANSTACK_ROUTE_PROPERTY_ORDER = [
@@ -45607,9 +48322,10 @@ const TANSTACK_ROUTE_CREATION_FUNCTIONS = new Set([
 	"createRootRouteWithContext"
 ]);
 const TANSTACK_SERVER_FN_NAMES = new Set(["createServerFn"]);
+const TANSTACK_INPUT_VALIDATOR_METHOD_NAMES = new Set(["validator", "inputValidator"]);
 const TANSTACK_MIDDLEWARE_METHOD_ORDER = [
 	"middleware",
-	"inputValidator",
+	"validator",
 	"client",
 	"server",
 	"handler"
@@ -46092,7 +48808,7 @@ const getParentComponent = (node) => {
 	}
 	return null;
 };
-const MESSAGE$12 = "`this.setState` keeps local class state in a project that forbids it, so state ownership becomes harder to reason about.";
+const MESSAGE$13 = "`this.setState` keeps local class state in a project that forbids it, so state ownership becomes harder to reason about.";
 const noSetState = defineRule({
 	id: "no-set-state",
 	title: "Local class state forbidden",
@@ -46107,7 +48823,7 @@ const noSetState = defineRule({
 		if (!getParentComponent(node)) return;
 		context.report({
 			node: node.callee,
-			message: MESSAGE$12
+			message: MESSAGE$13
 		});
 	} })
 });
@@ -46261,7 +48977,7 @@ const isAbstractRole = (openingElement, settings) => {
 	const value = getJsxPropStringValue(roleAttribute);
 	return value !== null && ABSTRACT_ROLES.has(value);
 };
-const MESSAGE$11 = "Screen reader users can't tell this click handler is interactive because it has no `role`, so add a `role` or use a button or link.";
+const MESSAGE$12 = "Screen reader users can't tell this click handler is interactive because it has no `role`, so add a `role` or use a button or link.";
 const DEFAULT_HANDLERS = [
 	"onClick",
 	"onMouseDown",
@@ -46321,7 +49037,7 @@ const noStaticElementInteractions = defineRule({
 			if (!roleAttribute || !roleAttribute.value) {
 				context.report({
 					node: node.name,
-					message: MESSAGE$11
+					message: MESSAGE$12
 				});
 				return;
 			}
@@ -46331,17 +49047,62 @@ const noStaticElementInteractions = defineRule({
 				if (firstRole && (isInteractiveRole(firstRole) || isNonInteractiveRole(firstRole))) return;
 				context.report({
 					node: node.name,
-					message: MESSAGE$11
+					message: MESSAGE$12
 				});
 				return;
 			}
 			if (isNodeOfType(attributeValue, "JSXExpressionContainer") && settings.allowExpressionValues) return;
 			context.report({
 				node: node.name,
-				message: MESSAGE$11
+				message: MESSAGE$12
 			});
 		} };
 	}
+});
+const BOOLEAN_ATTRIBUTES = new Set([
+	"disabled",
+	"checked",
+	"readonly",
+	"required",
+	"selected",
+	"multiple",
+	"autofocus",
+	"autoplay",
+	"controls",
+	"loop",
+	"muted",
+	"open",
+	"reversed",
+	"default",
+	"novalidate",
+	"formnovalidate",
+	"playsinline",
+	"itemscope",
+	"allowfullscreen"
+]);
+const noStringFalseOnBooleanAttribute = defineRule({
+	id: "no-string-false-on-boolean-attribute",
+	title: "String true/false on a boolean attribute",
+	severity: "warn",
+	recommendation: "Use the boolean form on boolean attributes: `disabled` / `disabled={true}` / `disabled={false}`, not `disabled=\"false\"`. A non-empty string is truthy, so `=\"false\"` actually turns the attribute ON.",
+	create: (context) => ({ JSXOpeningElement(node) {
+		if (!isNodeOfType(node.name, "JSXIdentifier")) return;
+		const firstCharacter = node.name.name.charCodeAt(0);
+		if (firstCharacter < 97 || firstCharacter > 122) return;
+		for (const attribute of node.attributes) {
+			if (!isNodeOfType(attribute, "JSXAttribute")) continue;
+			if (!isNodeOfType(attribute.name, "JSXIdentifier")) continue;
+			if (!BOOLEAN_ATTRIBUTES.has(attribute.name.name.toLowerCase())) continue;
+			const value = getJsxPropStringValue(attribute);
+			if (value !== "false" && value !== "true") continue;
+			const attributeName = attribute.name.name;
+			const guidance = value === "false" ? `which React treats as truthy, so the attribute is applied even though you wrote "false". Use \`${attributeName}={false}\` (or omit the attribute) to keep it off` : `but a boolean attribute takes a boolean, not the string "true". Use \`${attributeName}\` or \`${attributeName}={true}\``;
+			context.report({
+				node: attribute,
+				message: `\`${attributeName}="${value}"\` passes the string "${value}", ${guidance}.`
+			});
+		}
+	} })
 });
 const STRING_IN_REF_MESSAGE = "Your component can't reach this node because string refs don't work in modern React.";
 const THIS_REFS_MESSAGE = "Your component can't reach its nodes because `this.refs` is empty in modern React.";
@@ -46390,6 +49151,25 @@ const noStringRefs = defineRule({
 			}
 		};
 	}
+});
+const MESSAGE$11 = "A synchronous `XMLHttpRequest` (`.open(method, url, false)`) freezes the main thread until the request finishes, blocking all rendering and input. Use `fetch()` or an async XHR (`open(method, url, true)`).";
+const isFalseLiteral = (node) => isNodeOfType(node, "Literal") && node.value === false;
+const noSyncXhr = defineRule({
+	id: "no-sync-xhr",
+	title: "Synchronous XMLHttpRequest",
+	severity: "warn",
+	recommendation: "Never open an XMLHttpRequest synchronously (`async` = `false`). It blocks the main thread. Use `fetch()` or pass `true` and handle the response asynchronously.",
+	create: (context) => ({ CallExpression(node) {
+		const callee = node.callee;
+		if (!isNodeOfType(callee, "MemberExpression") || callee.computed) return;
+		if (!isNodeOfType(callee.property, "Identifier") || callee.property.name !== "open") return;
+		const asyncArgument = node.arguments?.[2];
+		if (!asyncArgument || !isFalseLiteral(stripParenExpression(asyncArgument))) return;
+		context.report({
+			node,
+			message: MESSAGE$11
+		});
+	} })
 });
 const MESSAGE$10 = "This value is `undefined` because function components have no `this`.";
 const isInsideClassMethod = (node, customClassFactoryNames) => {
@@ -47777,15 +50557,8 @@ const expressionContainsJsxOrCreateElement = (root) => {
 	visit(root);
 	return found;
 };
-const classExtendsReactComponent$1 = (classNode) => {
-	const superClass = classNode.superClass;
-	if (!superClass) return false;
-	if (isNodeOfType(superClass, "Identifier") && (superClass.name === "Component" || superClass.name === "PureComponent")) return true;
-	if (isNodeOfType(superClass, "MemberExpression") && isNodeOfType(superClass.object, "Identifier") && superClass.object.name === "React" && isNodeOfType(superClass.property, "Identifier") && (superClass.property.name === "Component" || superClass.property.name === "PureComponent")) return true;
-	return false;
-};
 const isReactClassComponent = (classNode) => {
-	if (classExtendsReactComponent$1(classNode)) return true;
+	if (isEs6Component(classNode)) return true;
 	return expressionContainsJsxOrCreateElement(classNode);
 };
 const findEnclosingComponent = (node) => {
@@ -47945,7 +50718,7 @@ const noUnstableNestedComponents = defineRule({
 	create: (context) => {
 		const settings = resolveSettings$8(context.settings);
 		const renderPropRegex = compileGlob(settings.propNamePattern);
-		const reportCandidate = (candidateNode, reportNode, candidateName) => {
+		const reportCandidate = (candidateNode, reportNode) => {
 			if (isFirstArgumentOfHocCall(candidateNode)) return;
 			if (isReturnOfMapCallback(candidateNode)) return;
 			const propInfo = isComponentDeclaredInProp(candidateNode);
@@ -47966,7 +50739,7 @@ const noUnstableNestedComponents = defineRule({
 			const inferredName = inferFunctionLikeName(node);
 			const propInfo = isComponentDeclaredInProp(node);
 			if (!(inferredName !== null && isReactComponentName(inferredName) || propInfo !== null || isObjectCallbackCandidate(node))) return;
-			reportCandidate(node, node, inferredName);
+			reportCandidate(node, node);
 		};
 		return {
 			FunctionDeclaration: checkFunctionLike,
@@ -47976,18 +50749,18 @@ const noUnstableNestedComponents = defineRule({
 				if (!node.id) return;
 				if (!isReactComponentName(node.id.name)) return;
 				if (!isReactClassComponent(node)) return;
-				reportCandidate(node, node, node.id.name);
+				reportCandidate(node, node);
 			},
 			ClassExpression(node) {
 				const inferredName = node.id?.name ?? inferFunctionLikeName(node);
 				if (!inferredName || !isReactComponentName(inferredName)) return;
 				if (!isReactClassComponent(node)) return;
-				reportCandidate(node, node, inferredName);
+				reportCandidate(node, node);
 			},
 			CallExpression(node) {
 				if (!isHocCallee$1(node)) return;
 				if (!hocCallContainsComponent(node)) return;
-				reportCandidate(node, node, null);
+				reportCandidate(node, node);
 			}
 		};
 	}
@@ -48187,6 +50960,30 @@ const noZIndex9999 = defineRule({
 		}
 	})
 });
+const nosqlInjectionRisk = defineRule({
+	id: "nosql-injection-risk",
+	title: "NoSQL query accepts operator-shaped input",
+	severity: "warn",
+	recommendation: "Coerce scalar fields before querying, reject operator keys from client input, and avoid `$where` or request-derived regexes.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionFilePath(file.relativePath, DATABASE_SOURCE_FILE_PATTERN),
+		pattern: /\$where\s*['"]?\s*:\s*(?:f?['"`][^'"`]{0,200}\$\{|function|f['"])|\.find\s*\(\s*JSON\.parse\s*\(\s*(?:req|request)\.|\.aggregate\s*\(\s*\[?\s*\{[^}]{0,400}\$where|\bnew\s+RegExp\s*\(\s*(?:req|request)\.|\$regex['"]?\s*:\s*(?:req|request)\./i,
+		message: "Code appears to pass raw JSON, regex, or `$where` style input into a NoSQL query."
+	})
+});
+const sourceFileExtensionGroup = NEXTJS_SOURCE_FILE_EXTENSION_GROUP;
+const FRAMEWORK_ROUTE_FILE_PATTERNS = [
+	new RegExp(`^(page|layout|loading|error|not-found|template|default|global-error|route|_app|_document|_error)\\.${sourceFileExtensionGroup}$`),
+	new RegExp(`^(_layout|\\+html|\\+not-found|\\+native-intent)\\.${sourceFileExtensionGroup}$`),
+	new RegExp(`(?:^__root|\\.lazy)\\.${sourceFileExtensionGroup}$`),
+	new RegExp(`^(root|entry\\.client|entry\\.server)\\.${sourceFileExtensionGroup}$`)
+];
+const isFrameworkRouteOrSpecialFilename = (rawFilename) => {
+	if (!rawFilename) return false;
+	if (isNextjsMetadataImageRouteFilename(rawFilename)) return true;
+	const basename = path$1.basename(rawFilename);
+	return FRAMEWORK_ROUTE_FILE_PATTERNS.some((pattern) => pattern.test(basename));
+};
 const NOT_REACT_COMPONENT_EXPRESSION_TYPES = new Set([
 	"ArrayExpression",
 	"AwaitExpression",
@@ -48237,32 +51034,6 @@ const ENTRY_POINT_BASENAMES = new Set([
 	"client.jsx",
 	"server.tsx",
 	"server.jsx",
-	"page.tsx",
-	"page.jsx",
-	"layout.tsx",
-	"layout.jsx",
-	"loading.tsx",
-	"loading.jsx",
-	"error.tsx",
-	"error.jsx",
-	"not-found.tsx",
-	"not-found.jsx",
-	"template.tsx",
-	"template.jsx",
-	"default.tsx",
-	"default.jsx",
-	"global-error.tsx",
-	"global-error.jsx",
-	"route.tsx",
-	"route.jsx",
-	"_layout.tsx",
-	"_layout.jsx",
-	"_app.tsx",
-	"_app.jsx",
-	"_document.tsx",
-	"_document.jsx",
-	"_error.tsx",
-	"_error.jsx",
 	"app.tsx",
 	"app.jsx",
 	"App.tsx",
@@ -48415,13 +51186,6 @@ const skipTsExpression = (expression) => {
 	if (expression.type === "TSAsExpression" || expression.type === "TSSatisfiesExpression" || expression.type === "TSNonNullExpression") return skipTsExpression(expression.expression);
 	return expression;
 };
-const classExtendsReactComponent = (classNode) => {
-	const superClass = classNode.superClass;
-	if (!superClass) return false;
-	if (isNodeOfType(superClass, "Identifier") && (superClass.name === "Component" || superClass.name === "PureComponent")) return true;
-	if (isNodeOfType(superClass, "MemberExpression") && isNodeOfType(superClass.object, "Identifier") && superClass.object.name === "React" && isNodeOfType(superClass.property, "Identifier") && (superClass.property.name === "Component" || superClass.property.name === "PureComponent")) return true;
-	return false;
-};
 const isReactCreateContext = (initializer) => {
 	if (!initializer) return false;
 	const expression = skipTsExpression(initializer);
@@ -48553,6 +51317,7 @@ const isFileNameAllowed = (filename, checkJS) => {
 	if (filename.includes(".test.") || filename.includes(".spec.") || filename.includes(".cy.") || filename.includes(".stories.")) return false;
 	for (const segment of NON_FAST_REFRESH_PATH_SEGMENTS) if (filename.includes(segment)) return false;
 	if (isEntryPointFile(filename)) return false;
+	if (isFrameworkRouteOrSpecialFilename(filename)) return false;
 	if (isAssetOrUtilityFile(filename)) return false;
 	if (filename.endsWith(".tsx") || filename.endsWith(".jsx")) return true;
 	if (checkJS && filename.endsWith(".js")) return true;
@@ -48611,7 +51376,7 @@ const onlyExportComponents = defineRule({
 						if (stripped.id) {
 							const idNode = stripped.id;
 							isExportedNodeIds.add(stripped);
-							if (isReactComponentName(idNode.name) && classExtendsReactComponent(stripped)) hasReactExport = true;
+							if (isReactComponentName(idNode.name) && isEs6Component(stripped)) hasReactExport = true;
 							else exports.push({
 								kind: "non-component",
 								reportNode: idNode
@@ -48671,7 +51436,7 @@ const onlyExportComponents = defineRule({
 							exports.push(classifyExport(declaration.id.name, declaration.id, true, null, state));
 						} else if (isNodeOfType(declaration, "ClassDeclaration") && declaration.id) {
 							isExportedNodeIds.add(declaration);
-							if (isReactComponentName(declaration.id.name) && classExtendsReactComponent(declaration)) exports.push({ kind: "react-component" });
+							if (isReactComponentName(declaration.id.name) && isEs6Component(declaration)) exports.push({ kind: "react-component" });
 							else exports.push({
 								kind: "non-component",
 								reportNode: declaration.id
@@ -48742,6 +51507,110 @@ const onlyExportComponents = defineRule({
 				message: NO_EXPORT_MESSAGE
 			});
 		} };
+	}
+});
+const packageMetadataSecret = defineRule({
+	id: "package-metadata-secret",
+	title: "Secret-like package metadata",
+	severity: "warn",
+	recommendation: "Keep secrets out of package metadata and generated reports; they are often published to registries, logs, or browser artifacts.",
+	scan: (file) => {
+		if (!file.relativePath.endsWith("package.json")) return [];
+		const pattern = findSuspiciousPublicEnvSecretNamePattern(file.content) ?? SECRET_VALUE_PATTERNS.find((candidate) => candidate.test(file.content));
+		if (pattern === void 0) return [];
+		const location = getMatchLocation(file.content, pattern);
+		return [{
+			message: "Package metadata contains secret-like values or public env secret names.",
+			line: location.line,
+			column: location.column
+		}];
+	}
+});
+const pathTraversalRisk = defineRule({
+	id: "path-traversal-risk",
+	title: "Filesystem path uses caller input",
+	severity: "warn",
+	recommendation: "Resolve paths against a fixed base directory, reject traversal after normalization, and map user-visible identifiers to server-owned paths.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath) && !isDevToolingPath(file.relativePath),
+		pattern: /\b(?:readFile|readFileSync|writeFile|writeFileSync)\s*\(\s*(?:req\.|request\.|params\.|query\.|body\.|parsed\.|`[^`]*(?<![-.\w$'"])(?:req\.|request\.|params\.|query\.|body\.))|\bpath\.(?:join|resolve)\s*\([^)]*(?<![-.\w$'"])(?:req\.|request\.|params\.|query\.|body\.|parsed\.)/,
+		message: "Filesystem access appears to use request, query, params, or body data as part of the path."
+	})
+});
+const UPDATER_TRUST_PATTERN = /\b(?:repoUrl|updateUrl|UpdateApp|InstallApp|auto.?updater?|installer|curl(?!\s+(?:-T\b|--upload-file\b))|wget)\b[\s\S]{0,250}(?:\.(?:zip|exe|dmg|appimage|msi|deb|rpm)\b|\.tar\.gz\b|\|\s*(?:bash|sh)\b)/i;
+const CHECKSUM_VERIFICATION_PATTERN = /sha(?:256|512|1)sum|--checksum|checksum=|EXPECTED_SHA|gpg\s+--verify|\.sha(?:256|512)\b/i;
+const EXECUTION_CONTEXT_PATTERN = /\b(?:child_process|childProcess|execa|os\.system|subprocess\.|Deno\.run|autoUpdater|electron-updater)\b|\b(?:exec(?:File)?(?:Sync)?|spawn(?:Sync)?)\s*\(/;
+const pluginUpdateTrustRisk = defineRule({
+	id: "plugin-update-trust-risk",
+	title: "Plugin or updater trust boundary risk",
+	severity: "warn",
+	recommendation: "Require signed updates/plugins, pin trusted repositories, verify hashes before execution, and keep custom repository installs behind explicit warnings.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath) && !isConfigOrCiPath(file.relativePath)) return [];
+		const content = getScannableContent(file);
+		if (!UPDATER_TRUST_PATTERN.test(content)) return [];
+		if (CHECKSUM_VERIFICATION_PATTERN.test(content)) return [];
+		if (SOURCE_FILE_PATTERN$1.test(file.relativePath) && !EXECUTION_CONTEXT_PATTERN.test(content)) return [];
+		const location = getMatchLocation(content, UPDATER_TRUST_PATTERN);
+		return [{
+			message: "Code appears to download, install, update, or execute plugin/updater content across a trust boundary.",
+			line: location.line,
+			column: location.column
+		}];
+	}
+});
+const POSTMESSAGE_ORIGIN_CHECK_PATTERN = /origin(?!al)|\.source\s*[!=]==?/i;
+const MESSAGE_DATA_READ_PATTERN = /\b(?:event|e|evt|msg|message)\.data\b/;
+const SAME_APPLICATION_CHANNEL_TARGET_PATTERN = /port\d?\b|worker|channel|broadcast|socket|\bws\b|\bsse\b|eventsource|^self\.|^source\./i;
+const WORKER_FILE_PATH_PATTERN = /worker/i;
+const getNodeStartIndex = (node) => "start" in node && typeof node.start === "number" ? node.start : -1;
+const getNodeText = (content, node) => {
+	const startIndex = getNodeStartIndex(node);
+	const endIndex = "end" in node && typeof node.end === "number" ? node.end : -1;
+	if (startIndex < 0 || endIndex < 0) return "";
+	return content.slice(startIndex, endIndex);
+};
+const getMessageHandlerTarget = (content, node) => {
+	if (node.type === "CallExpression") {
+		const calleeText = isAstNode(node.callee) ? getNodeText(content, node.callee) : "";
+		if (!calleeText.endsWith("addEventListener")) return null;
+		const firstArgument = node.arguments[0];
+		return isAstNode(firstArgument) && firstArgument.type === "Literal" && firstArgument.value === "message" ? calleeText : null;
+	}
+	if (node.type === "AssignmentExpression" && isAstNode(node.left)) {
+		const leftText = getNodeText(content, node.left);
+		return leftText.endsWith(".onmessage") ? leftText : null;
+	}
+	return null;
+};
+const postmessageOriginRisk = defineRule({
+	id: "postmessage-origin-risk",
+	title: "postMessage handler without origin check",
+	severity: "warn",
+	recommendation: "Validate `event.origin` against an exact allowlist before using `event.data`, especially when an iframe or parent window can be attacker-controlled.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		if (WORKER_FILE_PATH_PATTERN.test(file.relativePath)) return [];
+		const ast = parseSourceText(file.absolutePath, file.content);
+		if (ast === null) return [];
+		const findings = [];
+		walkAst(ast, (node) => {
+			const targetText = getMessageHandlerTarget(file.content, node);
+			if (targetText === null) return;
+			if (SAME_APPLICATION_CHANNEL_TARGET_PATTERN.test(targetText)) return;
+			const nodeText = getNodeText(file.content, node);
+			const messageDataIndex = nodeText.search(MESSAGE_DATA_READ_PATTERN);
+			if (messageDataIndex < 0) return;
+			const originCheckIndex = nodeText.search(POSTMESSAGE_ORIGIN_CHECK_PATTERN);
+			if (originCheckIndex >= 0 && originCheckIndex < messageDataIndex) return;
+			const location = getLocationAtIndex(file.content, getNodeStartIndex(node));
+			findings.push({
+				message: "A message event handler reads cross-window messages without an obvious origin check.",
+				line: location.line,
+				column: location.column
+			});
+		});
+		return findings;
 	}
 });
 const ARRAY_READ_METHOD_NAMES = new Set([
@@ -49824,6 +52693,47 @@ const preferUseReducer = defineRule({
 		};
 	}
 });
+const LOCALE_DIRECTORY_PATTERN = /(?:^|\/)(?:locales?|i18n|lang|langs|translations?)\//i;
+const isPublicDebugArtifactPath = (relativePath) => isBrowserArtifactPath(relativePath, GENERATED_BUNDLE_FILE_PATTERN$1.test(relativePath)) && !LOCALE_DIRECTORY_PATTERN.test(relativePath) && /(?:^|\/)(?:\.env(?:\.[^/]*)?|[^/]*(?:debug|crash|trace|stack|report|dump|phpinfo)[^/]*\.(?:txt|log|json|html?)|[^/]+\.log)$/i.test(relativePath);
+const publicDebugArtifact = defineRule({
+	id: "public-debug-artifact",
+	title: "Public debug artifact",
+	severity: "warn",
+	recommendation: "Remove debug artifacts from public output; logs and dumps often reveal source paths, internal routes, tokens, or environment snapshots.",
+	scan: (file) => {
+		if (!isPublicDebugArtifactPath(file.relativePath)) return [];
+		const finding = {
+			message: "A browser-reachable debug, log, dump, report, or env artifact is present.",
+			line: 1,
+			column: 1
+		};
+		return [SECRET_VALUE_PATTERNS.some((pattern) => pattern.test(file.content)) ? {
+			...finding,
+			severity: "error"
+		} : finding];
+	}
+});
+const DOCS_DIRECTORY_PATTERN = /(?:^|\/)docs?\//i;
+const publicEnvSecretName = defineRule({
+	id: "public-env-secret-name",
+	title: "Secret-like public env variable",
+	severity: "warn",
+	recommendation: "Public env prefixes are inlined into browser bundles. Rename public values to non-secret names, and keep tokens, passwords, private keys, and service-role credentials server-only.",
+	scan: (file) => {
+		if (!isClientSourcePath(file.relativePath)) return [];
+		if (DOCS_DIRECTORY_PATTERN.test(file.relativePath)) return [];
+		const pattern = findSuspiciousPublicEnvSecretNamePattern(file.content);
+		if (pattern === void 0) return [];
+		const location = getMatchLocation(file.content, pattern);
+		return [{
+			message: "Client code references a public env variable whose name looks like a secret or privileged credential.",
+			line: location.line,
+			column: location.column
+		}];
+	}
+});
+const TANSTACK_QUERY_PACKAGE_PATTERN = /^@tanstack\/[\w-]*query[\w-]*$/;
+const isTanstackQuerySource = (source) => TANSTACK_QUERY_PACKAGE_PATTERN.test(source) || source === "react-query";
 const queryDestructureResult = defineRule({
 	id: "query-destructure-result",
 	title: "Whole query result subscribes to every field",
@@ -49836,6 +52746,8 @@ const queryDestructureResult = defineRule({
 		if (!node.init || !isNodeOfType(node.init, "CallExpression")) return;
 		const calleeName = isNodeOfType(node.init.callee, "Identifier") ? node.init.callee.name : null;
 		if (!calleeName || !TANSTACK_QUERY_HOOKS.has(calleeName)) return;
+		const importSource = getImportSourceForName(node, calleeName);
+		if (importSource !== null && !isTanstackQuerySource(importSource)) return;
 		context.report({
 			node: node.id,
 			message: `Destructure ${calleeName}() results instead of assigning the whole query object, so TanStack Query only subscribes to the fields you use.`
@@ -50002,6 +52914,30 @@ const queryStableQueryClient = defineRule({
 			}
 		};
 	}
+});
+const rawSqlInjectionRisk = defineRule({
+	id: "raw-sql-injection-risk",
+	title: "Raw SQL built outside parameter binding",
+	severity: "warn",
+	recommendation: "Keep user input in driver parameters or ORM bind variables. Avoid unsafe/raw SQL helpers and string interpolation for queries.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionScriptSourcePath(file.relativePath),
+		pattern: [
+			/\$queryRawUnsafe\s*\(/,
+			/\$executeRawUnsafe\s*\(/,
+			/\bPrisma\.raw\s*\((?!\s*(?:["'][^"'\n]*["']\s*[,)]|`[^`$]*`))/,
+			/\bsql\.\s*(?:raw|unsafe)\s*\((?!\s*(?:["'][^"'\n]*["']\s*[,)]|`[^`$]*`))/,
+			/\b(?:client|pool|conn)\.query\s*\(\s*['"`]\s*(?:SELECT|INSERT|UPDATE|DELETE)\b[^)]{0,400}\$\{(?!\s*[\w$.]*(?:sanitiz|escape|quote)[\w$]*\s*\()/i,
+			/\.query\s*\(\s*['"`][^'"`]{0,200}['"`]\s*\+/,
+			/\.(?:where|orderBy|having)Raw\s*\((?!\s*(?:["'][^"'\n]*["']\s*[,)]|`[^`$]*`))/,
+			/\bcursor\.execute\s*\(\s*f['"]/,
+			/\bcursor\.execute\s*\(\s*(?:"[^"]{0,400}"|'[^']{0,400}')\s*(?:%|\.format\s*\(|\+)/,
+			/\b(?:engine|session)\.execute\s*\(\s*(?:text\s*\(\s*)?f['"]/,
+			/\$[\w]+->(?:query|exec|prepare|executeQuery|executeStatement|createQuery|createNativeQuery)\s*\(\s*(?:"[^"]{0,400}"|'[^']{0,400}')\s*\.\s*\$/,
+			/mysqli_query\s*\(\s*[^,]+,\s*(?:"[^"]{0,400}"|'[^']{0,400}')\s*\.\s*\$/
+		],
+		message: "Code uses a raw SQL escape hatch or string-built query shape that can bypass parameter binding."
+	})
 });
 const REMOVAL_MESSAGE_BY_REACT_API_NAME = new Map([
 	["useMemo", "This `useMemo` is dead weight, since React Compiler already caches every value here. Delete it."],
@@ -50603,6 +53539,40 @@ const renderingUsetransitionLoading = defineRule({
 			message: `This adds an extra render because useState for "${stateVariableName}" re-renders just for the loading flag, so if it's a state change & not a data fetch, use useTransition instead`
 		});
 	} })
+});
+const isRepositorySecretFilePath = (relativePath) => DOTENV_FILE_PATTERN.test(relativePath) || /(?:^|\/)\.npmrc$/.test(relativePath) || /(?:^|\/)[^/]*(?:credential|credentials|service-account|serviceAccount|firebase-admin|google-service-account|gcp-service-account)[^/]*\.(?:json|env|pem|key)$/i.test(relativePath);
+const isRepositorySecretExamplePath = (relativePath) => /(?:^|\/)\.env\.(?:example|sample|template|dist|defaults?)$|(?:^|\/)[^/]*(?:example|sample|template)[^/]*\.(?:env|json|pem|key)$/i.test(relativePath);
+const repositorySecretFile = defineRule({
+	id: "repository-secret-file",
+	title: "Secret file checked into repository",
+	severity: "error",
+	committedFilesOnly: true,
+	recommendation: "Remove committed env files, service-account credentials, npm auth tokens, and webhook URLs; rotate exposed values and keep only redacted examples in source.",
+	scan: (file) => {
+		if (!isRepositorySecretFilePath(file.relativePath)) return [];
+		if (isRepositorySecretExamplePath(file.relativePath)) return [];
+		if (TEST_CONTEXT_PATTERN.test(file.relativePath)) return [];
+		const pattern = SECRET_VALUE_PATTERNS.find((candidate) => candidate.test(file.content)) ?? findSuspiciousPublicEnvSecretNamePattern(file.content);
+		if (pattern === void 0) return [];
+		const location = getMatchLocation(file.content, pattern);
+		return [{
+			message: "A repository credential/config file contains secret-looking values.",
+			line: location.line,
+			column: location.column
+		}];
+	}
+});
+const REQUEST_INPUT_SOURCE = "(?:req|request|ctx\\.req|ctx\\.request)\\.(?:body|query|params)|await\\s+(?:req|request)\\.json\\(\\s*\\)";
+const requestBodyMassAssignment = defineRule({
+	id: "request-body-mass-assignment",
+	title: "Request input spread without field allowlist",
+	severity: "warn",
+	recommendation: "Assign explicit, allowlisted fields (or validate with a strict schema and no `.passthrough()`) instead of spreading/merging request input. Otherwise the client can set ownership, role, or price columns (mass assignment) or pollute the prototype.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: [new RegExp(`\\.\\.\\.\\s*(?:${REQUEST_INPUT_SOURCE})`, "i"), new RegExp(`(?:Object\\.assign\\s*\\(|_\\.(?:merge|mergeWith|defaultsDeep)\\s*\\(|(?:^|[^.\\w])(?:merge|defaultsDeep)\\s*\\()[\\s\\S]{0,80}?(?:${REQUEST_INPUT_SOURCE})`, "i")],
+		message: "Request input is spread or merged into an object without a field allowlist, enabling mass assignment (client-set owner/role/price fields) or prototype pollution."
+	})
 });
 const functionBodyHasReturnWithValue = (functionNode) => {
 	if (functionNode.type === "ArrowFunctionExpression" && "body" in functionNode) {
@@ -52269,29 +55239,236 @@ const isInsidePlatformOsWebBranch = (node) => {
 	return false;
 };
 const isFunctionNode = (node) => isNodeOfType(node, "ArrowFunctionExpression") || isNodeOfType(node, "FunctionExpression") || isNodeOfType(node, "FunctionDeclaration");
-const resolveReturnedRootElementName = (functionNode) => {
+const COMPONENT_WRAPPER_CALLEE_NAMES = new Set(["memo", "forwardRef"]);
+const resolveCalleeName = (callee) => {
+	if (isNodeOfType(callee, "Identifier")) return callee.name;
+	if (isNodeOfType(callee, "MemberExpression") && isNodeOfType(callee.property, "Identifier")) return callee.property.name;
+	return null;
+};
+const unwrapComponentDefinition = (node) => {
+	let current = stripParenExpression(node);
+	while (isNodeOfType(current, "CallExpression")) {
+		const calleeName = resolveCalleeName(current.callee);
+		const firstArgument = current.arguments?.[0];
+		if (!calleeName || !COMPONENT_WRAPPER_CALLEE_NAMES.has(calleeName) || !firstArgument) break;
+		current = stripParenExpression(firstArgument);
+	}
+	return current;
+};
+const resolveChildrenPropertyLocalName = (property) => {
+	if (!isNodeOfType(property, "Property")) return null;
+	if (!isNodeOfType(property.key, "Identifier") || property.key.name !== "children") return null;
+	const value = property.value;
+	if (isNodeOfType(value, "Identifier")) return value.name;
+	if (isNodeOfType(value, "AssignmentPattern") && isNodeOfType(value.left, "Identifier")) return value.left.name;
+	return null;
+};
+const resolveParamChildrenBindings = (functionNode) => {
+	const bindings = {
+		childrenNames: /* @__PURE__ */ new Set(),
+		propsObjectNames: /* @__PURE__ */ new Set()
+	};
+	const firstParam = functionNode.params?.[0];
+	if (!firstParam) return bindings;
+	if (isNodeOfType(firstParam, "Identifier")) {
+		bindings.propsObjectNames.add(firstParam.name);
+		return bindings;
+	}
+	if (!isNodeOfType(firstParam, "ObjectPattern")) return bindings;
+	let didDestructureChildren = false;
+	let restName = null;
+	for (const property of firstParam.properties ?? []) {
+		if (isNodeOfType(property, "RestElement") && isNodeOfType(property.argument, "Identifier")) {
+			restName = property.argument.name;
+			continue;
+		}
+		const localName = resolveChildrenPropertyLocalName(property);
+		if (localName) {
+			didDestructureChildren = true;
+			bindings.childrenNames.add(localName);
+		}
+	}
+	if (restName && !didDestructureChildren) bindings.propsObjectNames.add(restName);
+	return bindings;
+};
+const MAX_CHILDREN_ALIAS_PASSES = 3;
+const isPropsObjectExpression = (expression, bindings) => {
+	if (!expression) return false;
+	const value = stripParenExpression(expression);
+	if (isNodeOfType(value, "Identifier")) return bindings.propsObjectNames.has(value.name);
+	return isNodeOfType(value, "MemberExpression") && isNodeOfType(value.object, "ThisExpression") && isNodeOfType(value.property, "Identifier") && value.property.name === "props";
+};
+const isChildrenValueExpression = (expression, bindings) => {
+	if (!expression) return false;
+	const value = stripParenExpression(expression);
+	if (isNodeOfType(value, "Identifier")) return bindings.childrenNames.has(value.name);
+	return isNodeOfType(value, "MemberExpression") && isNodeOfType(value.property, "Identifier") && value.property.name === "children" && isPropsObjectExpression(value.object, bindings);
+};
+const collectChildrenAliases = (functionNode, bindings) => {
 	const { body } = functionNode;
-	if (!body) return null;
-	if (!isNodeOfType(body, "BlockStatement")) return isNodeOfType(body, "JSXElement") ? resolveJsxElementName(body.openingElement) : null;
-	for (const statement of body.body) {
-		if (!isNodeOfType(statement, "ReturnStatement")) continue;
-		const argument = statement.argument;
-		if (argument && isNodeOfType(argument, "JSXElement")) return resolveJsxElementName(argument.openingElement);
+	if (!body || !isNodeOfType(body, "BlockStatement")) return;
+	for (let pass = 0; pass < MAX_CHILDREN_ALIAS_PASSES; pass += 1) {
+		const sizeBeforePass = bindings.childrenNames.size;
+		walkAst(body, (node) => {
+			if (isFunctionNode(node)) return false;
+			if (!isNodeOfType(node, "VariableDeclarator") || !node.init) return void 0;
+			if (isNodeOfType(node.id, "Identifier")) {
+				if (isChildrenValueExpression(node.init, bindings)) bindings.childrenNames.add(node.id.name);
+				return;
+			}
+			if (isNodeOfType(node.id, "ObjectPattern") && isPropsObjectExpression(node.init, bindings)) for (const property of node.id.properties ?? []) {
+				const localName = resolveChildrenPropertyLocalName(property);
+				if (localName) bindings.childrenNames.add(localName);
+			}
+		});
+		if (bindings.childrenNames.size === sizeBeforePass) break;
+	}
+};
+const collectJsxRootsFromExpression = (expression, roots) => {
+	const value = stripParenExpression(expression);
+	if (isNodeOfType(value, "JSXElement") || isNodeOfType(value, "JSXFragment")) {
+		roots.push(value);
+		return;
+	}
+	if (isNodeOfType(value, "ConditionalExpression")) {
+		if (value.consequent) collectJsxRootsFromExpression(value.consequent, roots);
+		if (value.alternate) collectJsxRootsFromExpression(value.alternate, roots);
+		return;
+	}
+	if (isNodeOfType(value, "LogicalExpression")) {
+		if (value.left) collectJsxRootsFromExpression(value.left, roots);
+		if (value.right) collectJsxRootsFromExpression(value.right, roots);
+	}
+};
+const collectReturnedJsxRoots = (functionNode) => {
+	const roots = [];
+	const { body } = functionNode;
+	if (!body) return roots;
+	if (!isNodeOfType(body, "BlockStatement")) {
+		collectJsxRootsFromExpression(body, roots);
+		return roots;
+	}
+	walkAst(body, (node) => {
+		if (isFunctionNode(node) && node !== functionNode) return false;
+		if (isNodeOfType(node, "ReturnStatement") && node.argument) {
+			collectJsxRootsFromExpression(node.argument, roots);
+			return false;
+		}
+	});
+	return roots;
+};
+const isChildrenForwardingJsxChild = (child, bindings) => isNodeOfType(child, "JSXExpressionContainer") && isChildrenValueExpression(child.expression, bindings);
+const isChildrenForwardingAttribute = (attribute, bindings) => {
+	if (isNodeOfType(attribute, "JSXSpreadAttribute")) return isPropsObjectExpression(attribute.argument, bindings);
+	return isNodeOfType(attribute, "JSXAttribute") && isNodeOfType(attribute.name, "JSXIdentifier") && attribute.name.name === "children" && isNodeOfType(attribute.value, "JSXExpressionContainer") && isChildrenValueExpression(attribute.value.expression, bindings);
+};
+const jsxRootForwardsChildrenIntoText = (jsxRoot, bindings, isTextHandlingElement) => {
+	let didForwardIntoText = false;
+	walkAst(jsxRoot, (node) => {
+		if (didForwardIntoText || isFunctionNode(node)) return false;
+		if (!isNodeOfType(node, "JSXElement")) return void 0;
+		const elementName = resolveJsxElementName(node.openingElement);
+		if (!elementName || !isTextHandlingElement(elementName)) return;
+		didForwardIntoText = (node.children ?? []).some((child) => isChildrenForwardingJsxChild(child, bindings)) || (node.openingElement.attributes ?? []).some((attribute) => isChildrenForwardingAttribute(attribute, bindings));
+	});
+	return didForwardIntoText;
+};
+const isMeaningfulJsxChild = (child) => !isNodeOfType(child, "JSXText") || Boolean(child.value?.trim());
+const jsxRootRendersChildrenOutsideText = (jsxRoot, bindings, isTextHandlingElement) => {
+	let didRenderOutsideText = false;
+	walkAst(jsxRoot, (node) => {
+		if (didRenderOutsideText || isFunctionNode(node)) return false;
+		if (!isNodeOfType(node, "JSXElement") && !isNodeOfType(node, "JSXFragment")) return;
+		if (isNodeOfType(node, "JSXElement")) {
+			const elementName = resolveJsxElementName(node.openingElement);
+			if (elementName && isTextHandlingElement(elementName)) return false;
+			if (!(node.children ?? []).some(isMeaningfulJsxChild) && (node.openingElement.attributes ?? []).some((attribute) => isChildrenForwardingAttribute(attribute, bindings))) {
+				didRenderOutsideText = true;
+				return;
+			}
+		}
+		didRenderOutsideText = (node.children ?? []).some((child) => isChildrenForwardingJsxChild(child, bindings));
+	});
+	return didRenderOutsideText;
+};
+const resolveStyledFactoryBaseName = (definitionNode) => {
+	let current = stripParenExpression(definitionNode);
+	while (current) {
+		if (isNodeOfType(current, "TaggedTemplateExpression")) {
+			current = stripParenExpression(current.tag);
+			continue;
+		}
+		if (isNodeOfType(current, "CallExpression")) {
+			const callee = stripParenExpression(current.callee);
+			if (isNodeOfType(callee, "Identifier") && callee.name === "styled") {
+				const baseArgument = current.arguments?.[0];
+				if (!baseArgument) return null;
+				const base = stripParenExpression(baseArgument);
+				return isNodeOfType(base, "Identifier") ? base.name : null;
+			}
+			current = callee;
+			continue;
+		}
+		if (isNodeOfType(current, "MemberExpression")) {
+			if (isNodeOfType(current.object, "Identifier") && current.object.name === "styled" && isNodeOfType(current.property, "Identifier")) return current.property.name;
+			current = stripParenExpression(current.object);
+			continue;
+		}
+		return null;
 	}
 	return null;
 };
-const recordWrapperFromDeclaration = (componentName, functionNode, isTextHandlingRoot, wrappers) => {
-	if (!componentName || !isReactComponentName(componentName)) return;
-	if (!functionNode || !isFunctionNode(functionNode)) return;
-	const rootName = resolveReturnedRootElementName(functionNode);
-	if (rootName && isTextHandlingRoot(rootName)) wrappers.add(componentName);
+const resolveClassRenderFunction = (classNode) => {
+	if (!isNodeOfType(classNode, "ClassDeclaration") && !isNodeOfType(classNode, "ClassExpression")) return null;
+	for (const member of classNode.body?.body ?? []) {
+		if (!isNodeOfType(member, "MethodDefinition")) continue;
+		if (!isNodeOfType(member.key, "Identifier") || member.key.name !== "render") continue;
+		return member.value && isFunctionNode(member.value) ? member.value : null;
+	}
+	return null;
 };
+const recordWrapperFromDeclaration = (componentName, definitionNode, isTextHandlingElement, wrappers) => {
+	if (!componentName || !isReactComponentName(componentName)) return;
+	if (wrappers.has(componentName)) return;
+	if (!definitionNode) return;
+	const unwrapped = unwrapComponentDefinition(definitionNode);
+	const styledBaseName = resolveStyledFactoryBaseName(unwrapped);
+	if (styledBaseName && isTextHandlingElement(styledBaseName)) {
+		wrappers.add(componentName);
+		return;
+	}
+	const functionNode = resolveClassRenderFunction(unwrapped) ?? (isFunctionNode(unwrapped) ? unwrapped : null);
+	if (!functionNode) return;
+	const bindings = resolveParamChildrenBindings(functionNode);
+	collectChildrenAliases(functionNode, bindings);
+	const jsxRoots = collectReturnedJsxRoots(functionNode);
+	if (jsxRoots.some((jsxRoot) => jsxRootRendersChildrenOutsideText(jsxRoot, bindings, isTextHandlingElement))) return;
+	for (const jsxRoot of jsxRoots) {
+		if (isNodeOfType(jsxRoot, "JSXElement")) {
+			const rootName = resolveJsxElementName(jsxRoot.openingElement);
+			if (rootName && isTextHandlingElement(rootName)) {
+				wrappers.add(componentName);
+				return;
+			}
+		}
+		if (jsxRootForwardsChildrenIntoText(jsxRoot, bindings, isTextHandlingElement)) {
+			wrappers.add(componentName);
+			return;
+		}
+	}
+};
+const MAX_TRANSITIVE_WRAPPER_PASSES = 3;
 const collectTextWrapperComponents = (programNode, isTextHandlingRoot) => {
 	const wrappers = /* @__PURE__ */ new Set();
-	walkAst(programNode, (node) => {
-		if (isNodeOfType(node, "VariableDeclarator")) recordWrapperFromDeclaration(node.id && isNodeOfType(node.id, "Identifier") ? node.id.name : null, node.init, isTextHandlingRoot, wrappers);
-		else if (isNodeOfType(node, "FunctionDeclaration")) recordWrapperFromDeclaration(node.id && isNodeOfType(node.id, "Identifier") ? node.id.name : null, node, isTextHandlingRoot, wrappers);
-	});
+	const isTextHandlingElement = (elementName) => isTextHandlingRoot(elementName) || wrappers.has(elementName);
+	for (let pass = 0; pass < MAX_TRANSITIVE_WRAPPER_PASSES; pass += 1) {
+		const sizeBeforePass = wrappers.size;
+		walkAst(programNode, (node) => {
+			if (isNodeOfType(node, "VariableDeclarator")) recordWrapperFromDeclaration(node.id && isNodeOfType(node.id, "Identifier") ? node.id.name : null, node.init, isTextHandlingElement, wrappers);
+			else if (isNodeOfType(node, "FunctionDeclaration") || isNodeOfType(node, "ClassDeclaration")) recordWrapperFromDeclaration(node.id && isNodeOfType(node.id, "Identifier") ? node.id.name : null, node, isTextHandlingElement, wrappers);
+		});
+		if (wrappers.size === sizeBeforePass) break;
+	}
 	return wrappers;
 };
 const isNamedImportOf = (contextNode, localName, componentName) => {
@@ -52355,6 +55532,7 @@ const rnNoRawText = defineRule({
 	title: "Raw text outside a Text component",
 	requires: ["react-native"],
 	severity: "error",
+	tags: ["test-noise"],
 	recommendation: "Text outside a `<Text>` component crashes on React Native. Wrap it like `<Text>{value}</Text>`.",
 	create: (context) => {
 		let isDomComponentFile = false;
@@ -52587,132 +55765,6 @@ const rnPreferContentInsetAdjustment = defineRetiredRule({
 	severity: "warn",
 	recommendation: "Retired: SafeAreaView wrappers are valid; prefer native content inset adjustment only when manual inset plumbing causes scroll jumps or duplicated safe-area offsets."
 });
-const EXPO_MANAGED_DEPENDENCY_NAMES = new Set([
-	"expo",
-	"expo-router",
-	"@expo/cli",
-	"@expo/metro-config",
-	"@expo/metro-runtime"
-]);
-const REACT_NATIVE_DEPENDENCY_NAMES = new Set([
-	"react-native",
-	"react-native-tvos",
-	...EXPO_MANAGED_DEPENDENCY_NAMES,
-	"react-native-windows",
-	"react-native-macos"
-]);
-const REACT_NATIVE_DEPENDENCY_PREFIXES = ["@react-native/", "@react-native-"];
-const isExpoManagedDependencyName = (dependencyName) => EXPO_MANAGED_DEPENDENCY_NAMES.has(dependencyName);
-const isReactNativeDependencyName$1 = (dependencyName) => {
-	if (REACT_NATIVE_DEPENDENCY_NAMES.has(dependencyName)) return true;
-	for (const prefix of REACT_NATIVE_DEPENDENCY_PREFIXES) if (dependencyName.startsWith(prefix)) return true;
-	return false;
-};
-const WEB_FRAMEWORK_DEPENDENCY_NAMES = new Set([
-	"next",
-	"vite",
-	"react-scripts",
-	"gatsby",
-	"@remix-run/react",
-	"@remix-run/node",
-	"@docusaurus/core",
-	"@docusaurus/preset-classic",
-	"@storybook/react",
-	"@storybook/react-vite",
-	"@storybook/react-webpack5",
-	"@storybook/nextjs",
-	"@storybook/web-components",
-	"storybook",
-	"react-dom",
-	"@vitejs/plugin-react",
-	"@vitejs/plugin-react-swc"
-]);
-const cachedPlatformByPackageDirectory = /* @__PURE__ */ new Map();
-const cachedPackageDirectoryByFilename$1 = /* @__PURE__ */ new Map();
-const findNearestPackageDirectory$2 = (filename) => {
-	if (!filename) return null;
-	const fromCache = cachedPackageDirectoryByFilename$1.get(filename);
-	if (fromCache !== void 0) return fromCache;
-	let currentDirectory = path$1.dirname(filename);
-	while (true) {
-		const candidatePackageJsonPath = path$1.join(currentDirectory, "package.json");
-		let hasPackageJson = false;
-		try {
-			hasPackageJson = fs$1.statSync(candidatePackageJsonPath).isFile();
-		} catch {
-			hasPackageJson = false;
-		}
-		if (hasPackageJson) {
-			cachedPackageDirectoryByFilename$1.set(filename, currentDirectory);
-			return currentDirectory;
-		}
-		const parentDirectory = path$1.dirname(currentDirectory);
-		if (parentDirectory === currentDirectory) {
-			cachedPackageDirectoryByFilename$1.set(filename, null);
-			return null;
-		}
-		currentDirectory = parentDirectory;
-	}
-};
-const readPackageJsonSafe = (packageJsonPath) => {
-	let rawContents;
-	try {
-		rawContents = fs$1.readFileSync(packageJsonPath, "utf-8");
-	} catch {
-		return null;
-	}
-	try {
-		const parsed = JSON.parse(rawContents);
-		if (typeof parsed === "object" && parsed !== null) return parsed;
-		return null;
-	} catch {
-		return null;
-	}
-};
-const DEPENDENCY_SECTION_NAMES = [
-	"dependencies",
-	"devDependencies",
-	"peerDependencies",
-	"optionalDependencies"
-];
-const iterateDependencyNames = function* (packageJson) {
-	for (const sectionName of DEPENDENCY_SECTION_NAMES) {
-		const section = packageJson[sectionName];
-		if (!section) continue;
-		for (const dependencyName of Object.keys(section)) yield dependencyName;
-	}
-};
-const isReactNativeAware = (packageJson) => {
-	if (typeof packageJson["react-native"] === "string") return true;
-	for (const dependencyName of iterateDependencyNames(packageJson)) if (isReactNativeDependencyName$1(dependencyName)) return true;
-	return false;
-};
-const isExpoManaged = (packageJson) => {
-	for (const dependencyName of iterateDependencyNames(packageJson)) if (isExpoManagedDependencyName(dependencyName)) return true;
-	return false;
-};
-const isWebFrameworkOnly = (packageJson) => {
-	for (const dependencyName of iterateDependencyNames(packageJson)) if (WEB_FRAMEWORK_DEPENDENCY_NAMES.has(dependencyName)) return true;
-	return false;
-};
-const classifyPackagePlatform = (filename) => {
-	const packageDirectory = findNearestPackageDirectory$2(filename);
-	if (!packageDirectory) return "unknown";
-	const cached = cachedPlatformByPackageDirectory.get(packageDirectory);
-	if (cached !== void 0) return cached;
-	const packageJson = readPackageJsonSafe(path$1.join(packageDirectory, "package.json"));
-	if (!packageJson) {
-		cachedPlatformByPackageDirectory.set(packageDirectory, "unknown");
-		return "unknown";
-	}
-	let result;
-	if (isExpoManaged(packageJson)) result = "expo";
-	else if (isReactNativeAware(packageJson)) result = "react-native";
-	else if (isWebFrameworkOnly(packageJson)) result = "web";
-	else result = "unknown";
-	cachedPlatformByPackageDirectory.set(packageDirectory, result);
-	return result;
-};
 const isExpoManagedFileActive = (context) => {
 	const rawFilename = context.filename;
 	const filename = rawFilename ? normalizeFilename$1(rawFilename) : void 0;
@@ -56585,7 +59637,7 @@ const findEnclosingFunctionInfo = (node) => {
 				name: displayName,
 				hasResolvedName: resolvedName !== null,
 				isAsync: Boolean(current.async),
-				isComponentOrHook: resolvedName === null ? false : isReactComponentOrHookName(displayName)
+				isComponentOrHook: isReactHocCallbackArgument(current) || (resolvedName === null ? false : isReactComponentOrHookName(displayName))
 			};
 		}
 		current = current.parent ?? null;
@@ -56644,6 +59696,7 @@ const findEnclosingComponentOrHookFunction = (node) => {
 	let current = node.parent;
 	while (current) {
 		if (isFunctionLike$2(current)) {
+			if (isReactHocCallbackArgument(current)) return current;
 			const resolvedName = inferFunctionName(current);
 			if (resolvedName !== null && isReactComponentOrHookName(resolvedName)) return current;
 		}
@@ -56743,26 +59796,26 @@ const rulesOfHooks = defineRule({
 					});
 					return;
 				}
-				if (!enclosing.hasResolvedName) {
-					let outerWalker = enclosing.node;
-					let outerIsComponentOrHook = false;
-					while (outerWalker) {
-						const outerInfo = findEnclosingFunctionInfo(outerWalker);
-						if (!outerInfo) break;
-						if (outerInfo.isComponentOrHook) {
-							outerIsComponentOrHook = true;
-							break;
-						}
-						outerWalker = outerInfo.node;
-					}
-					if (!outerIsComponentOrHook) return;
-					context.report({
-						node: node.callee,
-						message: buildConditionalMessage(hookName)
-					});
-					return;
-				}
 				if (!enclosing.isComponentOrHook) {
+					if (!enclosing.hasResolvedName) {
+						let outerWalker = enclosing.node;
+						let outerIsComponentOrHook = false;
+						while (outerWalker) {
+							const outerInfo = findEnclosingFunctionInfo(outerWalker);
+							if (!outerInfo) break;
+							if (outerInfo.isComponentOrHook) {
+								outerIsComponentOrHook = true;
+								break;
+							}
+							outerWalker = outerInfo.node;
+						}
+						if (!outerIsComponentOrHook) return;
+						context.report({
+							node: node.callee,
+							message: buildConditionalMessage(hookName)
+						});
+						return;
+					}
 					context.report({
 						node: node.callee,
 						message: buildNonComponentMessage(hookName, enclosing.name)
@@ -56826,6 +59879,17 @@ const scope = defineRule({
 			message: MESSAGE$3
 		});
 	} })
+});
+const secretInFallback = defineRule({
+	id: "secret-in-fallback",
+	title: "Hardcoded secret fallback for env var",
+	severity: "error",
+	recommendation: "Remove the literal fallback and fail closed (throw when the variable is unset). The hardcoded value is a committed secret, and the `??`/`||` default makes the app run with it in any environment that forgot to set the var.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: /\bprocess\.env\.(?![A-Z0-9_]*(?:PUBLIC|PUBLISHABLE|ANON)\b)[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_?KEY|APIKEY|ACCESS_KEY|CLIENT_SECRET|CREDENTIAL|SIGNING_KEY|ENCRYPTION_KEY|WEBHOOK_SECRET|SERVICE_ROLE)[A-Z0-9_]*(?<!_(?:NAME|HEADER|ENDPOINT|URL|URI|ID|PREFIX|SUFFIX|PARAM|PARAMS|FIELD|ISSUER|AUDIENCE|ALGORITHM|ALG|REGION|BUCKET|HOST|HOSTNAME|PORT|PATH|VERSION|SCOPE|TYPE|FORMAT|EXPIRY|TTL))\s*(?:\?\?|\|\|)\s*(["'`])(?!(?:changeme|change[_-]?me|placeholder|your[_-]|example|sample|dummy|development|local|todo|replace[_-]?me|https?:\/\/|x{3,}|\*{3,}))[^"'`\n]{8,}\1/i,
+		message: "A secret env var has a hardcoded string fallback: the literal is a committed secret and the app fails open (uses it) when the variable is unset."
+	})
 });
 const MESSAGE$2 = "This tag has no children, so the closing tag adds noise without changing output.";
 const resolveSettings$2 = (settings) => {
@@ -56940,6 +60004,45 @@ const serverAfterNonblocking = defineRule({
 		};
 	}
 });
+const SIGNED_IN_HEAD_TOKENS = new Set([
+	"signed",
+	"logged",
+	"sign"
+]);
+const mergeSignedInTokens = (tokens) => {
+	const mergedTokens = [];
+	for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex += 1) {
+		const currentToken = tokens[tokenIndex];
+		if (SIGNED_IN_HEAD_TOKENS.has(currentToken) && tokens[tokenIndex + 1] === "in") {
+			mergedTokens.push(`${currentToken}in`);
+			tokenIndex += 1;
+			continue;
+		}
+		mergedTokens.push(currentToken);
+	}
+	return mergedTokens;
+};
+const isAuthGuardName = (calleeName) => {
+	const tokens = mergeSignedInTokens(tokenizeIdentifierWords(calleeName));
+	if (tokens.length === 0) return false;
+	let hasAssertiveVerb = false;
+	let hasGetterVerb = false;
+	let hasQualifier = false;
+	let hasStrongNoun = false;
+	let hasWeakNoun = false;
+	for (const token of tokens) {
+		if (AUTH_STRONG_TOKEN_PATTERN.test(token) || AUTH_STANDALONE_NOUN_TOKENS.has(token)) return true;
+		if (AUTH_ASSERTIVE_VERB_TOKENS.has(token)) hasAssertiveVerb = true;
+		if (AUTH_GETTER_VERB_TOKENS.has(token)) hasGetterVerb = true;
+		if (AUTH_QUALIFIER_TOKENS.has(token)) hasQualifier = true;
+		if (AUTH_STRONG_NOUN_TOKENS.has(token)) hasStrongNoun = true;
+		if (AUTH_WEAK_NOUN_TOKENS.has(token)) hasWeakNoun = true;
+	}
+	if (hasAssertiveVerb && (hasStrongNoun || hasWeakNoun)) return true;
+	if (hasGetterVerb && hasStrongNoun) return true;
+	if (hasQualifier && hasWeakNoun) return true;
+	return false;
+};
 const isAsyncFunctionLikeNode = (node) => {
 	if (!node) return false;
 	if (!isNodeOfType(node, "FunctionDeclaration") && !isNodeOfType(node, "FunctionExpression") && !isNodeOfType(node, "ArrowFunctionExpression")) return false;
@@ -56981,9 +60084,13 @@ const isMemberCallAuthRelated = (receiverNode, methodName, genericMethodNames) =
 const getAuthCallName = (callExpression, allowedFunctionNames, genericMethodNames) => {
 	const calleeNode = unwrapTypeWrappedCallee(callExpression.callee);
 	if (!calleeNode) return null;
-	if (isNodeOfType(calleeNode, "Identifier")) return allowedFunctionNames.has(calleeNode.name) ? calleeNode.name : null;
+	if (isNodeOfType(calleeNode, "Identifier")) {
+		const calleeName = calleeNode.name;
+		return allowedFunctionNames.has(calleeName) || isAuthGuardName(calleeName) ? calleeName : null;
+	}
 	if (isNodeOfType(calleeNode, "MemberExpression") && isNodeOfType(calleeNode.property, "Identifier")) {
 		const methodName = calleeNode.property.name;
+		if (isAuthGuardName(methodName)) return methodName;
 		if (!allowedFunctionNames.has(methodName)) return null;
 		if (!isMemberCallAuthRelated(calleeNode.object, methodName, genericMethodNames)) return null;
 		return methodName;
@@ -57199,6 +60306,7 @@ const serverFetchWithoutRevalidate = defineRule({
 			CallExpression(node) {
 				if (!isServerSideFile) return;
 				if (!isFetchCall(node)) return;
+				if (isMutatingFetchCall(node)) return;
 				const optionsArg = node.arguments?.[1];
 				if (optionsArg && objectExpressionHasNextRevalidate(optionsArg)) return;
 				const urlArg = node.arguments?.[0];
@@ -57348,13 +60456,7 @@ const serverNoMutableModuleState = defineRule({
 const collectDeclaredNames = (declaration) => {
 	const names = /* @__PURE__ */ new Set();
 	if (!isNodeOfType(declaration, "VariableDeclaration")) return names;
-	for (const declarator of declaration.declarations ?? []) if (isNodeOfType(declarator.id, "Identifier")) names.add(declarator.id.name);
-	else if (isNodeOfType(declarator.id, "ObjectPattern")) {
-		for (const property of declarator.id.properties ?? []) if (isNodeOfType(property, "Property") && isNodeOfType(property.value, "Identifier")) names.add(property.value.name);
-		else if (isNodeOfType(property, "RestElement") && isNodeOfType(property.argument, "Identifier")) names.add(property.argument.name);
-	} else if (isNodeOfType(declarator.id, "ArrayPattern")) {
-		for (const element of declarator.id.elements ?? []) if (isNodeOfType(element, "Identifier")) names.add(element.name);
-	}
+	for (const declarator of declaration.declarations ?? []) collectPatternNames(declarator.id, names);
 	return names;
 };
 const declarationStartsWithAwait = (declaration) => {
@@ -57364,11 +60466,15 @@ const declarationStartsWithAwait = (declaration) => {
 };
 const declarationReadsAnyName = (declaration, names) => {
 	if (names.size === 0) return false;
+	if (!isNodeOfType(declaration, "VariableDeclaration")) return false;
 	let didRead = false;
-	walkAst(declaration, (child) => {
-		if (didRead) return;
-		if (isNodeOfType(child, "Identifier") && names.has(child.name)) didRead = true;
-	});
+	for (const declarator of declaration.declarations ?? []) {
+		if (!declarator.init) continue;
+		walkAst(declarator.init, (child) => {
+			if (didRead) return;
+			if (isNodeOfType(child, "Identifier") && names.has(child.name)) didRead = true;
+		});
+	}
 	return didRead;
 };
 const serverSequentialIndependentAwait = defineRule({
@@ -57601,6 +60707,247 @@ const stylePropObject = defineRule({
 		};
 	}
 });
+const supabaseClientOwnedAuthzField = defineRule({
+	id: "supabase-client-owned-authz-field",
+	title: "Client writes Supabase authorization field",
+	severity: "error",
+	recommendation: "Use RLS policies based on `auth.uid()` and server-owned membership rows; do not trust client-provided owner, org, or role columns.",
+	scan: scanByPattern({
+		shouldScan: (file) => isClientSourcePath(file.relativePath),
+		pattern: /\b(?:ownerId|ownerID|creatorId|creatorID|userId|userID|uid|providerId|providerID|orgId|orgID|tenantId|tenantID|teamId|teamID|workspaceId|workspaceID|ghostOrg|role|roles|isAdmin|admin)\b/,
+		requireAll: [/\b(?:supabase\b|\.from\s*\(\s*["'][^"']+["']\s*\))[\s\S]{0,700}\b(?:insert|upsert|update)\s*\(\s*(?:\{|\[?\s*\{)[\s\S]{0,700}\b(?:ownerId|creatorId|userId|orgId|tenantId|role|isAdmin)\b/i],
+		message: "Client Supabase code appears to write user, tenant, owner, or role fields that should be enforced by RLS."
+	})
+});
+const isSupabaseMigrationPath = (relativePath) => /(?:^|\/)supabase\/(?:migrations|schemas)\//.test(relativePath);
+const isSqlPath = (relativePath) => relativePath.endsWith(".sql") || isSupabaseMigrationPath(relativePath);
+const supabaseRlsPolicyRisk = defineRule({
+	id: "supabase-rls-policy-risk",
+	title: "Permissive Supabase RLS policy",
+	severity: "error",
+	recommendation: "Keep public-read policies explicit, but gate inserts, updates, deletes, and service-role bypasses behind `auth.uid()` plus trusted tenant membership.",
+	scan: scanByPattern({
+		shouldScan: (file) => isSqlPath(file.relativePath),
+		pattern: [
+			/disable\s+row\s+level\s+security/i,
+			/create\s+policy[\s\S]{0,700}auth\.role\(\)\s*=\s*["']service_role["']/i,
+			/create\s+policy[\s\S]{0,700}\bfor\s+(?:all|insert|update|delete)\b[\s\S]{0,500}\b(?:using|with\s+check)\s*\(\s*true\s*\)/i,
+			/create\s+policy(?:(?!\bfor\s+select\b)[\s\S]){0,700}\b(?:using|with\s+check)\s*\(\s*true\s*\)/i
+		],
+		message: "Supabase policy SQL disables RLS, permits writes broadly, or references a service-role bypass."
+	})
+});
+const DOLLAR_QUOTE_TAG_PATTERN = /^\$[A-Za-z_]?\w*\$/;
+const CODE_BODY_KEYWORDS = new Set([
+	"do",
+	"plpgsql",
+	"sql",
+	"plpython3u",
+	"plpythonu",
+	"plperl",
+	"plperlu",
+	"plv8"
+]);
+const precedingKeyword = (content, beforeIndex) => {
+	let lookBack = beforeIndex - 1;
+	while (lookBack >= 0 && /\s/.test(content[lookBack] ?? "")) lookBack -= 1;
+	let wordStart = lookBack;
+	while (wordStart >= 0 && /[A-Za-z0-9_]/.test(content[wordStart] ?? "")) wordStart -= 1;
+	return content.slice(wordStart + 1, lookBack + 1).toLowerCase();
+};
+const blankCodeBodyInterior = (content, characters, start, end) => {
+	let index = start;
+	let inExecuteStatement = false;
+	while (index < end) {
+		const character = content[index];
+		if (character === ";") {
+			inExecuteStatement = false;
+			index += 1;
+			continue;
+		}
+		if (/[A-Za-z_]/.test(character)) {
+			let wordEnd = index;
+			while (wordEnd < end && /[A-Za-z0-9_]/.test(content[wordEnd] ?? "")) wordEnd += 1;
+			if (content.slice(index, wordEnd).toLowerCase() === "execute") inExecuteStatement = true;
+			index = wordEnd;
+			continue;
+		}
+		if (character === "'") {
+			const keepVisible = inExecuteStatement;
+			if (!keepVisible) characters[index] = " ";
+			index += 1;
+			while (index < end) {
+				if (content[index] === "'") {
+					if (content[index + 1] === "'") {
+						if (!keepVisible) {
+							characters[index] = " ";
+							characters[index + 1] = " ";
+						}
+						index += 2;
+						continue;
+					}
+					if (!keepVisible) characters[index] = " ";
+					index += 1;
+					break;
+				}
+				if (!keepVisible && content[index] !== "\n") characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "\"") {
+			index += 1;
+			while (index < end) {
+				if (content[index] === "\"") {
+					if (content[index + 1] === "\"") {
+						index += 2;
+						continue;
+					}
+					index += 1;
+					break;
+				}
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "-" && content[index + 1] === "-") {
+			while (index < end && content[index] !== "\n") {
+				characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "/" && content[index + 1] === "*") {
+			while (index < end) {
+				if (content[index] === "*" && content[index + 1] === "/") {
+					characters[index] = " ";
+					characters[index + 1] = " ";
+					index += 2;
+					break;
+				}
+				if (content[index] !== "\n") characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		index += 1;
+	}
+};
+const sanitizeSqlForScan = (content) => {
+	const characters = content.split("");
+	let index = 0;
+	while (index < content.length) {
+		const character = content[index];
+		if (character === "-" && content[index + 1] === "-") {
+			while (index < content.length && content[index] !== "\n") {
+				characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "/" && content[index + 1] === "*") {
+			while (index < content.length) {
+				if (content[index] === "*" && content[index + 1] === "/") {
+					characters[index] = " ";
+					characters[index + 1] = " ";
+					index += 2;
+					break;
+				}
+				if (content[index] !== "\n") characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "'") {
+			characters[index] = " ";
+			index += 1;
+			while (index < content.length) {
+				if (content[index] === "'") {
+					if (content[index + 1] === "'") {
+						characters[index] = " ";
+						characters[index + 1] = " ";
+						index += 2;
+						continue;
+					}
+					characters[index] = " ";
+					index += 1;
+					break;
+				}
+				if (content[index] !== "\n") characters[index] = " ";
+				index += 1;
+			}
+			continue;
+		}
+		if (character === "$") {
+			const tagMatch = DOLLAR_QUOTE_TAG_PATTERN.exec(content.slice(index));
+			if (tagMatch !== null) {
+				const tag = tagMatch[0];
+				const closeIndex = content.indexOf(tag, index + tag.length);
+				const endIndex = closeIndex < 0 ? content.length : closeIndex + tag.length;
+				const keyword = precedingKeyword(content, index);
+				if (CODE_BODY_KEYWORDS.has(keyword)) blankCodeBodyInterior(content, characters, index + tag.length, endIndex);
+				else for (let blankIndex = index; blankIndex < endIndex; blankIndex += 1) if (content[blankIndex] !== "\n") characters[blankIndex] = " ";
+				index = endIndex;
+				continue;
+			}
+		}
+		if (character === "\"") {
+			index += 1;
+			while (index < content.length) {
+				if (content[index] === "\"") {
+					if (content[index + 1] === "\"") {
+						index += 2;
+						continue;
+					}
+					index += 1;
+					break;
+				}
+				index += 1;
+			}
+			continue;
+		}
+		index += 1;
+	}
+	return characters.join("");
+};
+const CREATE_PUBLIC_TABLE_PATTERN = /create\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?(?!(?:auth|storage|realtime|vault|extensions|graphql|graphql_public|pgbouncer|net|supabase_functions|supabase_migrations|cron|pgsodium|pgmq|information_schema|pg_catalog|pg_temp|private|internal)\s*\.)(?:public\s*\.\s*)?["`]?([A-Za-z_][\w$]*)["`]?(?:\s*\(|\s+as\b)/gi;
+const enableRlsForTablePattern = (tableName) => new RegExp(`alter\\s+table\\s+(?:if\\s+exists\\s+)?(?:only\\s+)?(?:public\\s*\\.\\s*)?["\`]?${escapeRegExp(tableName)}["\`]?\\s+(?:force\\s+)?enable\\s+row\\s+level\\s+security`, "i");
+const supabaseTableMissingRls = defineRule({
+	id: "supabase-table-missing-rls",
+	title: "Supabase table created without Row Level Security",
+	severity: "error",
+	recommendation: "Enable RLS in the same migration (`alter table <name> enable row level security;`) and add `auth.uid()`-scoped policies for select/insert/update/delete. A public table without RLS is fully readable and writable with the public anon key.",
+	scan: (file) => {
+		if (!isSupabaseMigrationPath(file.relativePath)) return [];
+		const content = sanitizeSqlForScan(file.content);
+		if (!/create\s+(?:unlogged\s+)?table/i.test(content)) return [];
+		const findings = [];
+		CREATE_PUBLIC_TABLE_PATTERN.lastIndex = 0;
+		for (let match = CREATE_PUBLIC_TABLE_PATTERN.exec(content); match !== null; match = CREATE_PUBLIC_TABLE_PATTERN.exec(content)) {
+			const tableName = match[1];
+			if (tableName === void 0) continue;
+			if (enableRlsForTablePattern(tableName).test(content.slice(match.index))) continue;
+			const location = getLocationAtIndex(content, match.index);
+			findings.push({
+				message: "Supabase migration creates a public table but never enables Row Level Security, leaving every row exposed to the anon key.",
+				line: location.line,
+				column: location.column
+			});
+		}
+		return findings;
+	}
+});
+const svgFilterClickjackingRisk = defineRule({
+	id: "svg-filter-clickjacking-risk",
+	title: "SVG-filtered iframe clickjacking primitive",
+	severity: "warn",
+	recommendation: "Avoid filtering cross-origin iframes. Use `frame-ancestors` on sensitive pages and keep SVG filters away from embedded privileged UI.",
+	scan: scanByPattern({
+		shouldScan: (file) => isProductionSourcePath(file.relativePath),
+		pattern: /<iframe\b[\s\S]{0,700}\bfilter\s*:\s*["']?url\(#|filter\s*:\s*url\(#.*[\s\S]{0,700}<iframe\b|<fe(?:DisplacementMap|ColorMatrix|Composite|Tile|Morphology)\b[\s\S]{0,700}<iframe\b/i,
+		message: "An iframe is rendered through an SVG/CSS filter, which can support advanced clickjacking or visual exfiltration tricks."
+	})
+});
 const MESSAGE = "Keyboard users get jumped out of the normal order by a positive `tabIndex`, so use `0` or `-1`.";
 const tabindexNoPositive = defineRule({
 	id: "tabindex-no-positive",
@@ -57628,7 +60975,7 @@ const walkServerFnChain = (outerNode) => {
 	const result = {
 		isServerFnChain: false,
 		specifiedMethod: null,
-		hasInputValidator: false
+		hasInputValidation: false
 	};
 	if (!isNodeOfType(outerNode, "CallExpression")) return result;
 	if (!isNodeOfType(outerNode.callee, "MemberExpression")) return result;
@@ -57642,7 +60989,7 @@ const walkServerFnChain = (outerNode) => {
 				for (const property of optionsArgument.properties ?? []) if (isNodeOfType(property, "Property") && isNodeOfType(property.key, "Identifier") && property.key.name === "method" && isNodeOfType(property.value, "Literal") && typeof property.value.value === "string") result.specifiedMethod = property.value.value;
 			}
 		}
-		if (calleeName === "inputValidator") result.hasInputValidator = true;
+		if (calleeName && TANSTACK_INPUT_VALIDATOR_METHOD_NAMES.has(calleeName)) result.hasInputValidation = true;
 		if (isNodeOfType(currentNode.callee, "MemberExpression")) currentNode = currentNode.callee.object;
 		else break;
 	}
@@ -58166,13 +61513,14 @@ const tanstackStartRoutePropertyOrder = defineRule({
 		}
 	} })
 });
+const toMethodOrderToken = (methodName) => TANSTACK_INPUT_VALIDATOR_METHOD_NAMES.has(methodName) ? "validator" : methodName;
 const tanstackStartServerFnMethodOrder = defineRule({
 	id: "tanstack-start-server-fn-method-order",
 	title: "Server function method order breaks type inference",
 	tags: ["test-noise"],
 	requires: ["tanstack-start"],
 	severity: "error",
-	recommendation: "Chain methods in order: .middleware() → .inputValidator() → .client() → .server() → .handler(). Types depend on this sequence.",
+	recommendation: "Chain methods in order: .middleware() → .validator() → .client() → .server() → .handler(). Types depend on this sequence.",
 	create: (context) => ({ CallExpression(node) {
 		if (!isNodeOfType(node.callee, "MemberExpression")) return;
 		const methodNames = [];
@@ -58187,10 +61535,10 @@ const tanstackStartServerFnMethodOrder = defineRule({
 		} else return;
 		const ownMethodName = isNodeOfType(node.callee.property, "Identifier") ? node.callee.property.name : null;
 		if (methodNames[methodNames.length - 1] !== ownMethodName) return;
-		const orderSensitiveMethods = methodNames.filter((name) => TANSTACK_MIDDLEWARE_METHOD_ORDER.includes(name));
+		const orderSensitiveMethods = methodNames.filter((name) => TANSTACK_MIDDLEWARE_METHOD_ORDER.includes(toMethodOrderToken(name)));
 		let lastIndex = -1;
 		for (const methodName of orderSensitiveMethods) {
-			const currentIndex = TANSTACK_MIDDLEWARE_METHOD_ORDER.indexOf(methodName);
+			const currentIndex = TANSTACK_MIDDLEWARE_METHOD_ORDER.indexOf(toMethodOrderToken(methodName));
 			if (currentIndex < lastIndex) {
 				const expectedBefore = TANSTACK_MIDDLEWARE_METHOD_ORDER[lastIndex];
 				context.report({
@@ -58209,7 +61557,7 @@ const tanstackStartServerFnValidateInput = defineRule({
 	tags: ["test-noise"],
 	requires: ["tanstack-start"],
 	severity: "warn",
-	recommendation: "Add `.inputValidator(schema)` before `.handler()`. This data crosses the network and must be validated at runtime.",
+	recommendation: "Add `.validator(schema)` before `.handler()`. This data crosses the network and must be validated at runtime.",
 	create: (context) => ({ CallExpression(node) {
 		if (!isNodeOfType(node.callee, "MemberExpression")) return;
 		if (!isNodeOfType(node.callee.property, "Identifier")) return;
@@ -58223,11 +61571,114 @@ const tanstackStartServerFnValidateInput = defineRule({
 			if (isNodeOfType(child, "MemberExpression") && isNodeOfType(child.property, "Identifier") && child.property.name === "data") accessesData = true;
 			if (isNodeOfType(child, "ObjectPattern") && child.properties?.some((property) => isNodeOfType(property, "Property") && isNodeOfType(property.key, "Identifier") && property.key.name === "data")) accessesData = true;
 		});
-		if (accessesData && !chainInfo.hasInputValidator) context.report({
+		if (accessesData && !chainInfo.hasInputValidation) context.report({
 			node,
-			message: "This server function reads network data with no inputValidator(), so anyone can send unvalidated input."
+			message: "This server function reads network data with no validator(), so anyone can send unvalidated input."
 		});
 	} })
+});
+const isServerRouteSourcePath = (relativePath) => {
+	if (!isProductionSourcePath(relativePath)) return false;
+	if (SERVER_CONTEXT_PATTERN.test(relativePath)) return true;
+	return /(?:^|\/)(?:middleware|route)\.[cm]?[jt]sx?$/.test(relativePath);
+};
+const tenantStaticProxyRisk = defineRule({
+	id: "tenant-static-proxy-risk",
+	title: "Tenant-controlled static asset proxy",
+	severity: "warn",
+	recommendation: "Bind tenant identity to the trusted host or authenticated org, canonicalize after decoding, reject traversal, and never let one tenant choose another tenant's asset prefix.",
+	scan: scanByPattern({
+		shouldScan: (file) => isServerRouteSourcePath(file.relativePath),
+		pattern: /\b(?:fetch|path\.join|getObject\w*|GetObjectCommand|getSignedUrl|createReadStream)\s*\([^;]{0,200}(?:\$\{[^}]{0,100}\b(?:tenant|subdomain|workspace|hostPattern|(?<!\.)organization(?:Id|Slug)?)\b|\b(?:tenant|subdomain|workspace)(?:Id|Slug|Name)?\b\s*[,)+\].])/i,
+		message: "Route code appears to compose tenant or subdomain input into a static/CDN/object-store fetch path."
+	})
+});
+const SINK_JSON_STRINGIFY_PATTERNS = [/dangerouslySetInnerHTML\s*=\s*\{\{\s*__html\s*:[\s\S]{0,300}?\bJSON\.stringify\s*\(/gi, /<script\b[^>]*>(?:(?!<\/script>)[\s\S]){0,300}?\bJSON\.stringify\s*\(/gi];
+const RETURN_ESCAPE_PATTERN = /^[\s)]*\.replace\s*\([^)]*(?:\\u003[cC]|&lt;|<)/;
+const ESCAPE_WRAPPER_PATTERN = /(?:\b(?:escapeHtml|escapeJSON|escapeJson|htmlEscape|jsesc)|(?<![.\w])(?:serialize|serializeJavascript|devalue|uneval|superjson))\s*\(\s*$/i;
+const JSON_STRINGIFY_TOKEN_PATTERN = /\bJSON\.stringify\s*\($/i;
+const RETURN_LOOKAHEAD_CHARS = 160;
+const unsafeJsonInHtml = defineRule({
+	id: "unsafe-json-in-html",
+	title: "Unescaped JSON in HTML or script sink",
+	severity: "warn",
+	recommendation: "JSON.stringify does not HTML-escape, so a `<\/script>` (or `<`) in the data breaks out and becomes XSS. Use an HTML-safe serializer (serialize-javascript, devalue) or escape `<`, `>`, and `&`, or pass data via a JSON `<script type=\"application/json\">` read with JSON.parse.",
+	scan: (file) => {
+		if (!isProductionSourcePath(file.relativePath)) return [];
+		const content = getScannableContent(file);
+		if (!content.includes("JSON.stringify")) return [];
+		const findings = [];
+		const seenIndices = /* @__PURE__ */ new Set();
+		for (const pattern of SINK_JSON_STRINGIFY_PATTERNS) {
+			pattern.lastIndex = 0;
+			for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
+				const beforeStringify = match[0].replace(JSON_STRINGIFY_TOKEN_PATTERN, "");
+				if (ESCAPE_WRAPPER_PATTERN.test(beforeStringify)) continue;
+				const closeParenIndex = findMatchingBracket(content, match.index + match[0].length - 1);
+				if (closeParenIndex >= 0) {
+					const afterReturn = content.slice(closeParenIndex + 1, closeParenIndex + 1 + RETURN_LOOKAHEAD_CHARS);
+					if (RETURN_ESCAPE_PATTERN.test(afterReturn)) continue;
+				}
+				if (seenIndices.has(match.index)) continue;
+				seenIndices.add(match.index);
+				const location = getLocationAtIndex(content, match.index);
+				findings.push({
+					message: "JSON.stringify is embedded in HTML/script markup without HTML-escaping; data containing `<\/script>` or `<` breaks out and becomes XSS.",
+					line: location.line,
+					column: location.column
+				});
+			}
+		}
+		return findings;
+	}
+});
+const OUTBOUND_FETCH_CALL_PATTERN = /(?:(?<![.\w$])fetch|\baxios\.\s*(?:get|post|put|delete|head)|\bgot|\bgot\.\s*(?:get|post))\s*\(\s*([^,)]+)/;
+const CALLER_STYLE_URL_NAME_PATTERN = /\b(?:url|targetUrl|callbackUrl|redirectUrl|webhookUrl|companyUrl|websiteUrl|domainUrl|imageUrl|fetchUrl|next|return_to|returnTo|destination|location)\b/i;
+const REQUEST_INPUT_EXPRESSION_PATTERN = /\breq\.|\brequest\.(?:query|body|params|nextUrl)|\bsearchParams\b|\bparams\.|\bbody\.|\bquery\./;
+const SAFE_REDIRECT_MODE_PATTERN = /\bredirect\s*:\s*["'](?:manual|error)["']/;
+const isRequestSourcedUrlExpression = (urlExpression, fileContent) => {
+	if (REQUEST_INPUT_EXPRESSION_PATTERN.test(urlExpression)) return true;
+	const identifierMatch = /^[\w$]+$/.exec(urlExpression.trim());
+	if (identifierMatch === null) return false;
+	return new RegExp(`(?:const|let|var)[^=;\\n]{0,80}\\b${identifierMatch[0]}\\b[^=;\\n]{0,80}=[^;\\n]*(?:\\breq\\.|\\brequest\\.|\\bsearchParams\\b|\\bparams\\.|\\bbody\\.|\\bquery\\.|\\$_(?:GET|POST|REQUEST))`).test(fileContent);
+};
+const untrustedRedirectFollowing = defineRule({
+	id: "untrusted-redirect-following",
+	title: "Server fetch follows redirects for caller-shaped URL",
+	severity: "warn",
+	recommendation: "Use `redirect: \"manual\"` or equivalent and re-validate every redirect target before following it to avoid SSRF redirect bypasses.",
+	scan: (file) => {
+		if (!isServerRouteSourcePath(file.relativePath)) return [];
+		if (!OUTBOUND_FETCH_CALL_PATTERN.test(file.content)) return [];
+		const findings = [];
+		const lines = file.content.split("\n");
+		for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+			const line = lines[lineIndex] ?? "";
+			const fetchMatch = line.match(OUTBOUND_FETCH_CALL_PATTERN);
+			const urlExpression = fetchMatch?.[1] ?? "";
+			if (!fetchMatch || !CALLER_STYLE_URL_NAME_PATTERN.test(urlExpression)) continue;
+			if (!isRequestSourcedUrlExpression(urlExpression, file.content)) continue;
+			const fetchWindow = lines.slice(lineIndex, lineIndex + 5).join("\n");
+			if (SAFE_REDIRECT_MODE_PATTERN.test(fetchWindow)) continue;
+			findings.push({
+				message: "Server-side fetch code appears to follow redirects for a URL shaped like caller-controlled input.",
+				line: lineIndex + 1,
+				column: line.search(/\S/) + 1
+			});
+		}
+		return findings;
+	}
+});
+const urlPrefilledPrivilegedAction = defineRule({
+	id: "url-prefilled-privileged-action",
+	title: "URL pre-fills a privileged action",
+	severity: "warn",
+	recommendation: "Require server-side validation and explicit confirmation for URL-sourced invite, role, permission, redirect, or sharing parameters.",
+	scan: scanByPattern({
+		shouldScan: (file) => isClientSourcePath(file.relativePath),
+		pattern: /(?<!(?:safe|valid|sanitiz|relativ|allowlist|whitelist)[\w$]*\(\s*(?:new\s+)?(?:[\w$]+\s*\.\s*){0,4})\b(?:searchParams|useSearchParams\s*\(\s*\)|URLSearchParams\s*\([^)]{0,120}\))(?:[?!])?\.get(?:All)?\s*\(\s*["'](?:userstoinvite|role|permission|sharingaction|invite|admin|next|continue|returnTo|redirect_uri|callbackUrl)["']|\bsearchParams\.(?:userstoinvite|role|permission|sharingaction|invite|admin|returnTo|redirect_uri|callbackUrl)\b/i,
+		message: "Client code reads sensitive action state from the URL, which can pre-fill invites, roles, redirects, or sharing flows with attacker values."
+	})
 });
 const useLazyMotion = defineRule({
 	id: "use-lazy-motion",
@@ -58317,6 +61768,31 @@ const voidDomElementsNoChildren = defineRule({
 				message: buildMessage(tagName)
 			});
 		}
+	})
+});
+const WEBHOOK_HANDLER_PATTERN = /(?:^|\/)[^/]*webhook[^/]*\/|(?:^|\/)[^/]*webhook[^/]*\.[cm]?[jt]s$|\bwebhook\b/i;
+const WEBHOOK_ENTRYPOINT_PATTERN = /\b(?:export\s+(?:async\s+)?function\s+POST|export\s+const\s+(?:POST|handler|webhook)|webhookHandler|webhookRoute)\b/i;
+const WEBHOOK_SIGNATURE_VERIFICATION_PATTERN = new RegExp(`${/verifySignature|verify.*signature|verify\w*(?:Webhook|Auth)|constructEvent|createHmac|timingSafeEqual|svix|webhookSecret|stripe\.webhooks|["'][\w-]*signature["']/.source}|${/\b[A-Za-z]{0,40}(?:verif|valid|check|assert|authenticat|compare|guard)[A-Za-z]{0,40}(?:secret|signature|hmac|webhook|digest)[A-Za-z]{0,40}\s*\(/.source}`, "i");
+const OUTBOUND_WEBHOOK_URL_MENTION_PATTERN = /webhook[\s_-]?ur[il]\w*/gi;
+const OUTBOUND_WEBHOOK_CONFIG_PATTERN = /process\.env\.\w*WEBHOOK_URL|\b(?:send|post|dispatch|publish|notify)\w*Webhook/;
+const REQUEST_READ_PATTERN = /\b(?:req|request)\b/;
+const COMMENT_OR_STRING_PATTERN = /\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`/g;
+const webhookSignatureRisk = defineRule({
+	id: "webhook-signature-risk",
+	title: "Webhook handler lacks signature verification",
+	severity: "warn",
+	recommendation: "Verify provider signatures before parsing or acting on webhook bodies. Use provider SDK helpers or HMAC verification with timing-safe comparison.",
+	scan: scanByPattern({
+		shouldScan: (file) => {
+			if (!isProductionSourcePath(file.relativePath)) return false;
+			if (OUTBOUND_WEBHOOK_CONFIG_PATTERN.test(file.content)) return false;
+			const judgeableContent = file.content.replace(COMMENT_OR_STRING_PATTERN, "").replace(OUTBOUND_WEBHOOK_URL_MENTION_PATTERN, "");
+			return WEBHOOK_HANDLER_PATTERN.test(file.relativePath) || WEBHOOK_HANDLER_PATTERN.test(judgeableContent);
+		},
+		pattern: WEBHOOK_ENTRYPOINT_PATTERN,
+		requireAll: [REQUEST_READ_PATTERN],
+		suppressWhen: WEBHOOK_SIGNATURE_VERIFICATION_PATTERN,
+		message: "Webhook handler code does not show an obvious signature verification step."
 	})
 });
 const ZOD_MODULE = "zod";
@@ -58719,6 +62195,18 @@ const zodV4PreferTopLevelStringFormats = defineRule({
 });
 const reactDoctorRules = [
 	{
+		key: "react-doctor/active-static-asset",
+		id: "active-static-asset",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...activeStaticAsset,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...activeStaticAsset.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/activity-wraps-effect-heavy-subtree",
 		id: "activity-wraps-effect-heavy-subtree",
 		source: "react-doctor",
@@ -58740,6 +62228,18 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Performance",
 			requires: [...new Set(["react", ...advancedEventHandlerRefs.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/agent-tool-capability-risk",
+		id: "agent-tool-capability-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...agentToolCapabilityRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...agentToolCapabilityRisk.tags ?? []])]
 		}
 	},
 	{
@@ -58851,6 +62351,42 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/artifact-baas-authority-surface",
+		id: "artifact-baas-authority-surface",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...artifactBaasAuthoritySurface,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...artifactBaasAuthoritySurface.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/artifact-env-leak",
+		id: "artifact-env-leak",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...artifactEnvLeak,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...artifactEnvLeak.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/artifact-secret-leak",
+		id: "artifact-secret-leak",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...artifactSecretLeak,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...artifactSecretLeak.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/async-await-in-loop",
 		id: "async-await-in-loop",
 		source: "react-doctor",
@@ -58885,6 +62421,17 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/auth-token-in-web-storage",
+		id: "auth-token-in-web-storage",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...authTokenInWebStorage,
+			framework: "global",
+			category: "Security"
+		}
+	},
+	{
 		key: "react-doctor/autocomplete-valid",
 		id: "autocomplete-valid",
 		source: "react-doctor",
@@ -58894,6 +62441,18 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Accessibility",
 			requires: [...new Set(["react", ...autocompleteValid.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/build-pipeline-secret-boundary",
+		id: "build-pipeline-secret-boundary",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...buildPipelineSecretBoundary,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...buildPipelineSecretBoundary.tags ?? []])]
 		}
 	},
 	{
@@ -58933,6 +62492,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/clickjacking-redirect-risk",
+		id: "clickjacking-redirect-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...clickjackingRedirectRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...clickjackingRedirectRisk.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/client-localstorage-no-version",
 		id: "client-localstorage-no-version",
 		source: "react-doctor",
@@ -58957,6 +62528,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/command-execution-input-risk",
+		id: "command-execution-input-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...commandExecutionInputRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...commandExecutionInputRisk.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/control-has-associated-label",
 		id: "control-has-associated-label",
 		source: "react-doctor",
@@ -58966,6 +62549,30 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Accessibility",
 			requires: [...new Set(["react", ...controlHasAssociatedLabel.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/cors-cookie-trust-risk",
+		id: "cors-cookie-trust-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...corsCookieTrustRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...corsCookieTrustRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/dangerous-html-sink",
+		id: "dangerous-html-sink",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...dangerousHtmlSink,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...dangerousHtmlSink.tags ?? []])]
 		}
 	},
 	{
@@ -59041,6 +62648,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/dialog-has-accessible-name",
+		id: "dialog-has-accessible-name",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...dialogHasAccessibleName,
+			framework: "global",
+			category: "Accessibility",
+			requires: [...new Set(["react", ...dialogHasAccessibleName.requires ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/display-name",
 		id: "display-name",
 		source: "react-doctor",
@@ -59089,6 +62708,42 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/firebase-client-owned-authz-field",
+		id: "firebase-client-owned-authz-field",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...firebaseClientOwnedAuthzField,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...firebaseClientOwnedAuthzField.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/firebase-permissive-rules",
+		id: "firebase-permissive-rules",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...firebasePermissiveRules,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...firebasePermissiveRules.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/firebase-query-filter-as-auth",
+		id: "firebase-query-filter-as-auth",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...firebaseQueryFilterAsAuth,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...firebaseQueryFilterAsAuth.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/forbid-component-props",
 		id: "forbid-component-props",
 		source: "react-doctor",
@@ -59134,6 +62789,18 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Maintainability",
 			requires: [...new Set(["react", ...forwardRefUsesRef.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/git-provider-url-injection-risk",
+		id: "git-provider-url-injection-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...gitProviderUrlInjectionRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...gitProviderUrlInjectionRisk.tags ?? []])]
 		}
 	},
 	{
@@ -59251,6 +62918,42 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Accessibility",
 			requires: [...new Set(["react", ...imgRedundantAlt.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/import-metadata-execution-risk",
+		id: "import-metadata-execution-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...importMetadataExecutionRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...importMetadataExecutionRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/insecure-crypto-risk",
+		id: "insecure-crypto-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...insecureCryptoRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...insecureCryptoRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/insecure-session-cookie",
+		id: "insecure-session-cookie",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...insecureSessionCookie,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...insecureSessionCookie.tags ?? []])]
 		}
 	},
 	{
@@ -59696,6 +63399,30 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/jwt-insecure-verification",
+		id: "jwt-insecure-verification",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...jwtInsecureVerification,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...jwtInsecureVerification.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/key-lifecycle-risk",
+		id: "key-lifecycle-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...keyLifecycleRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...keyLifecycleRisk.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/label-has-associated-control",
 		id: "label-has-associated-control",
 		source: "react-doctor",
@@ -59717,6 +63444,42 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Accessibility",
 			requires: [...new Set(["react", ...lang.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/local-rpc-native-bridge-risk",
+		id: "local-rpc-native-bridge-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...localRpcNativeBridgeRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...localRpcNativeBridgeRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/mcp-tool-capability-risk",
+		id: "mcp-tool-capability-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...mcpToolCapabilityRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...mcpToolCapabilityRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/mdx-ssr-execution-risk",
+		id: "mdx-ssr-execution-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...mdxSsrExecutionRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...mdxSsrExecutionRisk.tags ?? []])]
 		}
 	},
 	{
@@ -60056,6 +63819,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/no-async-effect-callback",
+		id: "no-async-effect-callback",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noAsyncEffectCallback,
+			framework: "global",
+			category: "Bugs",
+			requires: [...new Set(["react", ...noAsyncEffectCallback.requires ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/no-autofocus",
 		id: "no-autofocus",
 		source: "react-doctor",
@@ -60076,6 +63851,18 @@ const reactDoctorRules = [
 			...noBarrelImport,
 			framework: "global",
 			category: "Performance"
+		}
+	},
+	{
+		key: "react-doctor/no-call-component-as-function",
+		id: "no-call-component-as-function",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noCallComponentAsFunction,
+			framework: "global",
+			category: "Bugs",
+			requires: [...new Set(["react", ...noCallComponentAsFunction.requires ?? []])]
 		}
 	},
 	{
@@ -60136,6 +63923,18 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...noCreateContextInRender.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/no-create-ref-in-function-component",
+		id: "no-create-ref-in-function-component",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noCreateRefInFunctionComponent,
+			framework: "global",
+			category: "Bugs",
+			requires: [...new Set(["react", ...noCreateRefInFunctionComponent.requires ?? []])]
 		}
 	},
 	{
@@ -60313,6 +64112,17 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...noDocumentStartViewTransition.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/no-document-write",
+		id: "no-document-write",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noDocumentWrite,
+			framework: "global",
+			category: "Performance"
 		}
 	},
 	{
@@ -60513,6 +64323,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/no-img-lazy-with-high-fetchpriority",
+		id: "no-img-lazy-with-high-fetchpriority",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noImgLazyWithHighFetchpriority,
+			framework: "global",
+			category: "Performance",
+			requires: [...new Set(["react", ...noImgLazyWithHighFetchpriority.requires ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/no-initialize-state",
 		id: "no-initialize-state",
 		source: "react-doctor",
@@ -60580,6 +64402,17 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...noIsMounted.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/no-json-parse-stringify-clone",
+		id: "no-json-parse-stringify-clone",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noJsonParseStringifyClone,
+			framework: "global",
+			category: "Performance"
 		}
 	},
 	{
@@ -61102,6 +64935,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/no-string-false-on-boolean-attribute",
+		id: "no-string-false-on-boolean-attribute",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noStringFalseOnBooleanAttribute,
+			framework: "global",
+			category: "Bugs",
+			requires: [...new Set(["react", ...noStringFalseOnBooleanAttribute.requires ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/no-string-refs",
 		id: "no-string-refs",
 		source: "react-doctor",
@@ -61111,6 +64956,17 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...noStringRefs.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/no-sync-xhr",
+		id: "no-sync-xhr",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...noSyncXhr,
+			framework: "global",
+			category: "Performance"
 		}
 	},
 	{
@@ -61265,6 +65121,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/nosql-injection-risk",
+		id: "nosql-injection-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...nosqlInjectionRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...nosqlInjectionRisk.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/only-export-components",
 		id: "only-export-components",
 		source: "react-doctor",
@@ -61274,6 +65142,54 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Maintainability",
 			requires: [...new Set(["react", ...onlyExportComponents.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/package-metadata-secret",
+		id: "package-metadata-secret",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...packageMetadataSecret,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...packageMetadataSecret.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/path-traversal-risk",
+		id: "path-traversal-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...pathTraversalRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...pathTraversalRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/plugin-update-trust-risk",
+		id: "plugin-update-trust-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...pluginUpdateTrustRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...pluginUpdateTrustRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/postmessage-origin-risk",
+		id: "postmessage-origin-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...postmessageOriginRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...postmessageOriginRisk.tags ?? []])]
 		}
 	},
 	{
@@ -61472,6 +65388,30 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/public-debug-artifact",
+		id: "public-debug-artifact",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...publicDebugArtifact,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...publicDebugArtifact.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/public-env-secret-name",
+		id: "public-env-secret-name",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...publicEnvSecretName,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...publicEnvSecretName.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/query-destructure-result",
 		id: "query-destructure-result",
 		source: "react-doctor",
@@ -61546,6 +65486,18 @@ const reactDoctorRules = [
 			...queryStableQueryClient,
 			framework: "tanstack-query",
 			category: "Bugs"
+		}
+	},
+	{
+		key: "react-doctor/raw-sql-injection-risk",
+		id: "raw-sql-injection-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...rawSqlInjectionRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...rawSqlInjectionRisk.tags ?? []])]
 		}
 	},
 	{
@@ -61687,6 +65639,30 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Performance",
 			requires: [...new Set(["react", ...renderingUsetransitionLoading.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/repository-secret-file",
+		id: "repository-secret-file",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...repositorySecretFile,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...repositorySecretFile.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/request-body-mass-assignment",
+		id: "request-body-mass-assignment",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...requestBodyMassAssignment,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...requestBodyMassAssignment.tags ?? []])]
 		}
 	},
 	{
@@ -62278,6 +66254,18 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/secret-in-fallback",
+		id: "secret-in-fallback",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...secretInFallback,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...secretInFallback.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/self-closing-comp",
 		id: "self-closing-comp",
 		source: "react-doctor",
@@ -62407,6 +66395,54 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...stylePropObject.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/supabase-client-owned-authz-field",
+		id: "supabase-client-owned-authz-field",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...supabaseClientOwnedAuthzField,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...supabaseClientOwnedAuthzField.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/supabase-rls-policy-risk",
+		id: "supabase-rls-policy-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...supabaseRlsPolicyRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...supabaseRlsPolicyRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/supabase-table-missing-rls",
+		id: "supabase-table-missing-rls",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...supabaseTableMissingRls,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...supabaseTableMissingRls.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/svg-filter-clickjacking-risk",
+		id: "svg-filter-clickjacking-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...svgFilterClickjackingRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...svgFilterClickjackingRisk.tags ?? []])]
 		}
 	},
 	{
@@ -62576,6 +66612,54 @@ const reactDoctorRules = [
 		}
 	},
 	{
+		key: "react-doctor/tenant-static-proxy-risk",
+		id: "tenant-static-proxy-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...tenantStaticProxyRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...tenantStaticProxyRisk.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/unsafe-json-in-html",
+		id: "unsafe-json-in-html",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...unsafeJsonInHtml,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...unsafeJsonInHtml.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/untrusted-redirect-following",
+		id: "untrusted-redirect-following",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...untrustedRedirectFollowing,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...untrustedRedirectFollowing.tags ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/url-prefilled-privileged-action",
+		id: "url-prefilled-privileged-action",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...urlPrefilledPrivilegedAction,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...urlPrefilledPrivilegedAction.tags ?? []])]
+		}
+	},
+	{
 		key: "react-doctor/use-lazy-motion",
 		id: "use-lazy-motion",
 		source: "react-doctor",
@@ -62596,6 +66680,18 @@ const reactDoctorRules = [
 			framework: "global",
 			category: "Bugs",
 			requires: [...new Set(["react", ...voidDomElementsNoChildren.requires ?? []])]
+		}
+	},
+	{
+		key: "react-doctor/webhook-signature-risk",
+		id: "webhook-signature-risk",
+		source: "react-doctor",
+		originallyExternal: false,
+		rule: {
+			...webhookSignatureRisk,
+			framework: "global",
+			category: "Security",
+			tags: [...new Set(["security-scan", ...webhookSignatureRisk.tags ?? []])]
 		}
 	},
 	{
@@ -62644,22 +66740,6 @@ const reactDoctorRules = [
 	}
 ];
 const ruleRegistry = Object.fromEntries(reactDoctorRules.map((rule) => [rule.id, rule.rule]));
-const WEB_FILE_EXTENSION_PATTERN = /\.web\.[cm]?[jt]sx?$/;
-const NATIVE_FILE_EXTENSION_PATTERN = /\.(?:ios|android|native)\.[cm]?[jt]sx?$/;
-const isReactNativeFileActive = (context) => {
-	const rawFilename = context.filename;
-	if (!rawFilename) return true;
-	const filename = normalizeFilename$1(rawFilename);
-	if (NATIVE_FILE_EXTENSION_PATTERN.test(filename)) return true;
-	if (WEB_FILE_EXTENSION_PATTERN.test(filename)) return false;
-	const packagePlatform = classifyPackagePlatform(filename);
-	if (packagePlatform === "web") return false;
-	if (packagePlatform === "expo" || packagePlatform === "react-native") return true;
-	const framework = getReactDoctorStringSetting(context.settings, "framework");
-	if (framework === "react-native" || framework === "expo") return true;
-	if (framework === "nextjs" || framework === "vite" || framework === "cra" || framework === "remix" || framework === "gatsby" || framework === "tanstack-start") return false;
-	return true;
-};
 const EMPTY_VISITORS = {};
 const wrapReactNativeRule = (rule) => {
 	const innerCreate = rule.create.bind(rule);
@@ -62993,32 +67073,6 @@ const computeUnconditionalSet = (cfg) => {
 	}
 	return unconditional;
 };
-const computeDominatesExit = (cfg) => {
-	const reachableToExit = /* @__PURE__ */ new Set();
-	const queue = [cfg.exit];
-	while (queue.length > 0) {
-		const block = queue.shift();
-		if (reachableToExit.has(block)) continue;
-		reachableToExit.add(block);
-		for (const edge of block.predecessors) queue.push(edge.from);
-	}
-	const dominatesExit = /* @__PURE__ */ new Set();
-	const visit = (block) => {
-		if (block === cfg.exit) return true;
-		if (dominatesExit.has(block)) return true;
-		if (block.successors.length === 0) return false;
-		dominatesExit.add(block);
-		let allReach = true;
-		for (const edge of block.successors) if (!visit(edge.to)) {
-			allReach = false;
-			break;
-		}
-		if (!allReach) dominatesExit.delete(block);
-		return allReach;
-	};
-	for (const block of cfg.blocks) visit(block);
-	return dominatesExit;
-};
 const analyzeControlFlow = (program) => {
 	nextBlockId = 0;
 	const functionCfgs = /* @__PURE__ */ new Map();
@@ -63026,8 +67080,7 @@ const analyzeControlFlow = (program) => {
 		const cfg = buildFunctionCfg(functionNode, body);
 		functionCfgs.set(functionNode, {
 			cfg,
-			unconditionalSet: computeUnconditionalSet(cfg),
-			dominatesExitSet: computeDominatesExit(cfg)
+			unconditionalSet: computeUnconditionalSet(cfg)
 		});
 	};
 	if (isNodeOfType(program, "Program")) buildFor(program, {
@@ -63070,20 +67123,10 @@ const analyzeControlFlow = (program) => {
 		if (!block) return true;
 		return entry.unconditionalSet.has(block);
 	};
-	const dominatesExit = (node) => {
-		const owner = enclosingFunction(node);
-		if (!owner) return true;
-		const entry = functionCfgs.get(owner);
-		if (!entry) return true;
-		const block = entry.cfg.blockOf(node);
-		if (!block) return true;
-		return entry.dominatesExitSet.has(block);
-	};
 	return {
 		cfgFor,
 		enclosingFunction,
-		isUnconditionalFromEntry,
-		dominatesExit
+		isUnconditionalFromEntry
 	};
 };
 const buildFallbackScopes = () => ({
@@ -63106,8 +67149,7 @@ const buildFallbackScopes = () => ({
 const FALLBACK_CFG = {
 	cfgFor: () => null,
 	enclosingFunction: () => null,
-	isUnconditionalFromEntry: () => false,
-	dominatesExit: () => false
+	isUnconditionalFromEntry: () => false
 };
 const wrapWithSemanticContext = (rule) => ({
 	...rule,
@@ -63174,7 +67216,8 @@ const toKeyedSeverity = (entries) => entries.map((entry) => ({
 	severity: entry.rule.severity
 }));
 const isRecommendedByDefault = (entry) => entry.rule.defaultEnabled !== false;
-const collectReactDoctorRulesByFramework = (frameworkName) => reactDoctorRules.filter((entry) => entry.rule.framework === frameworkName && isRecommendedByDefault(entry));
+const isScanRule = (entry) => entry.rule.scan !== void 0;
+const collectReactDoctorRulesByFramework = (frameworkName) => reactDoctorRules.filter((entry) => entry.rule.framework === frameworkName && isRecommendedByDefault(entry) && !isScanRule(entry));
 const collectExternalRulesBySource = (source) => EXTERNAL_RULES.filter((rule) => rule.source === source);
 const collectFrameworkSpecificRuleKeys = () => {
 	const collected = /* @__PURE__ */ new Set();
@@ -63271,14 +67314,39 @@ toRuleMap(toKeyedSeverity(collectReactDoctorRulesByFramework("react-native")));
 toRuleMap(toKeyedSeverity(collectReactDoctorRulesByFramework("tanstack-start")));
 toRuleMap(toKeyedSeverity(collectReactDoctorRulesByFramework("tanstack-query")));
 toRuleMap(toKeyedSeverity(collectReactDoctorRulesByFramework("preact")));
-toRuleMap(toKeyedSeverity(REACT_DOCTOR_RULES));
+toRuleMap(toKeyedSeverity(REACT_DOCTOR_RULES.filter((entry) => !isScanRule(entry))));
 const ALL_REACT_DOCTOR_RULE_KEYS = new Set(REACT_DOCTOR_RULES.map((rule) => rule.key));
 const FRAMEWORK_SPECIFIC_RULE_KEYS = collectFrameworkSpecificRuleKeys();
 const REACT_COMPILER_RULES = toRuleMap(collectExternalRulesBySource("react-compiler"));
+const CROSS_FILE_RULE_IDS = new Set([
+	"no-barrel-import",
+	"nextjs-missing-metadata",
+	"nextjs-no-use-search-params-without-suspense",
+	"no-mutating-reducer-state",
+	"rn-prefer-expo-image"
+]);
+const isProbablyTextFile = (relativePath) => TEXT_FILE_PATTERN.test(relativePath) || DOTENV_FILE_PATTERN.test(relativePath);
+const classifySecurityScanFile = (relativePath) => {
+	const isGeneratedBundleByName = GENERATED_BUNDLE_FILE_PATTERN$1.test(relativePath);
+	if (isRepositorySecretFilePath(relativePath) || isSqlPath(relativePath) || isFirebaseRulesPath(relativePath) || isConfigOrCiPath(relativePath)) return {
+		bucket: "priority",
+		isGeneratedBundleByName
+	};
+	if (isBrowserArtifactPath(relativePath, isGeneratedBundleByName)) return {
+		bucket: "artifact",
+		isGeneratedBundleByName
+	};
+	if (isProbablyTextFile(relativePath)) return {
+		bucket: "other",
+		isGeneratedBundleByName
+	};
+	return null;
+};
+const shouldReadSecurityScanContent = (relativePath, isGeneratedBundle) => isGeneratedBundle || isProbablyTextFile(relativePath) || isConfigOrCiPath(relativePath) || isRepositorySecretFilePath(relativePath);
 var src_default = plugin;
 //#endregion
 //#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/constants.js
-var require_constants$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+var require_constants = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
 	const WIN_SLASH = "\\\\/";
 	const WIN_NO_SLASH = `[^${WIN_SLASH}]`;
 	const DEFAULT_MAX_EXTGLOB_RECURSION = 0;
@@ -63448,7 +67516,7 @@ var require_constants$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => 
 //#endregion
 //#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/utils.js
 var require_utils = /* @__PURE__ */ __commonJSMin$1(((exports) => {
-	const { REGEX_BACKSLASH, REGEX_REMOVE_BACKSLASH, REGEX_SPECIAL_CHARS, REGEX_SPECIAL_CHARS_GLOBAL } = require_constants$1();
+	const { REGEX_BACKSLASH, REGEX_REMOVE_BACKSLASH, REGEX_SPECIAL_CHARS, REGEX_SPECIAL_CHARS_GLOBAL } = require_constants();
 	exports.isObject = (val) => val !== null && typeof val === "object" && !Array.isArray(val);
 	exports.hasRegexChars = (str) => REGEX_SPECIAL_CHARS.test(str);
 	exports.isRegexChar = (str) => str.length === 1 && exports.hasRegexChars(str);
@@ -63497,7 +67565,7 @@ var require_utils = /* @__PURE__ */ __commonJSMin$1(((exports) => {
 //#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/scan.js
 var require_scan = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
 	const utils = require_utils();
-	const { CHAR_ASTERISK, CHAR_AT, CHAR_BACKWARD_SLASH, CHAR_COMMA, CHAR_DOT, CHAR_EXCLAMATION_MARK, CHAR_FORWARD_SLASH, CHAR_LEFT_CURLY_BRACE, CHAR_LEFT_PARENTHESES, CHAR_LEFT_SQUARE_BRACKET, CHAR_PLUS, CHAR_QUESTION_MARK, CHAR_RIGHT_CURLY_BRACE, CHAR_RIGHT_PARENTHESES, CHAR_RIGHT_SQUARE_BRACKET } = require_constants$1();
+	const { CHAR_ASTERISK, CHAR_AT, CHAR_BACKWARD_SLASH, CHAR_COMMA, CHAR_DOT, CHAR_EXCLAMATION_MARK, CHAR_FORWARD_SLASH, CHAR_LEFT_CURLY_BRACE, CHAR_LEFT_PARENTHESES, CHAR_LEFT_SQUARE_BRACKET, CHAR_PLUS, CHAR_QUESTION_MARK, CHAR_RIGHT_CURLY_BRACE, CHAR_RIGHT_PARENTHESES, CHAR_RIGHT_SQUARE_BRACKET } = require_constants();
 	const isPathSeparator = (code) => {
 		return code === CHAR_FORWARD_SLASH || code === CHAR_BACKWARD_SLASH;
 	};
@@ -63782,8 +67850,8 @@ var require_scan = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
 }));
 //#endregion
 //#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/parse.js
-var require_parse$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const constants = require_constants$1();
+var require_parse = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
+	const constants = require_constants();
 	const utils = require_utils();
 	/**
 	* Constants
@@ -64839,9 +68907,9 @@ var require_parse$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
 //#region ../../node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/picomatch.js
 var require_picomatch$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
 	const scan = require_scan();
-	const parse = require_parse$1();
+	const parse = require_parse();
 	const utils = require_utils();
-	const constants = require_constants$1();
+	const constants = require_constants();
 	const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 	/**
 	* Creates a matcher function from one or more glob patterns. The
@@ -67754,6 +71822,14 @@ const runWith = (self, f, onHalt) => suspend$2(() => {
 	return catchDone(flatMap$2(toTransform(self)(done$1(), scope), f), onHalt ? onHalt : succeed$2).pipe(onExit$2((exit) => close(scope, exit)));
 });
 /**
+* Provides a concrete service for a context key, removing that service
+* requirement from the returned channel.
+*
+* @category services
+* @since 2.0.0
+*/
+const provideService$1 = /* @__PURE__ */ dual(3, (self, key, service) => fromTransform$1((upstream, scope) => map$3(provideService$2(toTransform(self)(upstream, scope), key, service), provideService$2(key, service))));
+/**
 * Runs a channel and applies an effect to each output element.
 *
 * **Example** (Running effects for each output)
@@ -69141,6 +73217,44 @@ const splitLines = (self) => self.channel.pipe(pipeTo(splitLines$1()), fromChann
 * @since 2.0.0
 */
 const ensuring = /* @__PURE__ */ dual(2, (self, finalizer) => fromChannel(ensuring$1(self.channel, finalizer)));
+/**
+* Provides the stream with a single required service, eliminating that
+* requirement from its environment.
+*
+* **Example** (Providing a stream service)
+*
+* ```ts
+* import { Console, Context, Effect, Stream } from "effect"
+*
+* class Greeter extends Context.Service<Greeter, {
+*   greet: (name: string) => string
+* }>()("Greeter") {}
+*
+* const stream = Stream.fromEffect(
+*   Effect.service(Greeter).pipe(
+*     Effect.map((greeter) => greeter.greet("Ada"))
+*   )
+* )
+*
+* const program = Effect.gen(function*() {
+*   const collected = yield* Stream.runCollect(
+*     stream.pipe(
+*       Stream.provideService(Greeter, {
+*         greet: (name) => `Hello, ${name}`
+*       })
+*     )
+*   )
+*   yield* Console.log(collected)
+* })
+*
+* Effect.runPromise(program)
+* //=> ["Hello, Ada"]
+* ```
+*
+* @category services
+* @since 2.0.0
+*/
+const provideService = /* @__PURE__ */ dual(3, (self, key, service) => fromChannel(provideService$1(self.channel, key, service)));
 /**
 * Runs a stream with a sink and returns the sink result.
 *
@@ -72571,7 +76685,7 @@ const make$8 = /* @__PURE__ */ fnUntraced(function* (options) {
 	const runFork = runForkWith(services);
 	const exportInterval = max(fromInputUnsafe(options.exportInterval), zero);
 	let disabledUntil = void 0;
-	const client = filterStatusOk(get$4(services, HttpClient)).pipe(transformResponse(provideService(TracerPropagationEnabled, false)), retryTransient({
+	const client = filterStatusOk(get$4(services, HttpClient)).pipe(transformResponse(provideService$2(TracerPropagationEnabled, false)), retryTransient({
 		schedule: policy,
 		times: 3
 	}));
@@ -73682,1343 +77796,7 @@ const warn$1 = (...args) => consoleWith((console) => sync$2(() => {
 	console.warn(...args);
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/constants.js
-var require_constants = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SEMVER_SPEC_VERSION = "2.0.0";
-	const MAX_LENGTH = 256;
-	const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER || 9007199254740991;
-	module.exports = {
-		MAX_LENGTH,
-		MAX_SAFE_COMPONENT_LENGTH: 16,
-		MAX_SAFE_BUILD_LENGTH: MAX_LENGTH - 6,
-		MAX_SAFE_INTEGER,
-		RELEASE_TYPES: [
-			"major",
-			"premajor",
-			"minor",
-			"preminor",
-			"patch",
-			"prepatch",
-			"prerelease"
-		],
-		SEMVER_SPEC_VERSION,
-		FLAG_INCLUDE_PRERELEASE: 1,
-		FLAG_LOOSE: 2
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/debug.js
-var require_debug = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	module.exports = typeof process === "object" && process.env && process.env.NODE_DEBUG && /\bsemver\b/i.test(process.env.NODE_DEBUG) ? (...args) => console.error("SEMVER", ...args) : () => {};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/re.js
-var require_re = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const { MAX_SAFE_COMPONENT_LENGTH, MAX_SAFE_BUILD_LENGTH, MAX_LENGTH } = require_constants();
-	const debug = require_debug();
-	exports = module.exports = {};
-	const re = exports.re = [];
-	const safeRe = exports.safeRe = [];
-	const src = exports.src = [];
-	const safeSrc = exports.safeSrc = [];
-	const t = exports.t = {};
-	let R = 0;
-	const LETTERDASHNUMBER = "[a-zA-Z0-9-]";
-	const safeRegexReplacements = [
-		["\\s", 1],
-		["\\d", MAX_LENGTH],
-		[LETTERDASHNUMBER, MAX_SAFE_BUILD_LENGTH]
-	];
-	const makeSafeRegex = (value) => {
-		for (const [token, max] of safeRegexReplacements) value = value.split(`${token}*`).join(`${token}{0,${max}}`).split(`${token}+`).join(`${token}{1,${max}}`);
-		return value;
-	};
-	const createToken = (name, value, isGlobal) => {
-		const safe = makeSafeRegex(value);
-		const index = R++;
-		debug(name, index, value);
-		t[name] = index;
-		src[index] = value;
-		safeSrc[index] = safe;
-		re[index] = new RegExp(value, isGlobal ? "g" : void 0);
-		safeRe[index] = new RegExp(safe, isGlobal ? "g" : void 0);
-	};
-	createToken("NUMERICIDENTIFIER", "0|[1-9]\\d*");
-	createToken("NUMERICIDENTIFIERLOOSE", "\\d+");
-	createToken("NONNUMERICIDENTIFIER", `\\d*[a-zA-Z-]${LETTERDASHNUMBER}*`);
-	createToken("MAINVERSION", `(${src[t.NUMERICIDENTIFIER]})\\.(${src[t.NUMERICIDENTIFIER]})\\.(${src[t.NUMERICIDENTIFIER]})`);
-	createToken("MAINVERSIONLOOSE", `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.(${src[t.NUMERICIDENTIFIERLOOSE]})\\.(${src[t.NUMERICIDENTIFIERLOOSE]})`);
-	createToken("PRERELEASEIDENTIFIER", `(?:${src[t.NONNUMERICIDENTIFIER]}|${src[t.NUMERICIDENTIFIER]})`);
-	createToken("PRERELEASEIDENTIFIERLOOSE", `(?:${src[t.NONNUMERICIDENTIFIER]}|${src[t.NUMERICIDENTIFIERLOOSE]})`);
-	createToken("PRERELEASE", `(?:-(${src[t.PRERELEASEIDENTIFIER]}(?:\\.${src[t.PRERELEASEIDENTIFIER]})*))`);
-	createToken("PRERELEASELOOSE", `(?:-?(${src[t.PRERELEASEIDENTIFIERLOOSE]}(?:\\.${src[t.PRERELEASEIDENTIFIERLOOSE]})*))`);
-	createToken("BUILDIDENTIFIER", `${LETTERDASHNUMBER}+`);
-	createToken("BUILD", `(?:\\+(${src[t.BUILDIDENTIFIER]}(?:\\.${src[t.BUILDIDENTIFIER]})*))`);
-	createToken("FULLPLAIN", `v?${src[t.MAINVERSION]}${src[t.PRERELEASE]}?${src[t.BUILD]}?`);
-	createToken("FULL", `^${src[t.FULLPLAIN]}$`);
-	createToken("LOOSEPLAIN", `[v=\\s]*${src[t.MAINVERSIONLOOSE]}${src[t.PRERELEASELOOSE]}?${src[t.BUILD]}?`);
-	createToken("LOOSE", `^${src[t.LOOSEPLAIN]}$`);
-	createToken("GTLT", "((?:<|>)?=?)");
-	createToken("XRANGEIDENTIFIERLOOSE", `${src[t.NUMERICIDENTIFIERLOOSE]}|x|X|\\*`);
-	createToken("XRANGEIDENTIFIER", `${src[t.NUMERICIDENTIFIER]}|x|X|\\*`);
-	createToken("XRANGEPLAIN", `[v=\\s]*(${src[t.XRANGEIDENTIFIER]})(?:\\.(${src[t.XRANGEIDENTIFIER]})(?:\\.(${src[t.XRANGEIDENTIFIER]})(?:${src[t.PRERELEASE]})?${src[t.BUILD]}?)?)?`);
-	createToken("XRANGEPLAINLOOSE", `[v=\\s]*(${src[t.XRANGEIDENTIFIERLOOSE]})(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})(?:${src[t.PRERELEASELOOSE]})?${src[t.BUILD]}?)?)?`);
-	createToken("XRANGE", `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAIN]}$`);
-	createToken("XRANGELOOSE", `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAINLOOSE]}$`);
-	createToken("COERCEPLAIN", `(^|[^\\d])(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}})(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?`);
-	createToken("COERCE", `${src[t.COERCEPLAIN]}(?:$|[^\\d])`);
-	createToken("COERCEFULL", src[t.COERCEPLAIN] + `(?:${src[t.PRERELEASE]})?(?:${src[t.BUILD]})?(?:$|[^\\d])`);
-	createToken("COERCERTL", src[t.COERCE], true);
-	createToken("COERCERTLFULL", src[t.COERCEFULL], true);
-	createToken("LONETILDE", "(?:~>?)");
-	createToken("TILDETRIM", `(\\s*)${src[t.LONETILDE]}\\s+`, true);
-	exports.tildeTrimReplace = "$1~";
-	createToken("TILDE", `^${src[t.LONETILDE]}${src[t.XRANGEPLAIN]}$`);
-	createToken("TILDELOOSE", `^${src[t.LONETILDE]}${src[t.XRANGEPLAINLOOSE]}$`);
-	createToken("LONECARET", "(?:\\^)");
-	createToken("CARETTRIM", `(\\s*)${src[t.LONECARET]}\\s+`, true);
-	exports.caretTrimReplace = "$1^";
-	createToken("CARET", `^${src[t.LONECARET]}${src[t.XRANGEPLAIN]}$`);
-	createToken("CARETLOOSE", `^${src[t.LONECARET]}${src[t.XRANGEPLAINLOOSE]}$`);
-	createToken("COMPARATORLOOSE", `^${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]})$|^$`);
-	createToken("COMPARATOR", `^${src[t.GTLT]}\\s*(${src[t.FULLPLAIN]})$|^$`);
-	createToken("COMPARATORTRIM", `(\\s*)${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]}|${src[t.XRANGEPLAIN]})`, true);
-	exports.comparatorTrimReplace = "$1$2$3";
-	createToken("HYPHENRANGE", `^\\s*(${src[t.XRANGEPLAIN]})\\s+-\\s+(${src[t.XRANGEPLAIN]})\\s*$`);
-	createToken("HYPHENRANGELOOSE", `^\\s*(${src[t.XRANGEPLAINLOOSE]})\\s+-\\s+(${src[t.XRANGEPLAINLOOSE]})\\s*$`);
-	createToken("STAR", "(<|>)?=?\\s*\\*");
-	createToken("GTE0", "^\\s*>=\\s*0\\.0\\.0\\s*$");
-	createToken("GTE0PRE", "^\\s*>=\\s*0\\.0\\.0-0\\s*$");
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/parse-options.js
-var require_parse_options = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const looseOption = Object.freeze({ loose: true });
-	const emptyOpts = Object.freeze({});
-	const parseOptions = (options) => {
-		if (!options) return emptyOpts;
-		if (typeof options !== "object") return looseOption;
-		return options;
-	};
-	module.exports = parseOptions;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/identifiers.js
-var require_identifiers = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const numeric = /^[0-9]+$/;
-	const compareIdentifiers = (a, b) => {
-		if (typeof a === "number" && typeof b === "number") return a === b ? 0 : a < b ? -1 : 1;
-		const anum = numeric.test(a);
-		const bnum = numeric.test(b);
-		if (anum && bnum) {
-			a = +a;
-			b = +b;
-		}
-		return a === b ? 0 : anum && !bnum ? -1 : bnum && !anum ? 1 : a < b ? -1 : 1;
-	};
-	const rcompareIdentifiers = (a, b) => compareIdentifiers(b, a);
-	module.exports = {
-		compareIdentifiers,
-		rcompareIdentifiers
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/semver.js
-var require_semver$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const debug = require_debug();
-	const { MAX_LENGTH, MAX_SAFE_INTEGER } = require_constants();
-	const { safeRe: re, t } = require_re();
-	const parseOptions = require_parse_options();
-	const { compareIdentifiers } = require_identifiers();
-	module.exports = class SemVer {
-		constructor(version, options) {
-			options = parseOptions(options);
-			if (version instanceof SemVer) if (version.loose === !!options.loose && version.includePrerelease === !!options.includePrerelease) return version;
-			else version = version.version;
-			else if (typeof version !== "string") throw new TypeError(`Invalid version. Must be a string. Got type "${typeof version}".`);
-			if (version.length > MAX_LENGTH) throw new TypeError(`version is longer than ${MAX_LENGTH} characters`);
-			debug("SemVer", version, options);
-			this.options = options;
-			this.loose = !!options.loose;
-			this.includePrerelease = !!options.includePrerelease;
-			const m = version.trim().match(options.loose ? re[t.LOOSE] : re[t.FULL]);
-			if (!m) throw new TypeError(`Invalid Version: ${version}`);
-			this.raw = version;
-			this.major = +m[1];
-			this.minor = +m[2];
-			this.patch = +m[3];
-			if (this.major > MAX_SAFE_INTEGER || this.major < 0) throw new TypeError("Invalid major version");
-			if (this.minor > MAX_SAFE_INTEGER || this.minor < 0) throw new TypeError("Invalid minor version");
-			if (this.patch > MAX_SAFE_INTEGER || this.patch < 0) throw new TypeError("Invalid patch version");
-			if (!m[4]) this.prerelease = [];
-			else this.prerelease = m[4].split(".").map((id) => {
-				if (/^[0-9]+$/.test(id)) {
-					const num = +id;
-					if (num >= 0 && num < MAX_SAFE_INTEGER) return num;
-				}
-				return id;
-			});
-			this.build = m[5] ? m[5].split(".") : [];
-			this.format();
-		}
-		format() {
-			this.version = `${this.major}.${this.minor}.${this.patch}`;
-			if (this.prerelease.length) this.version += `-${this.prerelease.join(".")}`;
-			return this.version;
-		}
-		toString() {
-			return this.version;
-		}
-		compare(other) {
-			debug("SemVer.compare", this.version, this.options, other);
-			if (!(other instanceof SemVer)) {
-				if (typeof other === "string" && other === this.version) return 0;
-				other = new SemVer(other, this.options);
-			}
-			if (other.version === this.version) return 0;
-			return this.compareMain(other) || this.comparePre(other);
-		}
-		compareMain(other) {
-			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
-			if (this.major < other.major) return -1;
-			if (this.major > other.major) return 1;
-			if (this.minor < other.minor) return -1;
-			if (this.minor > other.minor) return 1;
-			if (this.patch < other.patch) return -1;
-			if (this.patch > other.patch) return 1;
-			return 0;
-		}
-		comparePre(other) {
-			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
-			if (this.prerelease.length && !other.prerelease.length) return -1;
-			else if (!this.prerelease.length && other.prerelease.length) return 1;
-			else if (!this.prerelease.length && !other.prerelease.length) return 0;
-			let i = 0;
-			do {
-				const a = this.prerelease[i];
-				const b = other.prerelease[i];
-				debug("prerelease compare", i, a, b);
-				if (a === void 0 && b === void 0) return 0;
-				else if (b === void 0) return 1;
-				else if (a === void 0) return -1;
-				else if (a === b) continue;
-				else return compareIdentifiers(a, b);
-			} while (++i);
-		}
-		compareBuild(other) {
-			if (!(other instanceof SemVer)) other = new SemVer(other, this.options);
-			let i = 0;
-			do {
-				const a = this.build[i];
-				const b = other.build[i];
-				debug("build compare", i, a, b);
-				if (a === void 0 && b === void 0) return 0;
-				else if (b === void 0) return 1;
-				else if (a === void 0) return -1;
-				else if (a === b) continue;
-				else return compareIdentifiers(a, b);
-			} while (++i);
-		}
-		inc(release, identifier, identifierBase) {
-			if (release.startsWith("pre")) {
-				if (!identifier && identifierBase === false) throw new Error("invalid increment argument: identifier is empty");
-				if (identifier) {
-					const match = `-${identifier}`.match(this.options.loose ? re[t.PRERELEASELOOSE] : re[t.PRERELEASE]);
-					if (!match || match[1] !== identifier) throw new Error(`invalid identifier: ${identifier}`);
-				}
-			}
-			switch (release) {
-				case "premajor":
-					this.prerelease.length = 0;
-					this.patch = 0;
-					this.minor = 0;
-					this.major++;
-					this.inc("pre", identifier, identifierBase);
-					break;
-				case "preminor":
-					this.prerelease.length = 0;
-					this.patch = 0;
-					this.minor++;
-					this.inc("pre", identifier, identifierBase);
-					break;
-				case "prepatch":
-					this.prerelease.length = 0;
-					this.inc("patch", identifier, identifierBase);
-					this.inc("pre", identifier, identifierBase);
-					break;
-				case "prerelease":
-					if (this.prerelease.length === 0) this.inc("patch", identifier, identifierBase);
-					this.inc("pre", identifier, identifierBase);
-					break;
-				case "release":
-					if (this.prerelease.length === 0) throw new Error(`version ${this.raw} is not a prerelease`);
-					this.prerelease.length = 0;
-					break;
-				case "major":
-					if (this.minor !== 0 || this.patch !== 0 || this.prerelease.length === 0) this.major++;
-					this.minor = 0;
-					this.patch = 0;
-					this.prerelease = [];
-					break;
-				case "minor":
-					if (this.patch !== 0 || this.prerelease.length === 0) this.minor++;
-					this.patch = 0;
-					this.prerelease = [];
-					break;
-				case "patch":
-					if (this.prerelease.length === 0) this.patch++;
-					this.prerelease = [];
-					break;
-				case "pre": {
-					const base = Number(identifierBase) ? 1 : 0;
-					if (this.prerelease.length === 0) this.prerelease = [base];
-					else {
-						let i = this.prerelease.length;
-						while (--i >= 0) if (typeof this.prerelease[i] === "number") {
-							this.prerelease[i]++;
-							i = -2;
-						}
-						if (i === -1) {
-							if (identifier === this.prerelease.join(".") && identifierBase === false) throw new Error("invalid increment argument: identifier already exists");
-							this.prerelease.push(base);
-						}
-					}
-					if (identifier) {
-						let prerelease = [identifier, base];
-						if (identifierBase === false) prerelease = [identifier];
-						if (compareIdentifiers(this.prerelease[0], identifier) === 0) {
-							if (isNaN(this.prerelease[1])) this.prerelease = prerelease;
-						} else this.prerelease = prerelease;
-					}
-					break;
-				}
-				default: throw new Error(`invalid increment argument: ${release}`);
-			}
-			this.raw = this.format();
-			if (this.build.length) this.raw += `+${this.build.join(".")}`;
-			return this;
-		}
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/parse.js
-var require_parse = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const parse = (version, options, throwErrors = false) => {
-		if (version instanceof SemVer) return version;
-		try {
-			return new SemVer(version, options);
-		} catch (er) {
-			if (!throwErrors) return null;
-			throw er;
-		}
-	};
-	module.exports = parse;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/valid.js
-var require_valid$1 = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const parse = require_parse();
-	const valid = (version, options) => {
-		const v = parse(version, options);
-		return v ? v.version : null;
-	};
-	module.exports = valid;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/clean.js
-var require_clean = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const parse = require_parse();
-	const clean = (version, options) => {
-		const s = parse(version.trim().replace(/^[=v]+/, ""), options);
-		return s ? s.version : null;
-	};
-	module.exports = clean;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/inc.js
-var require_inc = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const inc = (version, release, options, identifier, identifierBase) => {
-		if (typeof options === "string") {
-			identifierBase = identifier;
-			identifier = options;
-			options = void 0;
-		}
-		try {
-			return new SemVer(version instanceof SemVer ? version.version : version, options).inc(release, identifier, identifierBase).version;
-		} catch (er) {
-			return null;
-		}
-	};
-	module.exports = inc;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/diff.js
-var require_diff = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const parse = require_parse();
-	const diff = (version1, version2) => {
-		const v1 = parse(version1, null, true);
-		const v2 = parse(version2, null, true);
-		const comparison = v1.compare(v2);
-		if (comparison === 0) return null;
-		const v1Higher = comparison > 0;
-		const highVersion = v1Higher ? v1 : v2;
-		const lowVersion = v1Higher ? v2 : v1;
-		const highHasPre = !!highVersion.prerelease.length;
-		if (!!lowVersion.prerelease.length && !highHasPre) {
-			if (!lowVersion.patch && !lowVersion.minor) return "major";
-			if (lowVersion.compareMain(highVersion) === 0) {
-				if (lowVersion.minor && !lowVersion.patch) return "minor";
-				return "patch";
-			}
-		}
-		const prefix = highHasPre ? "pre" : "";
-		if (v1.major !== v2.major) return prefix + "major";
-		if (v1.minor !== v2.minor) return prefix + "minor";
-		if (v1.patch !== v2.patch) return prefix + "patch";
-		return "prerelease";
-	};
-	module.exports = diff;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/major.js
-var require_major = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const major = (a, loose) => new SemVer(a, loose).major;
-	module.exports = major;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/minor.js
-var require_minor = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const minor = (a, loose) => new SemVer(a, loose).minor;
-	module.exports = minor;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/patch.js
-var require_patch = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const patch = (a, loose) => new SemVer(a, loose).patch;
-	module.exports = patch;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/prerelease.js
-var require_prerelease = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const parse = require_parse();
-	const prerelease = (version, options) => {
-		const parsed = parse(version, options);
-		return parsed && parsed.prerelease.length ? parsed.prerelease : null;
-	};
-	module.exports = prerelease;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare.js
-var require_compare = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const compare = (a, b, loose) => new SemVer(a, loose).compare(new SemVer(b, loose));
-	module.exports = compare;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/rcompare.js
-var require_rcompare = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const rcompare = (a, b, loose) => compare(b, a, loose);
-	module.exports = rcompare;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare-loose.js
-var require_compare_loose = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const compareLoose = (a, b) => compare(a, b, true);
-	module.exports = compareLoose;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/compare-build.js
-var require_compare_build = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const compareBuild = (a, b, loose) => {
-		const versionA = new SemVer(a, loose);
-		const versionB = new SemVer(b, loose);
-		return versionA.compare(versionB) || versionA.compareBuild(versionB);
-	};
-	module.exports = compareBuild;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/sort.js
-var require_sort = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compareBuild = require_compare_build();
-	const sort = (list, loose) => list.sort((a, b) => compareBuild(a, b, loose));
-	module.exports = sort;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/rsort.js
-var require_rsort = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compareBuild = require_compare_build();
-	const rsort = (list, loose) => list.sort((a, b) => compareBuild(b, a, loose));
-	module.exports = rsort;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/gt.js
-var require_gt = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const gt = (a, b, loose) => compare(a, b, loose) > 0;
-	module.exports = gt;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/lt.js
-var require_lt = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const lt = (a, b, loose) => compare(a, b, loose) < 0;
-	module.exports = lt;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/eq.js
-var require_eq = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const eq = (a, b, loose) => compare(a, b, loose) === 0;
-	module.exports = eq;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/neq.js
-var require_neq = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const neq = (a, b, loose) => compare(a, b, loose) !== 0;
-	module.exports = neq;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/gte.js
-var require_gte = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const gte = (a, b, loose) => compare(a, b, loose) >= 0;
-	module.exports = gte;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/lte.js
-var require_lte = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const compare = require_compare();
-	const lte = (a, b, loose) => compare(a, b, loose) <= 0;
-	module.exports = lte;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/cmp.js
-var require_cmp = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const eq = require_eq();
-	const neq = require_neq();
-	const gt = require_gt();
-	const gte = require_gte();
-	const lt = require_lt();
-	const lte = require_lte();
-	const cmp = (a, op, b, loose) => {
-		switch (op) {
-			case "===":
-				if (typeof a === "object") a = a.version;
-				if (typeof b === "object") b = b.version;
-				return a === b;
-			case "!==":
-				if (typeof a === "object") a = a.version;
-				if (typeof b === "object") b = b.version;
-				return a !== b;
-			case "":
-			case "=":
-			case "==": return eq(a, b, loose);
-			case "!=": return neq(a, b, loose);
-			case ">": return gt(a, b, loose);
-			case ">=": return gte(a, b, loose);
-			case "<": return lt(a, b, loose);
-			case "<=": return lte(a, b, loose);
-			default: throw new TypeError(`Invalid operator: ${op}`);
-		}
-	};
-	module.exports = cmp;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/coerce.js
-var require_coerce = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const parse = require_parse();
-	const { safeRe: re, t } = require_re();
-	const coerce = (version, options) => {
-		if (version instanceof SemVer) return version;
-		if (typeof version === "number") version = String(version);
-		if (typeof version !== "string") return null;
-		options = options || {};
-		let match = null;
-		if (!options.rtl) match = version.match(options.includePrerelease ? re[t.COERCEFULL] : re[t.COERCE]);
-		else {
-			const coerceRtlRegex = options.includePrerelease ? re[t.COERCERTLFULL] : re[t.COERCERTL];
-			let next;
-			while ((next = coerceRtlRegex.exec(version)) && (!match || match.index + match[0].length !== version.length)) {
-				if (!match || next.index + next[0].length !== match.index + match[0].length) match = next;
-				coerceRtlRegex.lastIndex = next.index + next[1].length + next[2].length;
-			}
-			coerceRtlRegex.lastIndex = -1;
-		}
-		if (match === null) return null;
-		const major = match[2];
-		return parse(`${major}.${match[3] || "0"}.${match[4] || "0"}${options.includePrerelease && match[5] ? `-${match[5]}` : ""}${options.includePrerelease && match[6] ? `+${match[6]}` : ""}`, options);
-	};
-	module.exports = coerce;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/internal/lrucache.js
-var require_lrucache = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	var LRUCache = class {
-		constructor() {
-			this.max = 1e3;
-			this.map = /* @__PURE__ */ new Map();
-		}
-		get(key) {
-			const value = this.map.get(key);
-			if (value === void 0) return;
-			else {
-				this.map.delete(key);
-				this.map.set(key, value);
-				return value;
-			}
-		}
-		delete(key) {
-			return this.map.delete(key);
-		}
-		set(key, value) {
-			if (!this.delete(key) && value !== void 0) {
-				if (this.map.size >= this.max) {
-					const firstKey = this.map.keys().next().value;
-					this.delete(firstKey);
-				}
-				this.map.set(key, value);
-			}
-			return this;
-		}
-	};
-	module.exports = LRUCache;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/range.js
-var require_range = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SPACE_CHARACTERS = /\s+/g;
-	module.exports = class Range {
-		constructor(range, options) {
-			options = parseOptions(options);
-			if (range instanceof Range) if (range.loose === !!options.loose && range.includePrerelease === !!options.includePrerelease) return range;
-			else return new Range(range.raw, options);
-			if (range instanceof Comparator) {
-				this.raw = range.value;
-				this.set = [[range]];
-				this.formatted = void 0;
-				return this;
-			}
-			this.options = options;
-			this.loose = !!options.loose;
-			this.includePrerelease = !!options.includePrerelease;
-			this.raw = range.trim().replace(SPACE_CHARACTERS, " ");
-			this.set = this.raw.split("||").map((r) => this.parseRange(r.trim())).filter((c) => c.length);
-			if (!this.set.length) throw new TypeError(`Invalid SemVer Range: ${this.raw}`);
-			if (this.set.length > 1) {
-				const first = this.set[0];
-				this.set = this.set.filter((c) => !isNullSet(c[0]));
-				if (this.set.length === 0) this.set = [first];
-				else if (this.set.length > 1) {
-					for (const c of this.set) if (c.length === 1 && isAny(c[0])) {
-						this.set = [c];
-						break;
-					}
-				}
-			}
-			this.formatted = void 0;
-		}
-		get range() {
-			if (this.formatted === void 0) {
-				this.formatted = "";
-				for (let i = 0; i < this.set.length; i++) {
-					if (i > 0) this.formatted += "||";
-					const comps = this.set[i];
-					for (let k = 0; k < comps.length; k++) {
-						if (k > 0) this.formatted += " ";
-						this.formatted += comps[k].toString().trim();
-					}
-				}
-			}
-			return this.formatted;
-		}
-		format() {
-			return this.range;
-		}
-		toString() {
-			return this.range;
-		}
-		parseRange(range) {
-			const memoKey = ((this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE)) + ":" + range;
-			const cached = cache.get(memoKey);
-			if (cached) return cached;
-			const loose = this.options.loose;
-			const hr = loose ? re[t.HYPHENRANGELOOSE] : re[t.HYPHENRANGE];
-			range = range.replace(hr, hyphenReplace(this.options.includePrerelease));
-			debug("hyphen replace", range);
-			range = range.replace(re[t.COMPARATORTRIM], comparatorTrimReplace);
-			debug("comparator trim", range);
-			range = range.replace(re[t.TILDETRIM], tildeTrimReplace);
-			debug("tilde trim", range);
-			range = range.replace(re[t.CARETTRIM], caretTrimReplace);
-			debug("caret trim", range);
-			let rangeList = range.split(" ").map((comp) => parseComparator(comp, this.options)).join(" ").split(/\s+/).map((comp) => replaceGTE0(comp, this.options));
-			if (loose) rangeList = rangeList.filter((comp) => {
-				debug("loose invalid filter", comp, this.options);
-				return !!comp.match(re[t.COMPARATORLOOSE]);
-			});
-			debug("range list", rangeList);
-			const rangeMap = /* @__PURE__ */ new Map();
-			const comparators = rangeList.map((comp) => new Comparator(comp, this.options));
-			for (const comp of comparators) {
-				if (isNullSet(comp)) return [comp];
-				rangeMap.set(comp.value, comp);
-			}
-			if (rangeMap.size > 1 && rangeMap.has("")) rangeMap.delete("");
-			const result = [...rangeMap.values()];
-			cache.set(memoKey, result);
-			return result;
-		}
-		intersects(range, options) {
-			if (!(range instanceof Range)) throw new TypeError("a Range is required");
-			return this.set.some((thisComparators) => {
-				return isSatisfiable(thisComparators, options) && range.set.some((rangeComparators) => {
-					return isSatisfiable(rangeComparators, options) && thisComparators.every((thisComparator) => {
-						return rangeComparators.every((rangeComparator) => {
-							return thisComparator.intersects(rangeComparator, options);
-						});
-					});
-				});
-			});
-		}
-		test(version) {
-			if (!version) return false;
-			if (typeof version === "string") try {
-				version = new SemVer(version, this.options);
-			} catch (er) {
-				return false;
-			}
-			for (let i = 0; i < this.set.length; i++) if (testSet(this.set[i], version, this.options)) return true;
-			return false;
-		}
-	};
-	const cache = new (require_lrucache())();
-	const parseOptions = require_parse_options();
-	const Comparator = require_comparator();
-	const debug = require_debug();
-	const SemVer = require_semver$1();
-	const { safeRe: re, t, comparatorTrimReplace, tildeTrimReplace, caretTrimReplace } = require_re();
-	const { FLAG_INCLUDE_PRERELEASE, FLAG_LOOSE } = require_constants();
-	const isNullSet = (c) => c.value === "<0.0.0-0";
-	const isAny = (c) => c.value === "";
-	const isSatisfiable = (comparators, options) => {
-		let result = true;
-		const remainingComparators = comparators.slice();
-		let testComparator = remainingComparators.pop();
-		while (result && remainingComparators.length) {
-			result = remainingComparators.every((otherComparator) => {
-				return testComparator.intersects(otherComparator, options);
-			});
-			testComparator = remainingComparators.pop();
-		}
-		return result;
-	};
-	const parseComparator = (comp, options) => {
-		comp = comp.replace(re[t.BUILD], "");
-		debug("comp", comp, options);
-		comp = replaceCarets(comp, options);
-		debug("caret", comp);
-		comp = replaceTildes(comp, options);
-		debug("tildes", comp);
-		comp = replaceXRanges(comp, options);
-		debug("xrange", comp);
-		comp = replaceStars(comp, options);
-		debug("stars", comp);
-		return comp;
-	};
-	const isX = (id) => !id || id.toLowerCase() === "x" || id === "*";
-	const replaceTildes = (comp, options) => {
-		return comp.trim().split(/\s+/).map((c) => replaceTilde(c, options)).join(" ");
-	};
-	const replaceTilde = (comp, options) => {
-		const r = options.loose ? re[t.TILDELOOSE] : re[t.TILDE];
-		return comp.replace(r, (_, M, m, p, pr) => {
-			debug("tilde", comp, _, M, m, p, pr);
-			let ret;
-			if (isX(M)) ret = "";
-			else if (isX(m)) ret = `>=${M}.0.0 <${+M + 1}.0.0-0`;
-			else if (isX(p)) ret = `>=${M}.${m}.0 <${M}.${+m + 1}.0-0`;
-			else if (pr) {
-				debug("replaceTilde pr", pr);
-				ret = `>=${M}.${m}.${p}-${pr} <${M}.${+m + 1}.0-0`;
-			} else ret = `>=${M}.${m}.${p} <${M}.${+m + 1}.0-0`;
-			debug("tilde return", ret);
-			return ret;
-		});
-	};
-	const replaceCarets = (comp, options) => {
-		return comp.trim().split(/\s+/).map((c) => replaceCaret(c, options)).join(" ");
-	};
-	const replaceCaret = (comp, options) => {
-		debug("caret", comp, options);
-		const r = options.loose ? re[t.CARETLOOSE] : re[t.CARET];
-		const z = options.includePrerelease ? "-0" : "";
-		return comp.replace(r, (_, M, m, p, pr) => {
-			debug("caret", comp, _, M, m, p, pr);
-			let ret;
-			if (isX(M)) ret = "";
-			else if (isX(m)) ret = `>=${M}.0.0${z} <${+M + 1}.0.0-0`;
-			else if (isX(p)) if (M === "0") ret = `>=${M}.${m}.0${z} <${M}.${+m + 1}.0-0`;
-			else ret = `>=${M}.${m}.0${z} <${+M + 1}.0.0-0`;
-			else if (pr) {
-				debug("replaceCaret pr", pr);
-				if (M === "0") if (m === "0") ret = `>=${M}.${m}.${p}-${pr} <${M}.${m}.${+p + 1}-0`;
-				else ret = `>=${M}.${m}.${p}-${pr} <${M}.${+m + 1}.0-0`;
-				else ret = `>=${M}.${m}.${p}-${pr} <${+M + 1}.0.0-0`;
-			} else {
-				debug("no pr");
-				if (M === "0") if (m === "0") ret = `>=${M}.${m}.${p}${z} <${M}.${m}.${+p + 1}-0`;
-				else ret = `>=${M}.${m}.${p}${z} <${M}.${+m + 1}.0-0`;
-				else ret = `>=${M}.${m}.${p} <${+M + 1}.0.0-0`;
-			}
-			debug("caret return", ret);
-			return ret;
-		});
-	};
-	const replaceXRanges = (comp, options) => {
-		debug("replaceXRanges", comp, options);
-		return comp.split(/\s+/).map((c) => replaceXRange(c, options)).join(" ");
-	};
-	const replaceXRange = (comp, options) => {
-		comp = comp.trim();
-		const r = options.loose ? re[t.XRANGELOOSE] : re[t.XRANGE];
-		return comp.replace(r, (ret, gtlt, M, m, p, pr) => {
-			debug("xRange", comp, ret, gtlt, M, m, p, pr);
-			const xM = isX(M);
-			const xm = xM || isX(m);
-			const xp = xm || isX(p);
-			const anyX = xp;
-			if (gtlt === "=" && anyX) gtlt = "";
-			pr = options.includePrerelease ? "-0" : "";
-			if (xM) if (gtlt === ">" || gtlt === "<") ret = "<0.0.0-0";
-			else ret = "*";
-			else if (gtlt && anyX) {
-				if (xm) m = 0;
-				p = 0;
-				if (gtlt === ">") {
-					gtlt = ">=";
-					if (xm) {
-						M = +M + 1;
-						m = 0;
-						p = 0;
-					} else {
-						m = +m + 1;
-						p = 0;
-					}
-				} else if (gtlt === "<=") {
-					gtlt = "<";
-					if (xm) M = +M + 1;
-					else m = +m + 1;
-				}
-				if (gtlt === "<") pr = "-0";
-				ret = `${gtlt + M}.${m}.${p}${pr}`;
-			} else if (xm) ret = `>=${M}.0.0${pr} <${+M + 1}.0.0-0`;
-			else if (xp) ret = `>=${M}.${m}.0${pr} <${M}.${+m + 1}.0-0`;
-			debug("xRange return", ret);
-			return ret;
-		});
-	};
-	const replaceStars = (comp, options) => {
-		debug("replaceStars", comp, options);
-		return comp.trim().replace(re[t.STAR], "");
-	};
-	const replaceGTE0 = (comp, options) => {
-		debug("replaceGTE0", comp, options);
-		return comp.trim().replace(re[options.includePrerelease ? t.GTE0PRE : t.GTE0], "");
-	};
-	const hyphenReplace = (incPr) => ($0, from, fM, fm, fp, fpr, fb, to, tM, tm, tp, tpr) => {
-		if (isX(fM)) from = "";
-		else if (isX(fm)) from = `>=${fM}.0.0${incPr ? "-0" : ""}`;
-		else if (isX(fp)) from = `>=${fM}.${fm}.0${incPr ? "-0" : ""}`;
-		else if (fpr) from = `>=${from}`;
-		else from = `>=${from}${incPr ? "-0" : ""}`;
-		if (isX(tM)) to = "";
-		else if (isX(tm)) to = `<${+tM + 1}.0.0-0`;
-		else if (isX(tp)) to = `<${tM}.${+tm + 1}.0-0`;
-		else if (tpr) to = `<=${tM}.${tm}.${tp}-${tpr}`;
-		else if (incPr) to = `<${tM}.${tm}.${+tp + 1}-0`;
-		else to = `<=${to}`;
-		return `${from} ${to}`.trim();
-	};
-	const testSet = (set, version, options) => {
-		for (let i = 0; i < set.length; i++) if (!set[i].test(version)) return false;
-		if (version.prerelease.length && !options.includePrerelease) {
-			for (let i = 0; i < set.length; i++) {
-				debug(set[i].semver);
-				if (set[i].semver === Comparator.ANY) continue;
-				if (set[i].semver.prerelease.length > 0) {
-					const allowed = set[i].semver;
-					if (allowed.major === version.major && allowed.minor === version.minor && allowed.patch === version.patch) return true;
-				}
-			}
-			return false;
-		}
-		return true;
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/classes/comparator.js
-var require_comparator = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const ANY = Symbol("SemVer ANY");
-	module.exports = class Comparator {
-		static get ANY() {
-			return ANY;
-		}
-		constructor(comp, options) {
-			options = parseOptions(options);
-			if (comp instanceof Comparator) if (comp.loose === !!options.loose) return comp;
-			else comp = comp.value;
-			comp = comp.trim().split(/\s+/).join(" ");
-			debug("comparator", comp, options);
-			this.options = options;
-			this.loose = !!options.loose;
-			this.parse(comp);
-			if (this.semver === ANY) this.value = "";
-			else this.value = this.operator + this.semver.version;
-			debug("comp", this);
-		}
-		parse(comp) {
-			const r = this.options.loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR];
-			const m = comp.match(r);
-			if (!m) throw new TypeError(`Invalid comparator: ${comp}`);
-			this.operator = m[1] !== void 0 ? m[1] : "";
-			if (this.operator === "=") this.operator = "";
-			if (!m[2]) this.semver = ANY;
-			else this.semver = new SemVer(m[2], this.options.loose);
-		}
-		toString() {
-			return this.value;
-		}
-		test(version) {
-			debug("Comparator.test", version, this.options.loose);
-			if (this.semver === ANY || version === ANY) return true;
-			if (typeof version === "string") try {
-				version = new SemVer(version, this.options);
-			} catch (er) {
-				return false;
-			}
-			return cmp(version, this.operator, this.semver, this.options);
-		}
-		intersects(comp, options) {
-			if (!(comp instanceof Comparator)) throw new TypeError("a Comparator is required");
-			if (this.operator === "") {
-				if (this.value === "") return true;
-				return new Range(comp.value, options).test(this.value);
-			} else if (comp.operator === "") {
-				if (comp.value === "") return true;
-				return new Range(this.value, options).test(comp.semver);
-			}
-			options = parseOptions(options);
-			if (options.includePrerelease && (this.value === "<0.0.0-0" || comp.value === "<0.0.0-0")) return false;
-			if (!options.includePrerelease && (this.value.startsWith("<0.0.0") || comp.value.startsWith("<0.0.0"))) return false;
-			if (this.operator.startsWith(">") && comp.operator.startsWith(">")) return true;
-			if (this.operator.startsWith("<") && comp.operator.startsWith("<")) return true;
-			if (this.semver.version === comp.semver.version && this.operator.includes("=") && comp.operator.includes("=")) return true;
-			if (cmp(this.semver, "<", comp.semver, options) && this.operator.startsWith(">") && comp.operator.startsWith("<")) return true;
-			if (cmp(this.semver, ">", comp.semver, options) && this.operator.startsWith("<") && comp.operator.startsWith(">")) return true;
-			return false;
-		}
-	};
-	const parseOptions = require_parse_options();
-	const { safeRe: re, t } = require_re();
-	const cmp = require_cmp();
-	const debug = require_debug();
-	const SemVer = require_semver$1();
-	const Range = require_range();
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/functions/satisfies.js
-var require_satisfies = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const Range = require_range();
-	const satisfies = (version, range, options) => {
-		try {
-			range = new Range(range, options);
-		} catch (er) {
-			return false;
-		}
-		return range.test(version);
-	};
-	module.exports = satisfies;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/to-comparators.js
-var require_to_comparators = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const Range = require_range();
-	const toComparators = (range, options) => new Range(range, options).set.map((comp) => comp.map((c) => c.value).join(" ").trim().split(" "));
-	module.exports = toComparators;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/max-satisfying.js
-var require_max_satisfying = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const Range = require_range();
-	const maxSatisfying = (versions, range, options) => {
-		let max = null;
-		let maxSV = null;
-		let rangeObj = null;
-		try {
-			rangeObj = new Range(range, options);
-		} catch (er) {
-			return null;
-		}
-		versions.forEach((v) => {
-			if (rangeObj.test(v)) {
-				if (!max || maxSV.compare(v) === -1) {
-					max = v;
-					maxSV = new SemVer(max, options);
-				}
-			}
-		});
-		return max;
-	};
-	module.exports = maxSatisfying;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/min-satisfying.js
-var require_min_satisfying = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const Range = require_range();
-	const minSatisfying = (versions, range, options) => {
-		let min = null;
-		let minSV = null;
-		let rangeObj = null;
-		try {
-			rangeObj = new Range(range, options);
-		} catch (er) {
-			return null;
-		}
-		versions.forEach((v) => {
-			if (rangeObj.test(v)) {
-				if (!min || minSV.compare(v) === 1) {
-					min = v;
-					minSV = new SemVer(min, options);
-				}
-			}
-		});
-		return min;
-	};
-	module.exports = minSatisfying;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/min-version.js
-var require_min_version = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const Range = require_range();
-	const gt = require_gt();
-	const minVersion = (range, loose) => {
-		range = new Range(range, loose);
-		let minver = new SemVer("0.0.0");
-		if (range.test(minver)) return minver;
-		minver = new SemVer("0.0.0-0");
-		if (range.test(minver)) return minver;
-		minver = null;
-		for (let i = 0; i < range.set.length; ++i) {
-			const comparators = range.set[i];
-			let setMin = null;
-			comparators.forEach((comparator) => {
-				const compver = new SemVer(comparator.semver.version);
-				switch (comparator.operator) {
-					case ">":
-						if (compver.prerelease.length === 0) compver.patch++;
-						else compver.prerelease.push(0);
-						compver.raw = compver.format();
-					case "":
-					case ">=":
-						if (!setMin || gt(compver, setMin)) setMin = compver;
-						break;
-					case "<":
-					case "<=": break;
-					/* istanbul ignore next */
-					default: throw new Error(`Unexpected operation: ${comparator.operator}`);
-				}
-			});
-			if (setMin && (!minver || gt(minver, setMin))) minver = setMin;
-		}
-		if (minver && range.test(minver)) return minver;
-		return null;
-	};
-	module.exports = minVersion;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/valid.js
-var require_valid = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const Range = require_range();
-	const validRange = (range, options) => {
-		try {
-			return new Range(range, options).range || "*";
-		} catch (er) {
-			return null;
-		}
-	};
-	module.exports = validRange;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/outside.js
-var require_outside = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const SemVer = require_semver$1();
-	const Comparator = require_comparator();
-	const { ANY } = Comparator;
-	const Range = require_range();
-	const satisfies = require_satisfies();
-	const gt = require_gt();
-	const lt = require_lt();
-	const lte = require_lte();
-	const gte = require_gte();
-	const outside = (version, range, hilo, options) => {
-		version = new SemVer(version, options);
-		range = new Range(range, options);
-		let gtfn, ltefn, ltfn, comp, ecomp;
-		switch (hilo) {
-			case ">":
-				gtfn = gt;
-				ltefn = lte;
-				ltfn = lt;
-				comp = ">";
-				ecomp = ">=";
-				break;
-			case "<":
-				gtfn = lt;
-				ltefn = gte;
-				ltfn = gt;
-				comp = "<";
-				ecomp = "<=";
-				break;
-			default: throw new TypeError("Must provide a hilo val of \"<\" or \">\"");
-		}
-		if (satisfies(version, range, options)) return false;
-		for (let i = 0; i < range.set.length; ++i) {
-			const comparators = range.set[i];
-			let high = null;
-			let low = null;
-			comparators.forEach((comparator) => {
-				if (comparator.semver === ANY) comparator = new Comparator(">=0.0.0");
-				high = high || comparator;
-				low = low || comparator;
-				if (gtfn(comparator.semver, high.semver, options)) high = comparator;
-				else if (ltfn(comparator.semver, low.semver, options)) low = comparator;
-			});
-			if (high.operator === comp || high.operator === ecomp) return false;
-			if ((!low.operator || low.operator === comp) && ltefn(version, low.semver)) return false;
-			else if (low.operator === ecomp && ltfn(version, low.semver)) return false;
-		}
-		return true;
-	};
-	module.exports = outside;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/gtr.js
-var require_gtr = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const outside = require_outside();
-	const gtr = (version, range, options) => outside(version, range, ">", options);
-	module.exports = gtr;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/ltr.js
-var require_ltr = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const outside = require_outside();
-	const ltr = (version, range, options) => outside(version, range, "<", options);
-	module.exports = ltr;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/intersects.js
-var require_intersects = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const Range = require_range();
-	const intersects = (r1, r2, options) => {
-		r1 = new Range(r1, options);
-		r2 = new Range(r2, options);
-		return r1.intersects(r2, options);
-	};
-	module.exports = intersects;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/simplify.js
-var require_simplify = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const satisfies = require_satisfies();
-	const compare = require_compare();
-	module.exports = (versions, range, options) => {
-		const set = [];
-		let first = null;
-		let prev = null;
-		const v = versions.sort((a, b) => compare(a, b, options));
-		for (const version of v) if (satisfies(version, range, options)) {
-			prev = version;
-			if (!first) first = version;
-		} else {
-			if (prev) set.push([first, prev]);
-			prev = null;
-			first = null;
-		}
-		if (first) set.push([first, null]);
-		const ranges = [];
-		for (const [min, max] of set) if (min === max) ranges.push(min);
-		else if (!max && min === v[0]) ranges.push("*");
-		else if (!max) ranges.push(`>=${min}`);
-		else if (min === v[0]) ranges.push(`<=${max}`);
-		else ranges.push(`${min} - ${max}`);
-		const simplified = ranges.join(" || ");
-		const original = typeof range.raw === "string" ? range.raw : String(range);
-		return simplified.length < original.length ? simplified : range;
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/semver@7.7.4/node_modules/semver/ranges/subset.js
-var require_subset = /* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const Range = require_range();
-	const Comparator = require_comparator();
-	const { ANY } = Comparator;
-	const satisfies = require_satisfies();
-	const compare = require_compare();
-	const subset = (sub, dom, options = {}) => {
-		if (sub === dom) return true;
-		sub = new Range(sub, options);
-		dom = new Range(dom, options);
-		let sawNonNull = false;
-		OUTER: for (const simpleSub of sub.set) {
-			for (const simpleDom of dom.set) {
-				const isSub = simpleSubset(simpleSub, simpleDom, options);
-				sawNonNull = sawNonNull || isSub !== null;
-				if (isSub) continue OUTER;
-			}
-			if (sawNonNull) return false;
-		}
-		return true;
-	};
-	const minimumVersionWithPreRelease = [new Comparator(">=0.0.0-0")];
-	const minimumVersion = [new Comparator(">=0.0.0")];
-	const simpleSubset = (sub, dom, options) => {
-		if (sub === dom) return true;
-		if (sub.length === 1 && sub[0].semver === ANY) if (dom.length === 1 && dom[0].semver === ANY) return true;
-		else if (options.includePrerelease) sub = minimumVersionWithPreRelease;
-		else sub = minimumVersion;
-		if (dom.length === 1 && dom[0].semver === ANY) if (options.includePrerelease) return true;
-		else dom = minimumVersion;
-		const eqSet = /* @__PURE__ */ new Set();
-		let gt, lt;
-		for (const c of sub) if (c.operator === ">" || c.operator === ">=") gt = higherGT(gt, c, options);
-		else if (c.operator === "<" || c.operator === "<=") lt = lowerLT(lt, c, options);
-		else eqSet.add(c.semver);
-		if (eqSet.size > 1) return null;
-		let gtltComp;
-		if (gt && lt) {
-			gtltComp = compare(gt.semver, lt.semver, options);
-			if (gtltComp > 0) return null;
-			else if (gtltComp === 0 && (gt.operator !== ">=" || lt.operator !== "<=")) return null;
-		}
-		for (const eq of eqSet) {
-			if (gt && !satisfies(eq, String(gt), options)) return null;
-			if (lt && !satisfies(eq, String(lt), options)) return null;
-			for (const c of dom) if (!satisfies(eq, String(c), options)) return false;
-			return true;
-		}
-		let higher, lower;
-		let hasDomLT, hasDomGT;
-		let needDomLTPre = lt && !options.includePrerelease && lt.semver.prerelease.length ? lt.semver : false;
-		let needDomGTPre = gt && !options.includePrerelease && gt.semver.prerelease.length ? gt.semver : false;
-		if (needDomLTPre && needDomLTPre.prerelease.length === 1 && lt.operator === "<" && needDomLTPre.prerelease[0] === 0) needDomLTPre = false;
-		for (const c of dom) {
-			hasDomGT = hasDomGT || c.operator === ">" || c.operator === ">=";
-			hasDomLT = hasDomLT || c.operator === "<" || c.operator === "<=";
-			if (gt) {
-				if (needDomGTPre) {
-					if (c.semver.prerelease && c.semver.prerelease.length && c.semver.major === needDomGTPre.major && c.semver.minor === needDomGTPre.minor && c.semver.patch === needDomGTPre.patch) needDomGTPre = false;
-				}
-				if (c.operator === ">" || c.operator === ">=") {
-					higher = higherGT(gt, c, options);
-					if (higher === c && higher !== gt) return false;
-				} else if (gt.operator === ">=" && !satisfies(gt.semver, String(c), options)) return false;
-			}
-			if (lt) {
-				if (needDomLTPre) {
-					if (c.semver.prerelease && c.semver.prerelease.length && c.semver.major === needDomLTPre.major && c.semver.minor === needDomLTPre.minor && c.semver.patch === needDomLTPre.patch) needDomLTPre = false;
-				}
-				if (c.operator === "<" || c.operator === "<=") {
-					lower = lowerLT(lt, c, options);
-					if (lower === c && lower !== lt) return false;
-				} else if (lt.operator === "<=" && !satisfies(lt.semver, String(c), options)) return false;
-			}
-			if (!c.operator && (lt || gt) && gtltComp !== 0) return false;
-		}
-		if (gt && hasDomLT && !lt && gtltComp !== 0) return false;
-		if (lt && hasDomGT && !gt && gtltComp !== 0) return false;
-		if (needDomGTPre || needDomLTPre) return false;
-		return true;
-	};
-	const higherGT = (a, b, options) => {
-		if (!a) return b;
-		const comp = compare(a.semver, b.semver, options);
-		return comp > 0 ? a : comp < 0 ? b : b.operator === ">" && a.operator === ">=" ? b : a;
-	};
-	const lowerLT = (a, b, options) => {
-		if (!a) return b;
-		const comp = compare(a.semver, b.semver, options);
-		return comp < 0 ? a : comp > 0 ? b : b.operator === "<" && a.operator === "<=" ? b : a;
-	};
-	module.exports = subset;
-}));
-//#endregion
 //#region ../../node_modules/.pnpm/effect@4.0.0-beta.70/node_modules/effect/dist/Cache.js
-var import_semver = /* @__PURE__ */ __toESM$1((/* @__PURE__ */ __commonJSMin$1(((exports, module) => {
-	const internalRe = require_re();
-	const constants = require_constants();
-	const SemVer = require_semver$1();
-	const identifiers = require_identifiers();
-	module.exports = {
-		parse: require_parse(),
-		valid: require_valid$1(),
-		clean: require_clean(),
-		inc: require_inc(),
-		diff: require_diff(),
-		major: require_major(),
-		minor: require_minor(),
-		patch: require_patch(),
-		prerelease: require_prerelease(),
-		compare: require_compare(),
-		rcompare: require_rcompare(),
-		compareLoose: require_compare_loose(),
-		compareBuild: require_compare_build(),
-		sort: require_sort(),
-		rsort: require_rsort(),
-		gt: require_gt(),
-		lt: require_lt(),
-		eq: require_eq(),
-		neq: require_neq(),
-		gte: require_gte(),
-		lte: require_lte(),
-		cmp: require_cmp(),
-		coerce: require_coerce(),
-		Comparator: require_comparator(),
-		Range: require_range(),
-		satisfies: require_satisfies(),
-		toComparators: require_to_comparators(),
-		maxSatisfying: require_max_satisfying(),
-		minSatisfying: require_min_satisfying(),
-		minVersion: require_min_version(),
-		validRange: require_valid(),
-		outside: require_outside(),
-		gtr: require_gtr(),
-		ltr: require_ltr(),
-		intersects: require_intersects(),
-		simplifyRange: require_simplify(),
-		subset: require_subset(),
-		SemVer,
-		re: internalRe.re,
-		src: internalRe.src,
-		tokens: internalRe.t,
-		SEMVER_SPEC_VERSION: constants.SEMVER_SPEC_VERSION,
-		RELEASE_TYPES: constants.RELEASE_TYPES,
-		compareIdentifiers: identifiers.compareIdentifiers,
-		rcompareIdentifiers: identifiers.rcompareIdentifiers
-	};
-})))(), 1);
 /**
 * The `Cache` module provides an effectful, mutable key-value cache for values
 * that are computed by a lookup function. A `Cache<Key, A, E, R>` stores lookup
@@ -76704,16 +79482,23 @@ const isMinifiedSource = (absolutePath) => {
 		if (fileDescriptor !== void 0) fs$1.closeSync(fileDescriptor);
 	}
 };
-const isLargeMinifiedFile = (absolutePath) => {
-	let sizeBytes;
+const cachedIsLargeMinifiedByPath = /* @__PURE__ */ new Map();
+const statSourceFileSize = (absolutePath) => {
 	try {
-		sizeBytes = fs$1.statSync(absolutePath).size;
+		return fs$1.statSync(absolutePath).size;
 	} catch {
-		return false;
+		return null;
 	}
-	if (sizeBytes < 2e4) return false;
-	return isMinifiedSource(absolutePath);
 };
+const isLargeMinifiedFile = (absolutePath, knownSizeBytes) => {
+	const cached = cachedIsLargeMinifiedByPath.get(absolutePath);
+	if (cached !== void 0) return cached;
+	const sizeBytes = knownSizeBytes === void 0 ? statSourceFileSize(absolutePath) : knownSizeBytes;
+	const result = sizeBytes !== null && sizeBytes >= 2e4 && isMinifiedSource(absolutePath);
+	cachedIsLargeMinifiedByPath.set(absolutePath, result);
+	return result;
+};
+const isErrnoException = (error) => error instanceof Error && "code" in error;
 const IGNORABLE_READDIR_ERROR_CODES = new Set([
 	"EACCES",
 	"EPERM",
@@ -76723,11 +79508,7 @@ const IGNORABLE_READDIR_ERROR_CODES = new Set([
 	"ELOOP",
 	"ENAMETOOLONG"
 ]);
-const isIgnorableReaddirError = (error) => {
-	if (typeof error !== "object" || error === null) return false;
-	const errorCode = error.code;
-	return typeof errorCode === "string" && IGNORABLE_READDIR_ERROR_CODES.has(errorCode);
-};
+const isIgnorableReaddirError = (error) => isErrnoException(error) && typeof error.code === "string" && IGNORABLE_READDIR_ERROR_CODES.has(error.code);
 const readDirectoryEntries = (directoryPath) => {
 	try {
 		return fs$1.readdirSync(directoryPath, { withFileTypes: true });
@@ -76774,7 +79555,7 @@ const readPackageJsonUncached = (packageJsonPath) => {
 		return JSON.parse(fs$1.readFileSync(packageJsonPath, "utf-8"));
 	} catch (error) {
 		if (error instanceof SyntaxError) return {};
-		if (error instanceof Error && "code" in error) {
+		if (isErrnoException(error)) {
 			const { code } = error;
 			if (code === "EISDIR" || code === "EACCES" || code === "EPERM" || code === "ENOENT") return {};
 		}
@@ -77499,17 +80280,13 @@ const isPackageJsonReactNativeAware = (packageJson) => {
 	return false;
 };
 const hasReactNativeWorkspaceAnywhere = (rootDirectory, rootPackageJson) => someWorkspacePackageJson(rootDirectory, rootPackageJson, isPackageJsonReactNativeAware);
-const getExpoDependencySpec = (packageJson) => {
-	const spec = packageJson.dependencies?.expo ?? packageJson.devDependencies?.expo ?? packageJson.peerDependencies?.expo ?? packageJson.optionalDependencies?.expo;
+const getDependencySpec = (packageJson, packageName) => {
+	const spec = packageJson.dependencies?.[packageName] ?? packageJson.devDependencies?.[packageName] ?? packageJson.peerDependencies?.[packageName] ?? packageJson.optionalDependencies?.[packageName];
 	return typeof spec === "string" ? spec : null;
 };
-const findExpoVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, getExpoDependencySpec);
+const findExpoVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, (packageJson) => getDependencySpec(packageJson, "expo"));
 const SHOPIFY_FLASH_LIST_PACKAGE_NAME = "@shopify/flash-list";
-const getShopifyFlashListDependencySpec = (packageJson) => {
-	const spec = packageJson.dependencies?.["@shopify/flash-list"] ?? packageJson.devDependencies?.["@shopify/flash-list"] ?? packageJson.peerDependencies?.["@shopify/flash-list"] ?? packageJson.optionalDependencies?.["@shopify/flash-list"];
-	return typeof spec === "string" ? spec : null;
-};
-const findShopifyFlashListVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, getShopifyFlashListDependencySpec);
+const findShopifyFlashListVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, (packageJson) => getDependencySpec(packageJson, SHOPIFY_FLASH_LIST_PACKAGE_NAME));
 const resolveCatalogBackedDependencyVersion = ({ rootDirectory, rootPackageJson, packageName, version }) => {
 	if (version === null || !isCatalogReference(version)) return version;
 	const catalogName = extractCatalogName(version);
@@ -77521,11 +80298,7 @@ const resolveCatalogBackedDependencyVersion = ({ rootDirectory, rootPackageJson,
 	if (!isFile(monorepoPackageJsonPath)) return version;
 	return resolveCatalogVersion(readPackageJson$1(monorepoPackageJsonPath), packageName, monorepoRoot, catalogName) ?? version;
 };
-const getNextjsDependencySpec = (packageJson) => {
-	const spec = packageJson.dependencies?.next ?? packageJson.devDependencies?.next ?? packageJson.peerDependencies?.next ?? packageJson.optionalDependencies?.next;
-	return typeof spec === "string" ? spec : null;
-};
-const findNextjsVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, getNextjsDependencySpec);
+const findNextjsVersion = (rootDirectory, rootPackageJson) => findInWorkspacePackageJsons(rootDirectory, rootPackageJson, (packageJson) => getDependencySpec(packageJson, "next"));
 const getPreactVersion = (packageJson) => {
 	return {
 		...packageJson.peerDependencies,
@@ -77600,6 +80373,7 @@ const RECIPE_RULES_RAW_BASE_URL = `${FORK_RAW_BASE_URL}/prompts/rules`;
 const CONFIG_SCHEMA_URL = `${FORK_RAW_BASE_URL}/packages/website/public/schema/config.json`;
 const FETCH_TIMEOUT_MS = 1e4;
 const GITHUB_VIEWER_PERMISSION_TIMEOUT_MS = 2e3;
+const PER_WORKER_MEM_BUDGET_BYTES = 1024 * 1024 * 1024;
 const DEFAULT_BRANCH_CANDIDATES = ["main", "master"];
 const ADOPTABLE_LINT_CONFIG_FILENAMES = [".oxlintrc.json", ".eslintrc.json"];
 const OXLINT_NODE_REQUIREMENT = "^20.19.0 || >=22.12.0";
@@ -77621,6 +80395,11 @@ const ES_TARGET_YEAR_BY_NAME = {
 	es2025: 2025,
 	esnext: 9999
 };
+/**
+* tsconfig filenames probed when resolving a project's TypeScript
+* compiler options — the root config first, then a monorepo base config.
+*/
+const TSCONFIG_FILENAMES = ["tsconfig.json", "tsconfig.base.json"];
 /**
 * Project-config files that `StagedFiles.materialize` copies into
 * the temp directory alongside staged sources so oxlint resolves
@@ -77671,7 +80450,16 @@ const CANONICAL_SUPPORT_URL = `${FORK_REPO_URL}/issues`;
 const SKILL_NAME = "react-doctor";
 const OXLINT_OUTPUT_MAX_BYTES = 50 * 1024 * 1024;
 const OXLINT_SPAWN_TIMEOUT_MS = 6e4;
+const NODE_COMPILE_CACHE_DIR_NAME = "node-compile-cache";
+const DEAD_CODE_WORKER_TIMEOUT_MS = 12e4;
+const OXLINT_SPLIT_TOTAL_BUDGET_MS = 18e4;
+const DEAD_CODE_PHASE_TIMEOUT_MS = 15e4;
+const LINT_PHASE_TIMEOUT_MS = 3e5;
+const SCAN_TOTAL_DEADLINE_MS = 9e5;
 const DEAD_CODE_WORKER_MAX_OLD_SPACE_MB = 8192;
+const DEAD_CODE_TIMEOUT_CEILING_MS = 6e5;
+const DEAD_CODE_PHASE_TIMEOUT_OVER_WORKER_MS = 3e4;
+const DEAD_CODE_OVERLAP_PARSE_SHARE = .4;
 const RECOMMENDED_PNPM_MINIMUM_RELEASE_AGE_MINUTES = 10080;
 const REACT_SERVER_DOM_PACKAGES = [
 	"react-server-dom-webpack",
@@ -77694,14 +80482,24 @@ const APP_ONLY_RULE_KEYS = new Set([
 ]);
 const COMPILER_CLEANUP_BUCKET = "compiler-cleanup";
 const COMPILER_CLEANUP_RULE_KEYS = new Set(["react-doctor/react-compiler-no-manual-memoization"]);
+const ROOT_CAUSE_GROUPABLE_RULE_KEYS = new Set([
+	"react-doctor/no-derived-state",
+	"react-doctor/no-derived-state-effect",
+	"react-doctor/no-derived-useState",
+	"react-doctor/no-adjust-state-on-prop-change",
+	"react-doctor/no-reset-all-state-on-prop-change"
+]);
 const MAX_GLOB_PATTERN_LENGTH_CHARS = 1024;
 const CONFIG_CACHE_TTL_MS = 300 * 1e3;
 const SOCKET_FREE_PURL_API_BASE = "https://firewall-api.socket.dev/purl";
 const SOCKET_PACKAGE_PAGE_BASE = "https://socket.dev/npm/package";
 const SOCKET_FREE_USER_AGENT = "react-doctor-supply-chain";
+const FILE_LINT_CACHE_FILENAME = "file-lint-cache.json";
+const FILE_LINT_CACHE_MAX_FILE_COUNT = 5e4;
 const SUPPLY_CHAIN_PLUGIN = "socket";
 const SUPPLY_CHAIN_RULE = "low-supply-chain-score";
 const SUPPLY_CHAIN_CATEGORY = "Security";
+const SUPPLY_CHAIN_OVERLAP_TIMEOUT_MS = 9e4;
 const SUPPLY_CHAIN_IGNORED_PACKAGES = new Set(["next"]);
 const TSCONFIG_FILENAME = "tsconfig.json";
 const isRelativeExtendsValue = (extendsValue) => extendsValue.startsWith("./") || extendsValue.startsWith("../") || path$1.isAbsolute(extendsValue);
@@ -78126,28 +80924,16 @@ const isReactAtLeast = (detected, required) => {
 	if (detected.major !== required.major) return detected.major > required.major;
 	return detected.minor >= required.minor;
 };
+const parseLowerBoundVersion = (versionSpec) => import_semver.validRange(versionSpec) !== null ? import_semver.minVersion(versionSpec) : import_semver.coerce(versionSpec);
 const parseTailwindMajorMinor = (tailwindVersion) => {
 	if (typeof tailwindVersion !== "string") return null;
 	const trimmed = tailwindVersion.trim();
 	if (trimmed.length === 0) return null;
-	const majorMinorMatch = trimmed.match(/(\d+)\.(\d+)/);
-	if (majorMinorMatch) {
-		const major = Number.parseInt(majorMinorMatch[1], 10);
-		const minor = Number.parseInt(majorMinorMatch[2], 10);
-		if (!Number.isFinite(major) || major <= 0) return null;
-		if (!Number.isFinite(minor) || minor < 0) return null;
-		return {
-			major,
-			minor
-		};
-	}
-	const majorOnlyMatch = trimmed.match(/(\d+)/);
-	if (!majorOnlyMatch) return null;
-	const major = Number.parseInt(majorOnlyMatch[1], 10);
-	if (!Number.isFinite(major) || major <= 0) return null;
+	const lowerBound = parseLowerBoundVersion(trimmed);
+	if (lowerBound === null || lowerBound.major <= 0) return null;
 	return {
-		major,
-		minor: 0
+		major: lowerBound.major,
+		minor: lowerBound.minor
 	};
 };
 const isTailwindAtLeast = (detected, required) => {
@@ -78155,6 +80941,7 @@ const isTailwindAtLeast = (detected, required) => {
 	if (detected.major !== required.major) return detected.major > required.major;
 	return detected.minor >= required.minor;
 };
+const messageFromUnknown = (error) => error instanceof Error ? error.message : String(error);
 var InvalidGlobPatternError = class extends Error {
 	pattern;
 	reason;
@@ -78183,7 +80970,7 @@ const compileGlobPattern = (rawPattern) => {
 	try {
 		return import_picomatch.default.makeRe(normalizeGlobPattern(rawPattern), PICOMATCH_OPTIONS);
 	} catch (caughtError) {
-		throw new InvalidGlobPatternError(rawPattern, caughtError instanceof Error ? caughtError.message : String(caughtError));
+		throw new InvalidGlobPatternError(rawPattern, messageFromUnknown(caughtError));
 	}
 };
 const compileGlobPatternsLenient = (patterns, onInvalid) => {
@@ -78278,115 +81065,6 @@ const buildRuleSeverityControls = (config) => {
 		...config.categories !== void 0 ? { categories: config.categories } : {},
 		...config.buckets !== void 0 ? { buckets: config.buckets } : {}
 	};
-};
-const JSX_OPENER_TAG_PATTERN = /<[A-Za-z][\w.]*/g;
-const JSX_TAG_NAME_FOLLOW = /[A-Za-z]/;
-const isOpenerMatchInsideLineComment = (line, openerCharIndex) => {
-	let stringDelimiter = null;
-	for (let charIndex = 0; charIndex < openerCharIndex; charIndex++) {
-		const character = line[charIndex];
-		if (stringDelimiter !== null) {
-			if (character === "\\") {
-				charIndex++;
-				continue;
-			}
-			if (character === stringDelimiter) stringDelimiter = null;
-			continue;
-		}
-		if (character === "\"" || character === "'" || character === "`") {
-			stringDelimiter = character;
-			continue;
-		}
-		if (character === "/" && line[charIndex + 1] === "/") return true;
-	}
-	return false;
-};
-const findOpenerTagOnLine = (line) => {
-	for (const match of line.matchAll(JSX_OPENER_TAG_PATTERN)) {
-		if (match.index === void 0) continue;
-		if (!isOpenerMatchInsideLineComment(line, match.index)) return { startCharIndex: match.index + match[0].length };
-	}
-	return null;
-};
-const findJsxOpenerSpan = (lines, openerLineIndex) => {
-	const openerLine = lines[openerLineIndex];
-	if (openerLine === void 0) return null;
-	const opener = findOpenerTagOnLine(openerLine);
-	if (!opener) return null;
-	const lookaheadLimit = Math.min(lines.length, openerLineIndex + 32);
-	let braceDepth = 0;
-	let innerAngleDepth = 0;
-	let stringDelimiter = null;
-	for (let lineIndex = openerLineIndex; lineIndex < lookaheadLimit; lineIndex++) {
-		const currentLine = lines[lineIndex];
-		const startCharForLine = lineIndex === openerLineIndex ? opener.startCharIndex : 0;
-		for (let charIndex = startCharForLine; charIndex < currentLine.length; charIndex++) {
-			const character = currentLine[charIndex];
-			if (stringDelimiter !== null) {
-				if (character === "\\") {
-					charIndex++;
-					continue;
-				}
-				if (character === stringDelimiter) stringDelimiter = null;
-				continue;
-			}
-			if (character === "\"" || character === "'" || character === "`") {
-				stringDelimiter = character;
-				continue;
-			}
-			if (character === "{") {
-				braceDepth++;
-				continue;
-			}
-			if (character === "}") {
-				braceDepth--;
-				continue;
-			}
-			if (braceDepth !== 0) continue;
-			if (character === "<") {
-				const followCharacter = currentLine[charIndex + 1];
-				if (followCharacter !== void 0 && JSX_TAG_NAME_FOLLOW.test(followCharacter)) innerAngleDepth++;
-				continue;
-			}
-			if (character !== ">") continue;
-			const previousCharacter = currentLine[charIndex - 1];
-			const nextCharacter = currentLine[charIndex + 1];
-			if (previousCharacter === "=" || nextCharacter === "=") continue;
-			if (innerAngleDepth > 0) {
-				innerAngleDepth--;
-				continue;
-			}
-			return lineIndex;
-		}
-	}
-	return null;
-};
-const findEnclosingMultilineJsxOpenerStart = (lines, diagnosticLineIndex) => {
-	for (let candidateIndex = diagnosticLineIndex - 1; candidateIndex >= 0 && diagnosticLineIndex - candidateIndex <= 32; candidateIndex--) {
-		const openerCloseIndex = findJsxOpenerSpan(lines, candidateIndex);
-		if (openerCloseIndex !== null && openerCloseIndex >= diagnosticLineIndex) return candidateIndex;
-	}
-	return null;
-};
-const DISABLE_NEXT_LINE_PATTERN = /(?:\/\/|\/\*)\s*react-doctor-disable-next-line\b(?:\s+([^\r\n]*?))?\s*(?:\*\/)?\s*\}?\s*$/;
-const findStackedDisableCommentsAbove = (lines, anchorIndex) => {
-	const collected = [];
-	let isStillInChain = true;
-	for (let candidateIndex = anchorIndex - 1; candidateIndex >= 0 && anchorIndex - candidateIndex <= 10; candidateIndex--) {
-		const candidateLine = lines[candidateIndex];
-		if (candidateLine === void 0) break;
-		const match = candidateLine.match(DISABLE_NEXT_LINE_PATTERN);
-		if (match) {
-			collected.push({
-				commentLineIndex: candidateIndex,
-				ruleList: match[1],
-				isInChain: isStillInChain
-			});
-			continue;
-		}
-		isStillInChain = false;
-	}
-	return collected;
 };
 const LEGACY_RULE_KEY_TO_NATIVE_RULE_KEY = {
 	"effect/no-adjust-state-on-prop-change": "react-doctor/no-adjust-state-on-prop-change",
@@ -78512,7 +81190,13 @@ for (const [legacyRuleKey, nativeRuleKey] of Object.entries(LEGACY_RULE_KEY_TO_N
 }
 const getLegacyRuleKeysForNative = (ruleKey) => NATIVE_RULE_KEY_TO_LEGACY_RULE_KEYS.get(ruleKey) ?? [];
 const canonicalizeRuleKey = (ruleKey) => LEGACY_RULE_KEY_TO_NATIVE_RULE_KEY[ruleKey] ?? ruleKey;
-const isSameRuleKey = (candidateRuleKey, targetRuleKey) => canonicalizeRuleKey(candidateRuleKey) === canonicalizeRuleKey(targetRuleKey);
+const isReactDoctorShortIdOf = (bareRuleKey, qualifiedRuleKey) => !bareRuleKey.includes("/") && qualifiedRuleKey === `react-doctor/${bareRuleKey}`;
+const isSameRuleKey = (candidateRuleKey, targetRuleKey) => {
+	const canonicalCandidate = canonicalizeRuleKey(candidateRuleKey);
+	const canonicalTarget = canonicalizeRuleKey(targetRuleKey);
+	if (canonicalCandidate === canonicalTarget) return true;
+	return isReactDoctorShortIdOf(canonicalCandidate, canonicalTarget) || isReactDoctorShortIdOf(canonicalTarget, canonicalCandidate);
+};
 const getEquivalentRuleKeys = (ruleKey) => {
 	const nativeRuleKey = canonicalizeRuleKey(ruleKey);
 	return [nativeRuleKey, ...getLegacyRuleKeysForNative(nativeRuleKey)];
@@ -78522,12 +81206,182 @@ const stripDescriptionTail = (ruleList) => {
 	if (!descriptionMatch || descriptionMatch.index === void 0) return ruleList;
 	return ruleList.slice(0, descriptionMatch.index);
 };
-const isRuleListedInComment = (ruleList, ruleId) => {
+const tokenizeRuleList = (ruleList) => {
 	const trimmed = ruleList?.trim();
-	if (!trimmed) return true;
+	if (!trimmed) return [];
 	const ruleSection = stripDescriptionTail(trimmed).trim();
-	if (!ruleSection) return true;
-	return ruleSection.split(/[,\s]+/).some((token) => isSameRuleKey(token.trim(), ruleId));
+	if (!ruleSection) return [];
+	return ruleSection.split(/[,\s]+/).map((token) => token.trim()).filter(Boolean);
+};
+const FOREIGN_INLINE_DISABLE_PATTERN = /(?:\/\/|\/\*)[ \t]*(eslint|oxlint)-disable-(next-line|line)(?![\w-])([^\r\n]*)/;
+const FOREIGN_BLOCK_DISABLE_PATTERN = /\/\*[ \t]*(eslint|oxlint)-disable(?![\w-])([^*\r\n]*)/;
+const FOREIGN_BLOCK_ENABLE_PATTERN = /\/\*[ \t]*(?:eslint|oxlint)-enable(?![\w-])([^*\r\n]*)/;
+const buildHint = (tool, token, ruleId) => `oxlint matches plugin rules only by their full name, so \`${token}\` in your ${tool}-disable comment does not silence \`${ruleId}\` — change it to \`${ruleId}\`.`;
+const tokenMisnamesRule = (token, ruleId) => token !== ruleId && isSameRuleKey(token, ruleId);
+const detectInlineNearMiss = (lines, diagnosticLineIndex, ruleId) => {
+	const candidates = [{
+		line: lines[diagnosticLineIndex],
+		requiredScope: "line"
+	}, {
+		line: lines[diagnosticLineIndex - 1],
+		requiredScope: "next-line"
+	}];
+	for (const { line, requiredScope } of candidates) {
+		const match = line?.match(FOREIGN_INLINE_DISABLE_PATTERN);
+		if (!match) continue;
+		const [, tool, scope, ruleList] = match;
+		if (scope !== requiredScope) continue;
+		const tokens = tokenizeRuleList(ruleList);
+		if (tokens.includes(ruleId)) continue;
+		for (const token of tokens) if (tokenMisnamesRule(token, ruleId)) return buildHint(tool, token, ruleId);
+	}
+	return null;
+};
+const detectBlockNearMiss = (lines, diagnosticLineIndex, ruleId) => {
+	let openMisname = null;
+	const lastLineIndex = Math.min(diagnosticLineIndex, lines.length - 1);
+	for (let lineIndex = 0; lineIndex <= lastLineIndex; lineIndex++) {
+		const line = lines[lineIndex];
+		if (line === void 0 || !line.includes("-disable") && !line.includes("-enable")) continue;
+		const disableMatch = line.match(FOREIGN_BLOCK_DISABLE_PATTERN);
+		if (disableMatch) {
+			const [, tool, ruleList] = disableMatch;
+			const tokens = tokenizeRuleList(ruleList);
+			if (tokens.includes(ruleId)) openMisname = null;
+			else {
+				const misnamed = tokens.find((token) => tokenMisnamesRule(token, ruleId));
+				if (misnamed) openMisname = {
+					tool,
+					token: misnamed
+				};
+			}
+			continue;
+		}
+		const enableMatch = line.match(FOREIGN_BLOCK_ENABLE_PATTERN);
+		if (enableMatch) {
+			const enabledRules = tokenizeRuleList(enableMatch[1]);
+			if (enabledRules.length === 0 || enabledRules.some((rule) => isSameRuleKey(rule, ruleId))) openMisname = null;
+		}
+	}
+	return openMisname ? buildHint(openMisname.tool, openMisname.token, ruleId) : null;
+};
+const detectForeignDisableNearMiss = (lines, diagnosticLineIndex, ruleId) => {
+	if (!ruleId.startsWith("react-doctor/")) return null;
+	return detectInlineNearMiss(lines, diagnosticLineIndex, ruleId) ?? detectBlockNearMiss(lines, diagnosticLineIndex, ruleId);
+};
+const JSX_OPENER_TAG_PATTERN = /<[A-Za-z][\w.]*/g;
+const JSX_TAG_NAME_FOLLOW = /[A-Za-z]/;
+const isOpenerMatchInsideLineComment = (line, openerCharIndex) => {
+	let stringDelimiter = null;
+	for (let charIndex = 0; charIndex < openerCharIndex; charIndex++) {
+		const character = line[charIndex];
+		if (stringDelimiter !== null) {
+			if (character === "\\") {
+				charIndex++;
+				continue;
+			}
+			if (character === stringDelimiter) stringDelimiter = null;
+			continue;
+		}
+		if (character === "\"" || character === "'" || character === "`") {
+			stringDelimiter = character;
+			continue;
+		}
+		if (character === "/" && line[charIndex + 1] === "/") return true;
+	}
+	return false;
+};
+const findOpenerTagOnLine = (line) => {
+	for (const match of line.matchAll(JSX_OPENER_TAG_PATTERN)) {
+		if (match.index === void 0) continue;
+		if (!isOpenerMatchInsideLineComment(line, match.index)) return { startCharIndex: match.index + match[0].length };
+	}
+	return null;
+};
+const findJsxOpenerSpan = (lines, openerLineIndex) => {
+	const openerLine = lines[openerLineIndex];
+	if (openerLine === void 0) return null;
+	const opener = findOpenerTagOnLine(openerLine);
+	if (!opener) return null;
+	const lookaheadLimit = Math.min(lines.length, openerLineIndex + 32);
+	let braceDepth = 0;
+	let innerAngleDepth = 0;
+	let stringDelimiter = null;
+	for (let lineIndex = openerLineIndex; lineIndex < lookaheadLimit; lineIndex++) {
+		const currentLine = lines[lineIndex];
+		const startCharForLine = lineIndex === openerLineIndex ? opener.startCharIndex : 0;
+		for (let charIndex = startCharForLine; charIndex < currentLine.length; charIndex++) {
+			const character = currentLine[charIndex];
+			if (stringDelimiter !== null) {
+				if (character === "\\") {
+					charIndex++;
+					continue;
+				}
+				if (character === stringDelimiter) stringDelimiter = null;
+				continue;
+			}
+			if (character === "\"" || character === "'" || character === "`") {
+				stringDelimiter = character;
+				continue;
+			}
+			if (character === "{") {
+				braceDepth++;
+				continue;
+			}
+			if (character === "}") {
+				braceDepth--;
+				continue;
+			}
+			if (braceDepth !== 0) continue;
+			if (character === "<") {
+				const followCharacter = currentLine[charIndex + 1];
+				if (followCharacter !== void 0 && JSX_TAG_NAME_FOLLOW.test(followCharacter)) innerAngleDepth++;
+				continue;
+			}
+			if (character !== ">") continue;
+			const previousCharacter = currentLine[charIndex - 1];
+			const nextCharacter = currentLine[charIndex + 1];
+			if (previousCharacter === "=" || nextCharacter === "=") continue;
+			if (innerAngleDepth > 0) {
+				innerAngleDepth--;
+				continue;
+			}
+			return lineIndex;
+		}
+	}
+	return null;
+};
+const findEnclosingMultilineJsxOpenerStart = (lines, diagnosticLineIndex) => {
+	for (let candidateIndex = diagnosticLineIndex - 1; candidateIndex >= 0 && diagnosticLineIndex - candidateIndex <= 32; candidateIndex--) {
+		const openerCloseIndex = findJsxOpenerSpan(lines, candidateIndex);
+		if (openerCloseIndex !== null && openerCloseIndex >= diagnosticLineIndex) return candidateIndex;
+	}
+	return null;
+};
+const DISABLE_NEXT_LINE_PATTERN = /(?:\/\/|\/\*)\s*react-doctor-disable-next-line\b(?:\s+([^\r\n]*?))?\s*(?:\*\/)?\s*\}?\s*$/;
+const findStackedDisableCommentsAbove = (lines, anchorIndex) => {
+	const collected = [];
+	let isStillInChain = true;
+	for (let candidateIndex = anchorIndex - 1; candidateIndex >= 0 && anchorIndex - candidateIndex <= 10; candidateIndex--) {
+		const candidateLine = lines[candidateIndex];
+		if (candidateLine === void 0) break;
+		const match = candidateLine.match(DISABLE_NEXT_LINE_PATTERN);
+		if (match) {
+			collected.push({
+				commentLineIndex: candidateIndex,
+				ruleList: match[1],
+				isInChain: isStillInChain
+			});
+			continue;
+		}
+		isStillInChain = false;
+	}
+	return collected;
+};
+const isRuleListedInComment = (ruleList, ruleId) => {
+	const tokens = tokenizeRuleList(ruleList);
+	if (tokens.length === 0) return true;
+	return tokens.some((token) => isSameRuleKey(token, ruleId));
 };
 const DISABLE_LINE_PATTERN = /(?:\/\/|\/\*)\s*react-doctor-disable-line\b(?:\s+([^\r\n]*?))?\s*(?:\*\/)?\s*\}?\s*$/;
 const formatLineGap = (gapLineCount) => `${gapLineCount} line${gapLineCount === 1 ? "" : "s"}`;
@@ -78571,7 +81425,7 @@ const evaluateSuppression = (lines, diagnosticLineIndex, ruleId) => {
 	};
 	return {
 		isSuppressed: false,
-		nearMissHint: classifyFromComments([directComments, openerComments], diagnosticLineIndex, ruleId)
+		nearMissHint: classifyFromComments([directComments, openerComments], diagnosticLineIndex, ruleId) ?? detectForeignDisableNearMiss(lines, diagnosticLineIndex, ruleId)
 	};
 };
 /**
@@ -78603,8 +81457,10 @@ const isFileIgnoredByPatterns = (filePath, rootDirectory, patterns) => {
 	const relativePath = toRelativePath(filePath, rootDirectory);
 	return patterns.some((pattern) => pattern.test(relativePath));
 };
+const SCRIPT_EXTENSION_FRAGMENT = "[cm]?[jt]sx?";
+const STORY_FILE_SUFFIX_PATTERN = new RegExp(`\\.(?:stories|story)\\.(?:${SCRIPT_EXTENSION_FRAGMENT})$`);
+const TEST_FILE_SUFFIX_PATTERN = new RegExp(`\\.(?:test|spec|fixture|fixtures)\\.(?:${SCRIPT_EXTENSION_FRAGMENT})$`);
 const TEST_FILE_DIRECTORY_PATTERN = /(?:^|\/)(?:__tests__|__test__|tests|test|__mocks__|cypress|e2e|playwright)\//;
-const TEST_FILE_SUFFIX_PATTERN = /\.(?:test|spec|stories|story|fixture|fixtures)\.(?:[cm]?[jt]sx?)$/;
 const FIXTURE_PROJECT_PATTERN = /\/(?:fixtures|__fixtures__)\//;
 const SOURCE_ROOT_PATTERN = /\/(?:src|app|lib|components|pages|features|modules|packages|apps|frontend|client)\//g;
 const stripAboveSourceRoot = (relativePath) => {
@@ -78615,12 +81471,23 @@ const stripAboveSourceRoot = (relativePath) => {
 	if (lastIdx >= 0) return relativePath.slice(lastIdx);
 	return relativePath.slice(fixtureMatch.index + fixtureMatch[0].length - 1);
 };
-const isTestFilePath = (relativePath) => {
-	if (relativePath.length === 0) return false;
+/**
+* Classifies where a file sits relative to shipped code. A finding in a
+* `.stories.tsx` or `.spec.ts` file never runs in front of users, so
+* renderers label those sites instead of framing them as production
+* impact (`rn-no-raw-text` in a spec doesn't say users crash).
+*
+* `"story"` is the `.stories.*` / `.story.*` suffix; `"test"` is the
+* test/spec/fixture suffixes and test directories; `"production"` is
+* the default.
+*/
+const classifyFileContext = (relativePath) => {
+	if (relativePath.length === 0) return "production";
 	const forwardSlashed = relativePath.replaceAll("\\", "/");
-	if (TEST_FILE_SUFFIX_PATTERN.test(forwardSlashed)) return true;
+	if (STORY_FILE_SUFFIX_PATTERN.test(forwardSlashed)) return "story";
+	if (TEST_FILE_SUFFIX_PATTERN.test(forwardSlashed)) return "test";
 	const scoped = stripAboveSourceRoot(forwardSlashed);
-	return TEST_FILE_DIRECTORY_PATTERN.test(scoped);
+	return TEST_FILE_DIRECTORY_PATTERN.test(scoped) ? "test" : "production";
 };
 /**
 * Resolves the user-configured severity override for a rule.
@@ -78840,6 +81707,8 @@ const collectStringSet = (values) => {
 * 5. `rn-no-raw-text` suppression via configured `textComponents` and
 *    `rawTextWrapperComponents` (config-driven JSX enclosure checks)
 * 6. inline suppressions (`// react-doctor-disable-next-line ...`)
+* 7. file-context stamping (`fileContext: "test" | "story"` on
+*    survivors in non-production files, so renderers can label them)
 *
 * Returns `null` when the diagnostic is dropped, the (possibly
 * severity-restamped) diagnostic otherwise.
@@ -78859,7 +81728,7 @@ const buildDiagnosticPipeline = (input) => {
 	const hasTextComponents = textComponentNames.size > 0;
 	const hasRawTextWrappers = rawTextWrapperComponentNames.size > 0;
 	const fileLinesCache = /* @__PURE__ */ new Map();
-	const testFileCache = /* @__PURE__ */ new Map();
+	const fileContextCache = /* @__PURE__ */ new Map();
 	const libraryFileCache = /* @__PURE__ */ new Map();
 	const isLibraryFile = (filePath) => {
 		let cached = libraryFileCache.get(filePath);
@@ -78876,11 +81745,11 @@ const buildDiagnosticPipeline = (input) => {
 		fileLinesCache.set(filePath, lines);
 		return lines;
 	};
-	const isTest = (filePath) => {
-		let cached = testFileCache.get(filePath);
+	const getFileContext = (filePath) => {
+		let cached = fileContextCache.get(filePath);
 		if (cached === void 0) {
-			cached = isTestFilePath(filePath);
-			testFileCache.set(filePath, cached);
+			cached = classifyFileContext(filePath);
+			fileContextCache.set(filePath, cached);
 		}
 		return cached;
 	};
@@ -78889,7 +81758,7 @@ const buildDiagnosticPipeline = (input) => {
 		const rule = src_default.rules[diagnostic.rule];
 		if (!rule?.tags?.includes("test-noise")) return false;
 		if (rule.tags.includes("migration-hint")) return false;
-		return isTest(diagnostic.filePath);
+		return getFileContext(diagnostic.filePath) !== "production";
 	};
 	const isRuleIgnored = (ruleIdentifier) => {
 		for (const ignored of ignoredRules) if (isSameRuleKey(ignored, ruleIdentifier)) return true;
@@ -78946,6 +81815,11 @@ const buildDiagnosticPipeline = (input) => {
 				};
 			}
 		}
+		const fileContext = getFileContext(current.filePath);
+		if (fileContext !== "production") current = {
+			...current,
+			fileContext
+		};
 		return current;
 	} };
 };
@@ -78975,6 +81849,11 @@ var OxlintBatchExceeded = class extends TaggedErrorClass()("OxlintBatchExceeded"
 			case "oom": return `oxlint batch ran out of memory: ${this.detail}`;
 			case "killed": return `oxlint batch was killed: ${this.detail}`;
 		}
+	}
+};
+var ScanDeadlineExceeded = class extends TaggedErrorClass()("ScanDeadlineExceeded", { detail: String$1 }) {
+	get message() {
+		return `Scan exceeded its overall time budget: ${this.detail}`;
 	}
 };
 var OxlintSpawnFailed = class extends TaggedErrorClass()("OxlintSpawnFailed", { cause: Unknown }) {
@@ -79040,6 +81919,7 @@ var GitBaseBranchInvalid = class extends TaggedErrorClass()("GitBaseBranchInvali
 const ReactDoctorErrorReason = Union([
 	OxlintUnavailable,
 	OxlintBatchExceeded,
+	ScanDeadlineExceeded,
 	OxlintSpawnFailed,
 	OxlintOutputUnparseable,
 	ConfigParseFailed,
@@ -79112,15 +81992,105 @@ const layerOtlp = unwrap$3(gen(function* () {
 	}).pipe(provide$2(layer$9));
 }).pipe(orDie));
 /**
-* Resolves a requested lint worker count to a clamped integer within
-* `[MIN_SCAN_CONCURRENCY, MAX_SCAN_CONCURRENCY]`. `"auto"` uses the
-* machine's CPU cores; out-of-range or non-finite requests degrade to
+* Read a positive-millisecond timeout from an env var, falling back to
+* `defaultMs` when the var is unset, non-finite, or not strictly positive.
+*/
+const readPositiveEnvMs = (envVarName, defaultMs) => {
+	const rawValue = process.env[envVarName];
+	if (rawValue === void 0) return defaultMs;
+	const parsedValue = Number(rawValue);
+	if (!Number.isFinite(parsedValue) || parsedValue <= 0) return defaultMs;
+	return parsedValue;
+};
+const CGROUP_V2_MEMORY_MAX_PATH = "/sys/fs/cgroup/memory.max";
+const CGROUP_V1_MEMORY_LIMIT_PATH = "/sys/fs/cgroup/memory/memory.limit_in_bytes";
+const CGROUP_UNLIMITED_SENTINEL_BYTES = Number.MAX_SAFE_INTEGER;
+/**
+* Parses one raw cgroup memory-limit file value into a positive byte count, or
+* `undefined` when it represents "no limit" (the v2 `"max"` literal, an empty
+* read, a non-positive / non-finite value, or v1's near-2^63 unlimited
+* sentinel). Pure and exported so the classification is unit-testable without
+* touching the filesystem.
+*/
+const parseCgroupMemoryLimitBytes = (raw) => {
+	if (raw === void 0) return void 0;
+	const trimmed = raw.trim();
+	if (trimmed === "" || trimmed === "max") return void 0;
+	const parsed = Number(trimmed);
+	if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= CGROUP_UNLIMITED_SENTINEL_BYTES) return;
+	return parsed;
+};
+const CGROUP_MEMORY_LIMIT_PATHS = [CGROUP_V2_MEMORY_MAX_PATH, CGROUP_V1_MEMORY_LIMIT_PATH];
+/**
+* Reads this process's cgroup memory limit in bytes from the first candidate
+* path that yields a real limit, or `undefined` when none does — no cgroup, no
+* limit, or the files are unreadable (e.g. macOS / Windows dev machines).
+* `os.totalmem()` reports the HOST total and ignores cgroup memory limits, so a
+* memory-constrained container over-reports total memory; `resolveAutoScan-
+* Concurrency` takes `min(totalmem, this)` to honor the limit.
+*
+* The cgroup v2 read is the mount-root `memory.max`, which IS the container's
+* limit under the standard cgroup-namespace setup CI runners use (the
+* container's own cgroup is the root of its namespaced view). A process in a
+* non-namespaced nested/delegated cgroup whose root reads `"max"` is not
+* detected here and falls back to the host total; the EAGAIN/ENOMEM serial
+* replay in `spawnLintBatches` remains the runtime backstop for that case.
+*
+* `candidatePaths` is injectable so tests exercise the v2-wins-over-v1
+* precedence, the skip-unreadable fallback, and the all-missing case without a
+* real `/sys/fs/cgroup`.
+*/
+const readCgroupMemoryLimitBytes = (candidatePaths = CGROUP_MEMORY_LIMIT_PATHS) => {
+	for (const limitPath of candidatePaths) {
+		let raw;
+		try {
+			raw = fs.readFileSync(limitPath, "utf8");
+		} catch {
+			continue;
+		}
+		const limitBytes = parseCgroupMemoryLimitBytes(raw);
+		if (limitBytes !== void 0) return limitBytes;
+	}
+};
+/**
+* Clamps a requested lint worker count to `[MIN_SCAN_CONCURRENCY,
+* HARD_MAX_SCAN_CONCURRENCY]` as a finite integer. This is the explicit-pin and
+* spawn-boundary clamp — the memory-and-core-budgeted auto count comes from
+* `resolveAutoScanConcurrency`. Out-of-range or non-finite requests degrade to
 * `MIN_SCAN_CONCURRENCY` rather than oversubscribing or running zero workers.
 */
 const resolveScanConcurrency = (requested) => {
-	const desired = requested === "auto" ? os.availableParallelism() : requested;
-	if (!Number.isFinite(desired) || desired < 1) return 1;
-	return Math.max(1, Math.min(Math.floor(desired), 16));
+	if (!Number.isFinite(requested) || requested < 1) return 1;
+	return Math.min(Math.floor(requested), 32);
+};
+const readSystemFacts = () => ({
+	availableCores: os.availableParallelism(),
+	totalMemoryBytes: os.totalmem(),
+	cgroupMemoryLimitBytes: readCgroupMemoryLimitBytes()
+});
+/**
+* Auto lint-worker count: the smaller of the (cgroup-CPU-aware) core count and
+* the number of `PER_WORKER_MEM_BUDGET_BYTES` workers that fit in available
+* memory, then clamped to `[MIN, HARD_MAX]` by `resolveScanConcurrency`.
+*
+* `os.availableParallelism()` already respects cgroup CPU quotas, so the core
+* term needs no help. Available memory is `os.totalmem()` floored by the cgroup
+* memory limit — `os.freemem()` is deliberately NOT used: it excludes
+* reclaimable page cache and reads near-zero on macOS / cache-heavy Linux, which
+* would collapse the auto path to a single worker. `os.totalmem()` reports the
+* host total even inside a container, so the cgroup limit (read directly,
+* because Node doesn't fold it into `totalmem()`) is the real ceiling there.
+*
+* `facts` is injectable so tests exercise core-bound, memory-bound, cgroup-
+* limited, and ceiling cases without mocking `os` or the filesystem.
+*/
+const resolveAutoScanConcurrency = (facts = readSystemFacts()) => {
+	const availableMemoryBytes = Math.min(facts.totalMemoryBytes, facts.cgroupMemoryLimitBytes ?? Number.POSITIVE_INFINITY);
+	const memoryBoundedWorkers = Math.floor(availableMemoryBytes / PER_WORKER_MEM_BUDGET_BYTES);
+	return resolveScanConcurrency(Math.min(facts.availableCores, memoryBoundedWorkers));
+};
+const resolveLintBatchOrdering = () => {
+	return process.env["REACT_DOCTOR_LINT_BATCH_ORDERING"]?.trim().toLowerCase() === "cost" ? "cost" : "arrival";
 };
 /**
 * Per-batch oxlint wall-clock budget. Reads from the env var on
@@ -79128,11 +82098,38 @@ const resolveScanConcurrency = (requested) => {
 * microVMs without recompiling react-doctor. Tests override via
 * `Layer.succeed(OxlintSpawnTimeoutMs, ...)`.
 */
-var OxlintSpawnTimeoutMs = class extends Reference$1("react-doctor/OxlintSpawnTimeoutMs", { defaultValue: () => {
-	const raw = process.env["REACT_DOCTOR_OXLINT_SPAWN_TIMEOUT_MS"];
-	if (raw === void 0) return OXLINT_SPAWN_TIMEOUT_MS;
+var OxlintSpawnTimeoutMs = class extends Reference$1("react-doctor/OxlintSpawnTimeoutMs", { defaultValue: () => readPositiveEnvMs("REACT_DOCTOR_OXLINT_SPAWN_TIMEOUT_MS", OXLINT_SPAWN_TIMEOUT_MS) }) {};
+/**
+* Effect-side cap on the lint phase. The env var lets CI / eval runners
+* raise the phase budget for slow large repos without recompiling.
+* Tests override via `Layer.succeed(LintPhaseTimeoutMs, ...)`.
+*/
+var LintPhaseTimeoutMs = class extends Reference$1("react-doctor/LintPhaseTimeoutMs", { defaultValue: () => readPositiveEnvMs("REACT_DOCTOR_LINT_PHASE_TIMEOUT_MS", LINT_PHASE_TIMEOUT_MS) }) {};
+/**
+* Effect-side cap on the dead-code phase, sitting above the in-worker
+* timeout as a runtime-independent backstop. The env var raises it for
+* type-heavy projects; tests override via
+* `Layer.succeed(DeadCodePhaseTimeoutMs, ...)`.
+*/
+var DeadCodePhaseTimeoutMs = class extends Reference$1("react-doctor/DeadCodePhaseTimeoutMs", { defaultValue: () => readPositiveEnvMs("REACT_DOCTOR_DEAD_CODE_PHASE_TIMEOUT_MS", DEAD_CODE_PHASE_TIMEOUT_MS) }) {};
+/**
+* Overall scan deadline backstop, bounding everything the per-phase
+* timeouts don't (wedged git / IO). The env var raises it for very
+* large repos; tests override via `Layer.succeed(ScanDeadlineMs, ...)`.
+*/
+var ScanDeadlineMs = class extends Reference$1("react-doctor/ScanDeadlineMs", { defaultValue: () => readPositiveEnvMs("REACT_DOCTOR_SCAN_DEADLINE_MS", SCAN_TOTAL_DEADLINE_MS) }) {};
+/**
+* Wall-clock budget for the supply-chain check when it runs on a background
+* fiber overlapping the lint pass. Reads from the env var on startup so the
+* eval harness can raise the budget under sandbox microVMs (slower network)
+* without recompiling react-doctor. Tests override via
+* `Layer.succeed(SupplyChainOverlapTimeoutMs, ...)`.
+*/
+var SupplyChainOverlapTimeoutMs = class extends Reference$1("react-doctor/SupplyChainOverlapTimeoutMs", { defaultValue: () => {
+	const raw = process.env["REACT_DOCTOR_SUPPLY_CHAIN_TIMEOUT_MS"];
+	if (raw === void 0) return SUPPLY_CHAIN_OVERLAP_TIMEOUT_MS;
 	const parsed = Number(raw);
-	if (!Number.isFinite(parsed) || parsed <= 0) return OXLINT_SPAWN_TIMEOUT_MS;
+	if (!Number.isFinite(parsed) || parsed <= 0) return SUPPLY_CHAIN_OVERLAP_TIMEOUT_MS;
 	return parsed;
 } }) {};
 /**
@@ -79143,31 +82140,93 @@ var OxlintSpawnTimeoutMs = class extends Reference$1("react-doctor/OxlintSpawnTi
 */
 var OxlintOutputMaxBytes = class extends Reference$1("react-doctor/OxlintOutputMaxBytes", { defaultValue: () => OXLINT_OUTPUT_MAX_BYTES }) {};
 /**
-* Number of oxlint subprocesses the lint pass runs in parallel. Defaults
-* to auto-detected CPU cores (parallel) so large repos scan fast out of
-* the box; `spawnLintBatches` transparently falls back to a single worker
-* if a parallel run exhausts system resources. The CLI's `--no-parallel`
-* flag forces serial via `Layer.succeed`; the `REACT_DOCTOR_PARALLEL` env
-* var seeds the default for programmatic / CI callers that never touch the
-* flag — parallelism is opt-OUT, so only the explicit serial values pin
-* one worker:
+* Number of oxlint subprocesses the lint pass runs in parallel. Defaults to a
+* memory-and-core-budgeted auto count (`resolveAutoScanConcurrency`) so large
+* repos scan fast out of the box without OOMing the native binding on a
+* high-core / low-memory box; `spawnLintBatches` transparently falls back to a
+* single worker if a parallel run still exhausts system resources. The CLI's
+* `--no-parallel` flag forces serial via `Layer.succeed`; the
+* `REACT_DOCTOR_PARALLEL` env var seeds the default for programmatic / CI
+* callers that never touch the flag — parallelism is opt-OUT, so only the
+* explicit serial values pin one worker:
 *
-*   - unset / `auto` / `true` / `on`  → available CPU cores (clamped)
+*   - unset / `auto` / `true` / `on`  → memory-and-core-budgeted auto count
 *   - `0` / `false` / `off`           → `1` (serial)
 *   - a positive integer              → that many workers (clamped)
-*   - any other value                 → available CPU cores (clamped)
+*   - any other value                 → memory-and-core-budgeted auto count
 *
 * The resolved value is always within
-* `[MIN_SCAN_CONCURRENCY, MAX_SCAN_CONCURRENCY]`.
+* `[MIN_SCAN_CONCURRENCY, HARD_MAX_SCAN_CONCURRENCY]`.
 */
 var OxlintConcurrency = class extends Reference$1("react-doctor/OxlintConcurrency", { defaultValue: () => {
 	const raw = process.env["REACT_DOCTOR_PARALLEL"];
-	if (raw === void 0) return resolveScanConcurrency("auto");
+	if (raw === void 0) return resolveAutoScanConcurrency();
 	const normalized = raw.trim().toLowerCase();
 	if (normalized === "0" || normalized === "false" || normalized === "off") return 1;
 	const parsed = Number.parseInt(normalized, 10);
 	if (Number.isInteger(parsed) && parsed > 0) return resolveScanConcurrency(parsed);
-	return resolveScanConcurrency("auto");
+	return resolveAutoScanConcurrency();
+} }) {};
+/**
+* Three-state control for overlapping the dead-code pass with the lint pass —
+* forking dead-code as a child fiber that runs DURING lint instead of strictly
+* after it.
+*
+*   - `"auto"` (default) / `"off"` → strictly SEQUENTIAL: dead-code runs after
+*     lint with the full core budget. Both deslop's parse pool and the oxlint
+*     pool are CPU-bound and each size themselves to all cores, so overlapping
+*     them only oversubscribes (~2x the cores) and starves the parse pass past
+*     its timeout — for no wall-clock win, since there are no spare cores to
+*     absorb the second pass. Sequential is both faster per-phase and safe.
+*   - `"on"` → force the overlap anyway. The orchestrator then SPLITS the core
+*     budget (`DEAD_CODE_OVERLAP_PARSE_SHARE`): deslop's parse pool is capped
+*     and lint shrinks to the remainder, so the two sum to the cores instead of
+*     doubling them, and the dead-code timeout scales up for the reduced share.
+*
+* Seeded from `REACT_DOCTOR_DEAD_CODE_OVERLAP` so operators get a redeploy-free
+* switch; tests pin it via `Layer.succeed(DeadCodeOverlap, ...)`.
+*/
+var DeadCodeOverlap = class extends Reference$1("react-doctor/DeadCodeOverlap", { defaultValue: () => {
+	const raw = process.env["REACT_DOCTOR_DEAD_CODE_OVERLAP"]?.trim().toLowerCase();
+	if (raw === "on" || raw === "true" || raw === "1") return "on";
+	if (raw === "off" || raw === "false" || raw === "0") return "off";
+	return "auto";
+} }) {};
+/**
+* How the full-scan lint pass orders its file batches. `"arrival"` (the
+* default) keeps `git ls-files` discovery order. `"cost"` opts into LPT (feed
+* the largest files first); set `REACT_DOCTOR_LINT_BATCH_ORDERING=cost`. NOTE:
+* `cost` is OFF by default because the current sort-desc-then-chunk-100 packs
+* the heaviest files into one wave-1 batch — on size-skewed repos that mega-
+* batch is a straggler (and can trip the per-batch timeout + split), measurably
+* regressing the common full-scan case. LPT needs the heavy files SPREAD across
+* batches before `cost` earns the default. Tests override via
+* `Layer.succeed(LintBatchOrdering, ...)`. Diff / staged scans never reach this
+* — they pass user-scoped `includePaths` that skip discovery and stay in
+* arrival order; only the full-scan branch reads it.
+*/
+var LintBatchOrdering = class extends Reference$1("react-doctor/LintBatchOrdering", { defaultValue: resolveLintBatchOrdering }) {};
+const CACHE_DISABLED_VALUES$1 = new Set(["1", "true"]);
+/**
+* Whether the per-file lint cache (`runners/oxlint/file-lint-cache.ts`) is
+* active. Defaults ON — repeat scans re-lint only the files whose content
+* changed, and correctness is guaranteed byte-identical to a cold scan by the
+* always-fresh cross-file sidecar. Opt-OUT, two knobs (matching the whole-repo
+* scan cache's `REACT_DOCTOR_NO_CACHE`):
+*
+*   - `REACT_DOCTOR_NO_CACHE` — the global off-switch; disables BOTH the
+*     whole-repo scan cache and this per-file cache.
+*   - `REACT_DOCTOR_NO_FILE_CACHE` — granular: bust only the per-file cache
+*     while keeping the whole-repo short-circuit.
+*
+* Tests override via `Layer.succeed(PerFileLintCacheEnabled, false)`.
+*/
+var PerFileLintCacheEnabled = class extends Reference$1("react-doctor/PerFileLintCacheEnabled", { defaultValue: () => {
+	const noCache = process.env["REACT_DOCTOR_NO_CACHE"]?.toLowerCase() ?? "";
+	const noFileCache = process.env["REACT_DOCTOR_NO_FILE_CACHE"]?.toLowerCase() ?? "";
+	if (CACHE_DISABLED_VALUES$1.has(noCache)) return false;
+	if (CACHE_DISABLED_VALUES$1.has(noFileCache)) return false;
+	return true;
 } }) {};
 const DIAGNOSTIC_SURFACES = [
 	"cli",
@@ -79341,10 +82400,40 @@ const PACKAGE_JSON_FILENAME = "package.json";
 const PACKAGE_JSON_CONFIG_KEY$1 = "reactDoctor";
 const LEGACY_CONFIG_FILENAME = "react-doctor.config.json";
 const jiti = createJiti(import.meta.url);
-const formatError = (error) => error instanceof Error ? error.message : String(error);
-const loadModuleConfig = async (filePath) => {
-	const imported = await jiti.import(filePath);
+const importDefaultExport = async (jitiInstance, filePath) => {
+	const imported = await jitiInstance.import(filePath);
 	return imported?.default ?? imported;
+};
+const SELF_PACKAGE_IMPORT_SPECIFIER = "react-doctor/api";
+const SELF_PACKAGE_RESOLVE_TARGETS = ["react-doctor/api", "@react-doctor/core"];
+const MODULE_NOT_FOUND_ERROR_CODES = new Set(["MODULE_NOT_FOUND", "ERR_MODULE_NOT_FOUND"]);
+let selfAliasJiti;
+const getSelfAliasJiti = () => {
+	if (selfAliasJiti !== void 0) return selfAliasJiti;
+	for (const resolveTarget of SELF_PACKAGE_RESOLVE_TARGETS) try {
+		const aliasTargetPath = fileURLToPath(jiti.esmResolve(resolveTarget));
+		selfAliasJiti = createJiti(import.meta.url, { alias: { [SELF_PACKAGE_IMPORT_SPECIFIER]: aliasTargetPath } });
+		return selfAliasJiti;
+	} catch {
+		continue;
+	}
+	selfAliasJiti = null;
+	return selfAliasJiti;
+};
+const isSelfPackageResolutionError = (error) => error instanceof Error && "code" in error && typeof error.code === "string" && MODULE_NOT_FOUND_ERROR_CODES.has(error.code) && error.message.includes(SELF_PACKAGE_IMPORT_SPECIFIER);
+const loadModuleConfig = async (filePath) => {
+	try {
+		return await importDefaultExport(jiti, filePath);
+	} catch (error) {
+		if (!isSelfPackageResolutionError(error)) throw error;
+		const aliasJiti = getSelfAliasJiti();
+		if (!aliasJiti) throw error;
+		try {
+			return await importDefaultExport(aliasJiti, filePath);
+		} catch (retryError) {
+			throw new Error(`${messageFromUnknown(error)} (retry with ${SELF_PACKAGE_IMPORT_SPECIFIER} aliased to the running react-doctor package also failed: ${messageFromUnknown(retryError)})`, { cause: retryError });
+		}
+	}
 };
 const readDataConfig = (filePath) => parseJSON5(fs$1.readFileSync(filePath, "utf-8"));
 const readEmbeddedPackageJsonConfig = (directory) => {
@@ -79391,7 +82480,7 @@ const loadLegacyConfig = (directory) => {
 		}
 		warn(`${LEGACY_CONFIG_FILENAME} must contain an object, ignoring.`);
 	} catch (error) {
-		warn(`Failed to load ${LEGACY_CONFIG_FILENAME}: ${formatError(error)}`);
+		warn(`Failed to load ${LEGACY_CONFIG_FILENAME}: ${messageFromUnknown(error)}`);
 	}
 	return {
 		status: "invalid",
@@ -79418,7 +82507,7 @@ const loadConfigFromDirectory = async (directory) => {
 			warn(`${CONFIG_BASENAME}.${extension} must export an object, ignoring.`);
 			sawBrokenConfigFile = true;
 		} catch (error) {
-			warn(`Failed to load ${CONFIG_BASENAME}.${extension}: ${formatError(error)}`);
+			warn(`Failed to load ${CONFIG_BASENAME}.${extension}: ${messageFromUnknown(error)}`);
 			sawBrokenConfigFile = true;
 		}
 	}
@@ -79548,6 +82637,31 @@ const resolveScanTarget = async (requestedDirectory, options = {}) => {
 		didRedirectViaRootDir: redirectedDirectory !== null
 	};
 };
+const buildFixGroupId = (diagnostic) => createHash("sha1").update(JSON.stringify([
+	diagnostic.filePath,
+	`${diagnostic.plugin}/${diagnostic.rule}`,
+	diagnostic.message
+])).digest("hex").slice(0, 16);
+const isGroupableRule = (diagnostic) => ROOT_CAUSE_GROUPABLE_RULE_KEYS.has(`${diagnostic.plugin}/${diagnostic.rule}`);
+const assignFixGroups = (diagnostics) => {
+	const siteCountByGroupId = /* @__PURE__ */ new Map();
+	for (const diagnostic of diagnostics) {
+		if (!isGroupableRule(diagnostic)) continue;
+		const groupId = buildFixGroupId(diagnostic);
+		siteCountByGroupId.set(groupId, (siteCountByGroupId.get(groupId) ?? 0) + 1);
+	}
+	return diagnostics.map((diagnostic) => {
+		if (!isGroupableRule(diagnostic)) return diagnostic;
+		const groupId = buildFixGroupId(diagnostic);
+		if ((siteCountByGroupId.get(groupId) ?? 0) < 2) return diagnostic;
+		return {
+			...diagnostic,
+			fixGroupId: groupId
+		};
+	});
+};
+const compareStrings = (left, right) => left < right ? -1 : left > right ? 1 : 0;
+const sortDiagnosticsStable = (diagnostics) => [...diagnostics].sort((left, right) => compareStrings(left.filePath, right.filePath) || left.line - right.line || left.column - right.column || compareStrings(left.plugin, right.plugin) || compareStrings(left.rule, right.rule) || compareStrings(left.severity, right.severity) || compareStrings(left.message, right.message));
 const getDirectDependencyNames = (packageJson) => new Set([...Object.keys(packageJson.dependencies ?? {}), ...Object.keys(packageJson.devDependencies ?? {})]);
 const buildExpoCheckContext = (rootDirectory, expoVersion) => {
 	const packageJson = readPackageJson$1(path$1.join(rootDirectory, "package.json"));
@@ -80054,10 +83168,15 @@ const buildHardeningDiagnostic = (input) => ({
 	column: input.column ?? 0,
 	category: "Security"
 });
-const checkPnpmHardening = (rootDirectory) => {
-	if (!isPnpmManagedProject(rootDirectory)) return [];
-	const workspacePath = path$1.join(rootDirectory, PNPM_WORKSPACE_FILE);
-	const settings = parseHardeningSettings(isFile(workspacePath) ? fs$1.readFileSync(workspacePath, "utf-8") : "");
+const checkPnpmHardening = (scanDirectory) => {
+	if (!isPnpmManagedProject(scanDirectory)) return [];
+	const workspacePath = path$1.join(scanDirectory, PNPM_WORKSPACE_FILE);
+	const hasWorkspaceFile = isFile(workspacePath);
+	if (!hasWorkspaceFile) {
+		const monorepoRoot = findMonorepoRoot(scanDirectory);
+		if (monorepoRoot !== null && isFile(path$1.join(monorepoRoot, PNPM_WORKSPACE_FILE))) return [];
+	}
+	const settings = parseHardeningSettings(hasWorkspaceFile ? fs$1.readFileSync(workspacePath, "utf-8") : "");
 	const diagnostics = [];
 	if (settings.minimumReleaseAge === null) diagnostics.push(buildHardeningDiagnostic({
 		message: "pnpm-workspace.yaml is missing `minimumReleaseAge` — newly published versions can ship malware that gets caught and unpublished within hours",
@@ -80081,6 +83200,17 @@ const checkPnpmHardening = (rootDirectory) => {
 	}));
 	return diagnostics;
 };
+const buildReactNativeDiagnostic = (input) => ({
+	filePath: input.filePath,
+	plugin: "react-doctor",
+	rule: input.rule,
+	severity: input.severity ?? "warning",
+	message: input.message,
+	help: input.help,
+	line: input.line ?? 0,
+	column: input.column ?? 0,
+	category: input.category ?? "Correctness"
+});
 const BUILDER_BOB_PACKAGE = "react-native-builder-bob";
 const isBuilderBobLibrary = (packageJson) => {
 	const bobConfig = packageJson[BUILDER_BOB_PACKAGE];
@@ -80092,17 +83222,12 @@ const checkReactNativeLibraryDependencies = (rootDirectory) => {
 	const misplaced = ["react", "react-native"].filter((name) => packageJson.dependencies?.[name] !== void 0);
 	if (misplaced.length === 0) return [];
 	const quoted = misplaced.map((name) => `"${name}"`).join(" and ");
-	return [{
+	return [buildReactNativeDiagnostic({
 		filePath: "package.json",
-		plugin: "react-doctor",
 		rule: "rn-library-react-in-dependencies",
-		severity: "warning",
 		message: `This react-native-builder-bob library lists ${quoted} in \`dependencies\` — that ships a second copy into consumer apps, causing "Invalid hook call" (duplicate React) and duplicate-native-module crashes.`,
-		help: `Move ${quoted} to \`peerDependencies\` (keep ${misplaced.length === 1 ? "it" : "them"} in \`devDependencies\` for local development).`,
-		line: 0,
-		column: 0,
-		category: "Correctness"
-	}];
+		help: `Move ${quoted} to \`peerDependencies\` (keep ${misplaced.length === 1 ? "it" : "them"} in \`devDependencies\` for local development).`
+	})];
 };
 const BABEL_CONFIG_FILE_NAMES = [
 	"babel.config.js",
@@ -80114,6 +83239,8 @@ const BABEL_CONFIG_FILE_NAMES = [
 	".babelrc.json"
 ];
 const LEGACY_PRESET_SPEC = "module:metro-react-native-babel-preset";
+const MODERN_PRESET_REFERENCE = new RegExp(`['"]module:@react-native/babel-preset['"]`);
+const ENABLE_BABEL_RUNTIME_VERSION = /enableBabelRuntime["']?\s*:\s*['"]/;
 const checkReactNativeMetroBabelPreset = (rootDirectory) => {
 	for (const fileName of BABEL_CONFIG_FILE_NAMES) {
 		const filePath = path$1.join(rootDirectory, fileName);
@@ -80124,18 +83251,20 @@ const checkReactNativeMetroBabelPreset = (rootDirectory) => {
 		} catch {
 			continue;
 		}
-		if (!contents.includes(LEGACY_PRESET_SPEC)) continue;
-		return [{
+		if (contents.includes(LEGACY_PRESET_SPEC)) return [buildReactNativeDiagnostic({
 			filePath: fileName,
-			plugin: "react-doctor",
 			rule: "rn-no-metro-babel-preset",
 			severity: "error",
 			message: "`module:metro-react-native-babel-preset` was renamed to `@react-native/babel-preset` and is no longer installed by React Native 0.73+ — this preset reference fails to resolve and breaks the Metro/Babel transform.",
-			help: "Replace the preset with `module:@react-native/babel-preset` (or `babel-preset-expo` on Expo) and remove the old `metro-react-native-babel-preset` dependency.",
-			line: 0,
-			column: 0,
-			category: "Correctness"
-		}];
+			help: "Replace the preset with `module:@react-native/babel-preset` (or `babel-preset-expo` on Expo) and remove the old `metro-react-native-babel-preset` dependency."
+		})];
+		if (MODERN_PRESET_REFERENCE.test(contents) && !ENABLE_BABEL_RUNTIME_VERSION.test(contents)) return [buildReactNativeDiagnostic({
+			filePath: fileName,
+			rule: "rn-no-metro-babel-runtime-version",
+			severity: "warning",
+			message: "`module:@react-native/babel-preset` has no `enableBabelRuntime` version, so Babel runtime helpers can be duplicated across files instead of imported once from @babel/runtime, increasing the JS bundle size.",
+			help: "Set `enableBabelRuntime` to the @babel/runtime version from package.json, e.g. `['module:@react-native/babel-preset', { enableBabelRuntime: '^7.26.0' }]`."
+		})];
 	}
 	return [];
 };
@@ -80361,6 +83490,191 @@ const checkReducedMotion = (rootDirectory) => {
 	if (result.status === 0) return [];
 	return [MISSING_REDUCED_MOTION_DIAGNOSTIC];
 };
+const buildSecurityScanDiagnostic = (finding, entry, relativePath) => ({
+	filePath: relativePath,
+	plugin: "react-doctor",
+	rule: entry.id,
+	severity: (finding.severity ?? entry.rule.severity) === "warn" ? "warning" : "error",
+	title: finding.title ?? entry.rule.title ?? entry.id,
+	message: finding.message,
+	help: finding.help ?? entry.rule.recommendation ?? "",
+	line: finding.line,
+	column: finding.column,
+	category: "Security"
+});
+const SECURITY_SCAN_MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
+const SECURITY_SCAN_MAX_BUNDLE_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const SKIPPED_DIRECTORY_NAMES = new Set([
+	".git",
+	".turbo",
+	".vercel",
+	"coverage",
+	"node_modules",
+	"tmp"
+]);
+const readScannedFile = (candidate) => {
+	let stat;
+	try {
+		stat = fs$1.statSync(candidate.absolutePath);
+	} catch {
+		return null;
+	}
+	if (!stat.isFile()) return null;
+	const isGeneratedBundle = candidate.isGeneratedBundleByName || isLargeMinifiedFile(candidate.absolutePath);
+	const maxSizeBytes = isGeneratedBundle ? SECURITY_SCAN_MAX_BUNDLE_FILE_SIZE_BYTES : SECURITY_SCAN_MAX_FILE_SIZE_BYTES;
+	if (stat.size > maxSizeBytes) return null;
+	if (!shouldReadSecurityScanContent(candidate.relativePath, isGeneratedBundle)) return null;
+	try {
+		return {
+			absolutePath: candidate.absolutePath,
+			relativePath: candidate.relativePath,
+			content: fs$1.readFileSync(candidate.absolutePath, "utf-8"),
+			isGeneratedBundle
+		};
+	} catch {
+		return null;
+	}
+};
+function* collectSecurityScanFiles(rootDirectory) {
+	const priorityCandidates = [];
+	const artifactCandidates = [];
+	const otherCandidates = [];
+	const stack = [{
+		absolutePath: rootDirectory,
+		depth: 0
+	}];
+	while (stack.length > 0) {
+		const current = stack.pop();
+		if (current === void 0) continue;
+		if (current.depth > 8) continue;
+		for (const entry of readDirectoryEntries(current.absolutePath)) {
+			const absolutePath = path$1.join(current.absolutePath, entry.name);
+			if (entry.isDirectory()) {
+				if (!SKIPPED_DIRECTORY_NAMES.has(entry.name)) stack.push({
+					absolutePath,
+					depth: current.depth + 1
+				});
+				continue;
+			}
+			const relativePath = path$1.relative(rootDirectory, absolutePath).replaceAll("\\", "/");
+			const classification = classifySecurityScanFile(relativePath);
+			if (classification === null) continue;
+			(classification.bucket === "priority" ? priorityCandidates : classification.bucket === "artifact" ? artifactCandidates : otherCandidates).push({
+				absolutePath,
+				relativePath,
+				isGeneratedBundleByName: classification.isGeneratedBundleByName
+			});
+		}
+	}
+	for (const candidates of [
+		priorityCandidates,
+		artifactCandidates,
+		otherCandidates
+	]) {
+		let yieldedCount = 0;
+		for (const candidate of candidates) {
+			if (yieldedCount >= 2500) break;
+			const scannedFile = readScannedFile(candidate);
+			if (scannedFile === null) continue;
+			yieldedCount += 1;
+			yield scannedFile;
+		}
+	}
+}
+const buildCapabilities = (project) => {
+	const capabilities = /* @__PURE__ */ new Set();
+	capabilities.add(project.framework);
+	if (project.reactVersion !== null || project.preactVersion !== null) capabilities.add("react");
+	if (project.framework === "expo" || project.framework === "react-native" || project.hasReactNativeWorkspace) capabilities.add("react-native");
+	if (project.expoVersion !== null) capabilities.add("expo");
+	if (project.nextjsMajorVersion !== null && project.nextjsMajorVersion >= 15) capabilities.add("nextjs:15");
+	const reactMajor = project.reactMajorVersion;
+	if (reactMajor !== null) {
+		const cappedReactMajor = Math.min(reactMajor, 30);
+		for (let major = 17; major <= cappedReactMajor; major++) capabilities.add(`react:${major}`);
+		if (reactMajor >= 19) {
+			if (isReactAtLeast(parseReactMajorMinor(project.reactVersion), {
+				major: 19,
+				minor: 2
+			})) capabilities.add("react:19.2");
+		}
+	}
+	if (project.tailwindVersion !== null) {
+		capabilities.add("tailwind");
+		if (isTailwindAtLeast(parseTailwindMajorMinor(project.tailwindVersion), {
+			major: 3,
+			minor: 4
+		})) capabilities.add("tailwind:3.4");
+	}
+	if (project.zodVersion !== null) {
+		capabilities.add("zod");
+		if (project.zodMajorVersion !== null && project.zodMajorVersion >= 4) capabilities.add("zod:4");
+	}
+	if (project.isPreES2023Target) capabilities.add("pre-es2023");
+	if (project.hasReactCompiler) capabilities.add("react-compiler");
+	if (project.hasTanStackQuery) capabilities.add("tanstack-query");
+	if (project.hasTypeScript) capabilities.add("typescript");
+	if (project.preactVersion !== null) {
+		capabilities.add("preact");
+		const preactMajor = project.preactMajorVersion;
+		if (preactMajor !== null) {
+			const cappedPreactMajor = Math.min(preactMajor, 20);
+			for (let major = 10; major <= cappedPreactMajor; major++) capabilities.add(`preact:${major}`);
+		}
+		if (project.reactVersion === null) capabilities.add("pure-preact");
+	}
+	return capabilities;
+};
+const shouldEnableRule = (requires, tags, capabilities, ignoredTags, disabledBy) => {
+	if (requires) {
+		for (const capability of requires) if (!capabilities.has(capability)) return false;
+	}
+	if (tags?.includes("react-jsx-only") && !capabilities.has("react")) return false;
+	if (disabledBy) {
+		for (const capability of disabledBy) if (capabilities.has(capability)) return false;
+	}
+	if (tags) {
+		for (const tag of tags) if (ignoredTags.has(tag)) return false;
+	}
+	return true;
+};
+const checkSecurityScan = (rootDirectory, options = {}) => {
+	const capabilities = options.project ? buildCapabilities(options.project) : /* @__PURE__ */ new Set();
+	const ignoredTags = options.ignoredTags ?? /* @__PURE__ */ new Set();
+	const enabledScanRules = REACT_DOCTOR_RULES.flatMap((entry) => {
+		const rule = entry.rule;
+		const scan = rule.scan;
+		if (typeof scan !== "function") return [];
+		if (rule.defaultEnabled === false) return [];
+		if (!shouldEnableRule(rule.requires, rule.tags, capabilities, ignoredTags, rule.disabledBy)) return [];
+		return [{
+			entry,
+			scan,
+			committedFilesOnly: rule.committedFilesOnly === true
+		}];
+	});
+	if (enabledScanRules.length === 0) return [];
+	const diagnostics = [];
+	const seen = /* @__PURE__ */ new Set();
+	const gitIgnoredCache = /* @__PURE__ */ new Map();
+	const isFileGitIgnored = (file) => {
+		let status = gitIgnoredCache.get(file.absolutePath);
+		if (status === void 0) {
+			status = isPathGitIgnored(rootDirectory, file.absolutePath);
+			gitIgnoredCache.set(file.absolutePath, status);
+		}
+		return status === true;
+	};
+	for (const file of collectSecurityScanFiles(rootDirectory)) for (const { entry, scan, committedFilesOnly } of enabledScanRules) for (const finding of scan(file)) {
+		if (committedFilesOnly && isFileGitIgnored(file)) continue;
+		const diagnostic = buildSecurityScanDiagnostic(finding, entry, file.relativePath);
+		const key = `${diagnostic.rule}:${diagnostic.filePath}:${diagnostic.line}:${diagnostic.column}:${diagnostic.message}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		diagnostics.push(diagnostic);
+	}
+	return diagnostics;
+};
 var import_picocolors = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	let p = process || {}, argv = p.argv || [], env = p.env || {};
 	let isColorSupported = !(!!env.NO_COLOR || argv.includes("--no-color")) && (!!env.FORCE_COLOR || argv.includes("--color") || p.platform === "win32" || (p.stdout || {}).isTTY && env.TERM !== "dumb" || !!env.CI);
@@ -80498,7 +83812,7 @@ const readIgnoreFile = (filePath) => {
 	try {
 		content = fs$1.readFileSync(filePath, "utf-8");
 	} catch (error) {
-		const errnoCode = error?.code;
+		const errnoCode = isErrnoException(error) ? error.code : void 0;
 		if (errnoCode && errnoCode !== "ENOENT") runSync(warn$1(`Could not read ignore file ${filePath}: ${errnoCode}`));
 		return [];
 	}
@@ -80536,8 +83850,8 @@ const collectIgnorePatterns = (rootDirectory) => {
 	cachedPatternsByRoot.set(rootDirectory, patterns);
 	return patterns;
 };
+const isRecord$2 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 const KNIP_JSON_FILENAME = "knip.json";
-const isRecord$1$1 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 const readJsonFileSafe = (filePath) => {
 	let rawContents;
 	try {
@@ -80553,10 +83867,10 @@ const readJsonFileSafe = (filePath) => {
 };
 const readKnipConfig = (rootDirectory) => {
 	const knipJson = readJsonFileSafe(path.join(rootDirectory, KNIP_JSON_FILENAME));
-	if (isRecord$1$1(knipJson)) return knipJson;
+	if (isRecord$2(knipJson)) return knipJson;
 	const packageJson = readJsonFileSafe(path.join(rootDirectory, "package.json"));
-	const packageKnipConfig = isRecord$1$1(packageJson) ? packageJson.knip : null;
-	return isRecord$1$1(packageKnipConfig) ? packageKnipConfig : null;
+	const packageKnipConfig = isRecord$2(packageJson) ? packageJson.knip : null;
+	return isRecord$2(packageKnipConfig) ? packageKnipConfig : null;
 };
 const normalizePatternList = (value) => {
 	if (typeof value === "string" && value.length > 0) return [value];
@@ -80568,10 +83882,10 @@ const prefixWorkspacePatterns = (workspacePattern, patterns) => {
 	return patterns.map((pattern) => pattern.startsWith("!") ? `!${normalizedWorkspacePattern}/${pattern.slice(1)}` : `${normalizedWorkspacePattern}/${pattern}`);
 };
 const collectKnipWorkspacePatterns = (workspaces, settingName) => {
-	if (!isRecord$1$1(workspaces)) return [];
+	if (!isRecord$2(workspaces)) return [];
 	const patterns = [];
 	for (const [workspacePattern, workspaceConfig] of Object.entries(workspaces)) {
-		if (!isRecord$1$1(workspaceConfig)) continue;
+		if (!isRecord$2(workspaceConfig)) continue;
 		patterns.push(...prefixWorkspacePatterns(workspacePattern, normalizePatternList(workspaceConfig[settingName])));
 	}
 	return patterns;
@@ -80581,12 +83895,11 @@ const collectKnipPatterns = (rootDirectory, settingName) => {
 	if (!config) return [];
 	return [...normalizePatternList(config[settingName]), ...collectKnipWorkspacePatterns(config.workspaces, settingName)];
 };
-const collectDeadCodeIgnorePatterns = (rootDirectory, userConfig) => {
+const collectDeadCodeIgnorePatterns = (rootDirectory) => {
 	const seen = /* @__PURE__ */ new Set();
 	const sources = [
 		readIgnoreFile(path.join(rootDirectory, ".gitignore")),
 		collectIgnorePatterns(rootDirectory),
-		userConfig?.ignore?.files ?? [],
 		collectKnipPatterns(rootDirectory, "ignore")
 	];
 	for (const source of sources) for (const pattern of source) seen.add(pattern);
@@ -80617,8 +83930,6 @@ const toCanonicalPath = (filePath) => {
 };
 const DEAD_CODE_PLUGIN = "deslop";
 const DEAD_CODE_CATEGORY = "Maintainability";
-const TSCONFIG_FILENAMES$1 = ["tsconfig.json", "tsconfig.base.json"];
-const isRecord$2 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 const DEAD_CODE_WORKER_SCRIPT = `
 const inputChunks = [];
 process.stdin.on("data", (chunk) => inputChunks.push(chunk));
@@ -80666,6 +83977,22 @@ process.stdin.on("end", () => {
         ...(workerInput.ignorePatterns.length > 0
           ? { ignorePatterns: workerInput.ignorePatterns }
           : {}),
+        // We consume only deslop's GRAPH-based findings (unusedFiles, unusedExports,
+        // unusedDependencies, circularDependencies). Everything else deslop can compute
+        // is pure wasted work for us, and it's the bulk of the runtime:
+        //   - semantic: a full TS Program for unusedTypes/enum/class-members/
+        //     misclassifiedDependencies (~37-45% of the phase).
+        //   - reportCodeQuality: the duplicate-block, complexity, feature-flag,
+        //     TypeScript-smell, private-type-leak and re-export-cycle detectors. These
+        //     are the single most expensive pass — duplicate-block detection alone was
+        //     ~83s of a ~130s Sentry scan — so skipping them is an ~8.5x dead-code
+        //     speedup on a large repo.
+        // Both are provably safe: the consumed graph findings are computed by their own
+        // detectors, independent of these passes (confirmed byte-identical on
+        // excalidraw + mui-material + sentry). tsConfigPath stays — the module resolver
+        // needs it for path-alias resolution in the import graph.
+        semantic: { enabled: false },
+        reportCodeQuality: false,
       };
       const result = await analyze(defineConfig(config));
       emit({ ok: true, result: normalizeResult(result) });
@@ -80676,7 +84003,7 @@ process.stdin.on("end", () => {
 });
 `;
 const resolveTsConfigPath = (rootDirectory) => {
-	for (const filename of TSCONFIG_FILENAMES$1) {
+	for (const filename of TSCONFIG_FILENAMES) {
 		const candidate = path$1.join(rootDirectory, filename);
 		if (fs$1.existsSync(candidate)) return candidate;
 	}
@@ -80795,7 +84122,11 @@ const createDeadCodeWorker = (input) => {
 			"pipe",
 			"pipe"
 		],
-		windowsHide: true
+		windowsHide: true,
+		env: input.parseConcurrency === void 0 ? process.env : {
+			...process.env,
+			DESLOP_PARSE_CONCURRENCY: String(input.parseConcurrency)
+		}
 	});
 	const stdoutChunks = [];
 	const stderrChunks = [];
@@ -80840,42 +84171,39 @@ const createDeadCodeWorker = (input) => {
 		}
 	};
 };
-const runDeadCodeWorkerWithTimeout = (handle, timeoutMs) => new Promise((resolve, reject) => {
+const runDeadCodeWorkerWithTimeout = (handle, timeoutMs, abortSignal) => new Promise((resolve, reject) => {
 	let didSettle = false;
-	const timeoutHandle = setTimeout(() => {
+	const settle = (finish) => {
 		if (didSettle) return;
 		didSettle = true;
+		clearTimeout(timeoutHandle);
+		abortSignal?.removeEventListener("abort", onAbort);
 		handle.terminate?.();
-		reject(/* @__PURE__ */ new Error(`Dead-code worker timed out after ${timeoutMs / MILLISECONDS_PER_SECOND}s.`));
-	}, timeoutMs);
+		finish();
+	};
+	const onAbort = () => settle(() => reject(/* @__PURE__ */ new Error("Dead-code worker aborted.")));
+	const timeoutHandle = setTimeout(() => settle(() => reject(/* @__PURE__ */ new Error(`Dead-code worker timed out after ${timeoutMs / MILLISECONDS_PER_SECOND}s.`))), timeoutMs);
 	timeoutHandle.unref?.();
-	handle.result.then((value) => {
-		if (didSettle) return;
-		didSettle = true;
-		clearTimeout(timeoutHandle);
-		handle.terminate?.();
-		resolve(value);
-	}, (error) => {
-		if (didSettle) return;
-		didSettle = true;
-		clearTimeout(timeoutHandle);
-		handle.terminate?.();
-		reject(error);
-	});
+	if (abortSignal?.aborted) {
+		onAbort();
+		return;
+	}
+	abortSignal?.addEventListener("abort", onAbort, { once: true });
+	handle.result.then((value) => settle(() => resolve(value)), (error) => settle(() => reject(error)));
 });
 const checkDeadCode = async (options) => {
-	const { userConfig } = options;
 	const rootDirectory = toCanonicalPath(options.rootDirectory);
 	if (!fs$1.existsSync(path$1.join(rootDirectory, "package.json"))) return [];
 	const entryPatterns = collectDeadCodeEntryPatterns(rootDirectory);
-	const ignorePatterns = collectDeadCodeIgnorePatterns(rootDirectory, userConfig);
+	const ignorePatterns = collectDeadCodeIgnorePatterns(rootDirectory);
 	const result = parseDeadCodeWorkerResult(await runDeadCodeWorkerWithTimeout((options.createWorker ?? createDeadCodeWorker)({
 		rootDirectory,
 		entryPatterns,
 		tsConfigPath: resolveTsConfigPath(rootDirectory),
 		ignorePatterns,
-		deslopJsModuleSpecifier: options.deslopJsModuleSpecifier ?? import.meta.resolve("deslop-js")
-	}), options.workerTimeoutMs ?? 12e4));
+		deslopJsModuleSpecifier: options.deslopJsModuleSpecifier ?? import.meta.resolve("deslop-js"),
+		parseConcurrency: options.parseConcurrency
+	}), options.workerTimeoutMs ?? 12e4, options.abortSignal));
 	const toRelative = (filePath) => toRelativeFilePath(rootDirectory, filePath);
 	const diagnostics = [];
 	for (const unusedFile of result.unusedFiles) diagnostics.push({
@@ -80973,7 +84301,37 @@ const isDiagnosticOnSurface = (diagnostic, surface, config) => {
 	return true;
 };
 const filterDiagnosticsForSurface = (diagnostics, surface, config) => diagnostics.filter((diagnostic) => isDiagnosticOnSurface(diagnostic, surface, config));
-const excludeMinifiedFiles = (rootDirectory, relativePaths) => relativePaths.filter((relativePath) => !isLargeMinifiedFile(path$1.resolve(rootDirectory, relativePath)));
+/**
+* Budget for the dead-code phase, scaled to the work. deslop's graph build is
+* CPU-bound and roughly linear in file count, so a fixed 120s cap is too tight
+* for a large repo (where the pass legitimately runs that long) and is then
+* tipped over by any concurrent load — silently dropping every dead-code
+* finding. Scaling the budget with file count (and inversely with the core
+* share when overlapped) lets the pass complete, while the ceiling still
+* reclaims a genuinely wedged worker. Returns the in-worker SIGKILL deadline
+* and the Effect-side phase backstop that sits a margin above it.
+*/
+const resolveDeadCodeTimeout = (input) => {
+	const coreShareFactor = Math.max(1, input.fullConcurrency / Math.max(1, input.deadCodeConcurrency));
+	const workerTimeoutMs = Math.min(DEAD_CODE_TIMEOUT_CEILING_MS, Math.max(DEAD_CODE_WORKER_TIMEOUT_MS, Math.ceil(input.sourceFileCount * 30 * coreShareFactor)));
+	return {
+		workerTimeoutMs,
+		phaseTimeoutMs: workerTimeoutMs + DEAD_CODE_PHASE_TIMEOUT_OVER_WORKER_MS
+	};
+};
+const collectSizedSourceFiles = (rootDirectory, relativePaths) => {
+	const entries = [];
+	for (const relativePath of relativePaths) {
+		const absolutePath = path$1.resolve(rootDirectory, relativePath);
+		const sizeBytes = statSourceFileSize(absolutePath);
+		if (isLargeMinifiedFile(absolutePath, sizeBytes)) continue;
+		entries.push({
+			path: relativePath,
+			sizeBytes: sizeBytes ?? 0
+		});
+	}
+	return entries;
+};
 const listSourceFilesViaGit = (rootDirectory) => {
 	const result = spawnSync("git", [
 		"ls-files",
@@ -81006,7 +84364,8 @@ const listSourceFilesViaFilesystem = (rootDirectory) => {
 	}
 	return filePaths;
 };
-const listSourceFiles = (rootDirectory) => excludeMinifiedFiles(rootDirectory, listSourceFilesViaGit(rootDirectory) ?? listSourceFilesViaFilesystem(rootDirectory));
+const listSourceFilesWithSize = (rootDirectory) => collectSizedSourceFiles(rootDirectory, listSourceFilesViaGit(rootDirectory) ?? listSourceFilesViaFilesystem(rootDirectory));
+const listSourceFiles = (rootDirectory) => listSourceFilesWithSize(rootDirectory).map((entry) => entry.path);
 const resolveLintIncludePaths = (rootDirectory, userConfig, project) => {
 	if (!Array.isArray(userConfig?.ignore?.files) || userConfig.ignore.files.length === 0) return;
 	const ignoredPatterns = compileIgnoredFilePatterns(userConfig);
@@ -81049,24 +84408,25 @@ var Config = class Config extends Service()("react-doctor/Config") {
 var DeadCode = class DeadCode extends Service()("react-doctor/DeadCode") {
 	static layerNode = succeed$3(DeadCode, DeadCode.of({ run: (input) => unwrap(fn("DeadCode.run")(function* () {
 		return yield* tryPromise({
-			try: () => checkDeadCode({
+			try: (signal) => checkDeadCode({
 				rootDirectory: input.rootDirectory,
-				userConfig: input.userConfig
+				userConfig: input.userConfig,
+				parseConcurrency: input.parseConcurrency,
+				workerTimeoutMs: input.workerTimeoutMs,
+				abortSignal: signal
 			}),
 			catch: (cause) => new ReactDoctorError({ reason: new DeadCodeAnalysisFailed({ cause }) })
 		}).pipe(map$3((diagnostics) => fromIterable$1(diagnostics)));
 	})()) }));
 	static layerOf = (diagnostics) => succeed$3(DeadCode, DeadCode.of({ run: () => fromIterable$1(diagnostics) }));
 };
-const createNodeReadFileLinesSync = (rootDirectory) => {
-	return (filePath) => {
-		const absolutePath = path$1.isAbsolute(filePath) ? filePath : path$1.join(rootDirectory, filePath);
-		try {
-			return fs$1.readFileSync(absolutePath, "utf-8").split("\n");
-		} catch {
-			return null;
-		}
-	};
+const createNodeReadFileLinesSync = (rootDirectory) => (filePath) => {
+	const absolutePath = path$1.isAbsolute(filePath) ? filePath : path$1.join(rootDirectory, filePath);
+	try {
+		return fs$1.readFileSync(absolutePath, "utf-8").split("\n");
+	} catch {
+		return null;
+	}
 };
 var Files = class Files extends Service()("react-doctor/Files") {
 	static layerNode = succeed$3(Files, Files.of({
@@ -81284,7 +84644,10 @@ var Git = class Git extends Service()("react-doctor/Git") {
 				directory: input.directory,
 				cause
 			}) });
-		}));
+		}), withSpan("git.exec", { attributes: {
+			"git.command": input.command,
+			"git.subcommand": input.args[0] ?? ""
+		} }));
 		const runGit = (directory, args) => runCommand({
 			command: "git",
 			args,
@@ -81312,7 +84675,7 @@ var Git = class Git extends Service()("react-doctor/Git") {
 			]);
 			if (candidates.status !== 0) return null;
 			return trimOrNull(candidates.stdout.split("\n")[0] ?? "");
-		});
+		}).pipe(withSpan("Git.defaultBranch"));
 		/**
 		* Heuristic "parent branch" detection for `--diff parent`. Git has no
 		* native notion of the branch a branch was forked from, so we consider
@@ -81433,7 +84796,7 @@ var Git = class Git extends Service()("react-doctor/Git") {
 			const result = resultOption.value;
 			if (result.status !== 0) return null;
 			return parseGithubViewerPermission(result.stdout);
-		}).pipe(catch_$1(() => succeed$2(null)));
+		}).pipe(catch_$1(() => succeed$2(null)), withSpan("Git.githubViewerPermission"));
 		/**
 		* Resolves a `--diff A..B` / `A...B` commit range into a changed-file
 		* selection. Each endpoint is validated with `isSafeGitRevision`
@@ -81548,7 +84911,7 @@ var Git = class Git extends Service()("react-doctor/Git") {
 					changedFiles: splitNullSeparated(diff.stdout),
 					isCurrentChanges: false
 				};
-			}),
+			}).pipe(withSpan("Git.diffSelection")),
 			stagedFilePaths: (directory) => runGit(directory, [
 				"diff",
 				"--cached",
@@ -81590,7 +84953,7 @@ var Git = class Git extends Service()("react-doctor/Git") {
 					status: result.status,
 					stdout: result.stdout
 				};
-			}),
+			}).pipe(withSpan("Git.grep")),
 			changedLineRanges: ({ directory, baseRef, cached, files }) => gen(function* () {
 				if (files.length === 0) return [];
 				if (baseRef !== void 0 && !isSafeGitRevision(baseRef)) return null;
@@ -81606,7 +84969,7 @@ var Git = class Git extends Service()("react-doctor/Git") {
 				]);
 				if (result.status !== 0) return null;
 				return parseChangedLineRanges(result.stdout);
-			})
+			}).pipe(withSpan("Git.changedLineRanges"))
 		});
 	})).pipe(provide$2(layer$3.pipe(provide$2(mergeAll$1(layer$2, layer$1)))));
 	/**
@@ -81821,7 +85184,7 @@ const neutralizeDisableDirectives = async (rootDirectory, includePaths) => {
 		for (const [absolutePath, originalContent] of originalContents) try {
 			fs$1.writeFileSync(absolutePath, originalContent);
 		} catch (error) {
-			process.stderr.write(`[react-doctor] Failed to restore inline disable directives in ${absolutePath}: ${error instanceof Error ? error.message : String(error)}\n[react-doctor] Run: git checkout -- ${absolutePath}\n`);
+			process.stderr.write(`[react-doctor] Failed to restore inline disable directives in ${absolutePath}: ${messageFromUnknown(error)}\n[react-doctor] Run: git checkout -- ${absolutePath}\n`);
 		}
 	};
 	const onExit = () => restore();
@@ -81845,63 +85208,14 @@ const neutralizeDisableDirectives = async (rootDirectory, includePaths) => {
 		process.removeListener("exit", onExit);
 	};
 };
-const buildCapabilities = (project) => {
-	const capabilities = /* @__PURE__ */ new Set();
-	capabilities.add(project.framework);
-	if (project.reactVersion !== null || project.preactVersion !== null) capabilities.add("react");
-	if (project.framework === "expo" || project.framework === "react-native" || project.hasReactNativeWorkspace) capabilities.add("react-native");
-	if (project.expoVersion !== null) capabilities.add("expo");
-	if (project.nextjsMajorVersion !== null && project.nextjsMajorVersion >= 15) capabilities.add("nextjs:15");
-	const reactMajor = project.reactMajorVersion;
-	if (reactMajor !== null) {
-		const cappedReactMajor = Math.min(reactMajor, 30);
-		for (let major = 17; major <= cappedReactMajor; major++) capabilities.add(`react:${major}`);
-		if (reactMajor >= 19) {
-			if (isReactAtLeast(parseReactMajorMinor(project.reactVersion), {
-				major: 19,
-				minor: 2
-			})) capabilities.add("react:19.2");
-		}
-	}
-	if (project.tailwindVersion !== null) {
-		capabilities.add("tailwind");
-		if (isTailwindAtLeast(parseTailwindMajorMinor(project.tailwindVersion), {
-			major: 3,
-			minor: 4
-		})) capabilities.add("tailwind:3.4");
-	}
-	if (project.zodVersion !== null) {
-		capabilities.add("zod");
-		if (project.zodMajorVersion !== null && project.zodMajorVersion >= 4) capabilities.add("zod:4");
-	}
-	if (project.isPreES2023Target) capabilities.add("pre-es2023");
-	if (project.hasReactCompiler) capabilities.add("react-compiler");
-	if (project.hasTanStackQuery) capabilities.add("tanstack-query");
-	if (project.hasTypeScript) capabilities.add("typescript");
-	if (project.preactVersion !== null) {
-		capabilities.add("preact");
-		const preactMajor = project.preactMajorVersion;
-		if (preactMajor !== null) {
-			const cappedPreactMajor = Math.min(preactMajor, 20);
-			for (let major = 10; major <= cappedPreactMajor; major++) capabilities.add(`preact:${major}`);
-		}
-		if (project.reactVersion === null) capabilities.add("pure-preact");
-	}
-	return capabilities;
+const ROOT_DIRECTORY_PLACEHOLDER = "<root>";
+const normalizeConfigForHash = (config) => {
+	const clone = JSON.parse(JSON.stringify(config));
+	if (clone?.settings?.["react-doctor"]) clone.settings["react-doctor"].rootDirectory = ROOT_DIRECTORY_PLACEHOLDER;
+	if (Array.isArray(clone?.jsPlugins)) clone.jsPlugins = clone.jsPlugins.map((_, index) => `<plugin:${index}>`);
+	return clone;
 };
-const shouldEnableRule = (requires, tags, capabilities, ignoredTags, disabledBy) => {
-	if (requires) {
-		for (const capability of requires) if (!capabilities.has(capability)) return false;
-	}
-	if (tags?.includes("react-jsx-only") && !capabilities.has("react")) return false;
-	if (disabledBy) {
-		for (const capability of disabledBy) if (capabilities.has(capability)) return false;
-	}
-	if (tags) {
-		for (const tag of tags) if (ignoredTags.has(tag)) return false;
-	}
-	return true;
-};
+const computeRulesetHash = (input) => crypto.createHash("sha1").update(JSON.stringify(normalizeConfigForHash(input.config))).update("\0").update([...input.toolchainVersions].join("\0")).update("\0").update([...input.ignorePatterns].join("\n")).update(" ").update(input.tsconfigContent ?? "").digest("hex");
 /**
 * Loads a plugin module via the local require resolver and extracts
 * `(name, ruleNames)` from either `module.exports.meta + rules` or
@@ -81984,7 +85298,7 @@ const resolveUserPlugin = (spec, configSourceDirectory) => {
 	try {
 		resolvedSpecifier = isRelative ? path$1.resolve(configSourceDirectory, spec) : candidateRequire.resolve(spec);
 	} catch (error) {
-		warnConfigIssue(`config.plugins entry "${spec}" could not be resolved from ${configSourceDirectory}: ${error instanceof Error ? error.message : String(error)}`);
+		warnConfigIssue(`config.plugins entry "${spec}" could not be resolved from ${configSourceDirectory}: ${messageFromUnknown(error)}`);
 		return null;
 	}
 	const { name, ruleNames } = readPluginShape(resolvedSpecifier, (target) => candidateRequire(target));
@@ -82056,8 +85370,8 @@ const buildUserPluginRules = (userPlugin, severityControls) => {
 	}
 	return enabled;
 };
-const createOxlintConfig = ({ pluginPath, project, customRulesOnly = false, extendsPaths = [], ignoredTags = /* @__PURE__ */ new Set(), serverAuthFunctionNames, severityControls, userPlugins = [] }) => {
-	const reactHooksJsPlugin = resolveReactHooksJsPlugin(project.hasReactCompiler, customRulesOnly);
+const createOxlintConfig = ({ pluginPath, project, customRulesOnly = false, extendsPaths = [], ignoredTags = /* @__PURE__ */ new Set(), serverAuthFunctionNames, severityControls, userPlugins = [], disableReactHooksJsPlugin = false, ruleSelection }) => {
+	const reactHooksJsPlugin = disableReactHooksJsPlugin || ruleSelection === "sidecar" ? null : resolveReactHooksJsPlugin(project.hasReactCompiler, customRulesOnly);
 	const reactCompilerRules = reactHooksJsPlugin ? applyRuleSeverityControls(filterRulesToAvailable(REACT_COMPILER_RULES, "react-hooks-js", reactHooksJsPlugin.availableRuleNames), severityControls) : {};
 	const jsPlugins = [];
 	if (reactHooksJsPlugin) jsPlugins.push(reactHooksJsPlugin.entry);
@@ -82066,6 +85380,9 @@ const createOxlintConfig = ({ pluginPath, project, customRulesOnly = false, exte
 	for (const registryEntry of REACT_DOCTOR_RULES) {
 		const rule = src_default.rules[registryEntry.id];
 		if (!rule) continue;
+		if (ruleSelection === "cacheable" && CROSS_FILE_RULE_IDS.has(registryEntry.id)) continue;
+		if (ruleSelection === "sidecar" && !CROSS_FILE_RULE_IDS.has(registryEntry.id)) continue;
+		if (rule.scan !== void 0) continue;
 		if (customRulesOnly && registryEntry.originallyExternal) continue;
 		if (rule.framework !== "global" && !rule.requires) continue;
 		if (!shouldEnableRule(rule.requires, rule.tags, capabilities, ignoredTags, rule.disabledBy)) continue;
@@ -82079,7 +85396,7 @@ const createOxlintConfig = ({ pluginPath, project, customRulesOnly = false, exte
 		enabledReactDoctorRules[registryEntry.key] = severity;
 	}
 	const userPluginRules = {};
-	for (const userPlugin of userPlugins) {
+	if (ruleSelection !== "sidecar") for (const userPlugin of userPlugins) {
 		Object.assign(userPluginRules, buildUserPluginRules(userPlugin, severityControls));
 		jsPlugins.push(userPlugin.entry);
 	}
@@ -82109,6 +85426,100 @@ const createOxlintConfig = ({ pluginPath, project, customRulesOnly = false, exte
 		}
 	};
 };
+const atomicWriteJson = (filePath, value) => {
+	try {
+		fs$1.mkdirSync(path$1.dirname(filePath), { recursive: true });
+		const temporaryPath = `${filePath}.${process.pid}.tmp`;
+		fs$1.writeFileSync(temporaryPath, JSON.stringify(value));
+		fs$1.renameSync(temporaryPath, filePath);
+	} catch {
+		return;
+	}
+};
+const failOpenReadJson = (filePath, fallback) => {
+	try {
+		return JSON.parse(fs$1.readFileSync(filePath, "utf8"));
+	} catch {
+		return fallback;
+	}
+};
+const validateDiagnostic = decodeUnknownSync(Diagnostic);
+const decodeFileDiagnostics = (raw) => {
+	if (!Array.isArray(raw)) return null;
+	try {
+		for (const entry of raw) validateDiagnostic(entry);
+		return raw;
+	} catch {
+		return null;
+	}
+};
+const emptyCache = () => ({
+	version: 1,
+	rulesets: {}
+});
+const loadRulesetEntries = (cacheFilePath, rulesetHash) => {
+	const entries = /* @__PURE__ */ new Map();
+	const persisted = failOpenReadJson(cacheFilePath, emptyCache());
+	if (persisted.version !== 1 || !isRecord$2(persisted.rulesets)) return entries;
+	const bucket = persisted.rulesets[rulesetHash];
+	if (!isRecord$2(bucket) || !isRecord$2(bucket.files)) return entries;
+	for (const [fileKey, rawDiagnostics] of Object.entries(bucket.files)) {
+		const decoded = decodeFileDiagnostics(rawDiagnostics);
+		if (decoded !== null) entries.set(fileKey, decoded);
+	}
+	return entries;
+};
+const createFileLintCache = (cacheDirectory, rulesetHash) => {
+	const cacheFilePath = path$1.join(cacheDirectory, FILE_LINT_CACHE_FILENAME);
+	const entries = loadRulesetEntries(cacheFilePath, rulesetHash);
+	return {
+		lookup: (fileKey) => entries.get(fileKey) ?? null,
+		store: (fileKey, diagnostics) => {
+			entries.delete(fileKey);
+			entries.set(fileKey, diagnostics);
+		},
+		persist: () => {
+			const onDisk = failOpenReadJson(cacheFilePath, emptyCache());
+			const rulesets = onDisk.version === 1 && isRecord$2(onDisk.rulesets) ? { ...onDisk.rulesets } : {};
+			const existingBucket = rulesets[rulesetHash];
+			const existingFiles = isRecord$2(existingBucket) && isRecord$2(existingBucket.files) ? existingBucket.files : {};
+			const ourFiles = {};
+			for (const [fileKey, diagnostics] of entries) ourFiles[fileKey] = diagnostics;
+			const cappedEntries = Object.entries({
+				...existingFiles,
+				...ourFiles
+			}).slice(-FILE_LINT_CACHE_MAX_FILE_COUNT);
+			rulesets[rulesetHash] = {
+				updatedAtMs: Date.now(),
+				files: Object.fromEntries(cappedEntries)
+			};
+			const keptHashes = Object.entries(rulesets).sort(([, first], [, second]) => second.updatedAtMs - first.updatedAtMs).slice(0, 8).map(([hash]) => hash);
+			const prunedRulesets = {};
+			for (const hash of keptHashes) prunedRulesets[hash] = rulesets[hash];
+			atomicWriteJson(cacheFilePath, {
+				version: 1,
+				rulesets: prunedRulesets
+			});
+		}
+	};
+};
+const bundledRequire$2 = createRequire(import.meta.url);
+const TOOLCHAIN_PACKAGE_SPECIFIERS$1 = [
+	"oxlint/package.json",
+	"oxlint-plugin-react-doctor/package.json",
+	"eslint-plugin-react-hooks/package.json"
+];
+const resolveOxlintToolchainVersions = () => {
+	const versions = [`node=${process.version}`];
+	for (const specifier of TOOLCHAIN_PACKAGE_SPECIFIERS$1) try {
+		const packageJson = bundledRequire$2(specifier);
+		const version = typeof packageJson.version === "string" ? packageJson.version : "unknown";
+		versions.push(`${specifier}=${version}`);
+	} catch {
+		versions.push(`${specifier}=missing`);
+	}
+	return versions;
+};
 const esmRequire = createRequire(import.meta.url);
 const resolveOxlintBinary = () => {
 	const oxlintMainPath = esmRequire.resolve("oxlint");
@@ -82125,7 +85536,6 @@ const resolvePluginPath = () => {
 		throw error;
 	}
 };
-const TSCONFIG_FILENAMES = ["tsconfig.json", "tsconfig.base.json"];
 const resolveTsConfigRelativePath = (rootDirectory) => {
 	for (const filename of TSCONFIG_FILENAMES) if (fs$1.existsSync(path$1.join(rootDirectory, filename))) return `./${filename}`;
 	return null;
@@ -82497,7 +85907,7 @@ const scopeContainsNonImportBinding = (node, scopeNode, identifierName) => {
 const isIdentifierShadowedByLocalBinding = (identifier, sourceFile) => {
 	let currentNode = identifier.parent;
 	while (currentNode) {
-		if (isScopeNode(currentNode)) {
+		if (isScopeBoundary(currentNode)) {
 			if (scopeContainsNonImportBinding(currentNode, currentNode, identifier.text)) return true;
 		}
 		if (currentNode === sourceFile) return false;
@@ -82588,11 +85998,10 @@ const findResolutionInScope = (scopeNode, identifierName, reactImportBindings, s
 	});
 	return resolution;
 };
-const isScopeNode = isScopeBoundary;
 const resolveIdentifierBinding = (identifier, reactImportBindings, sourceFile, visitedDeclarations = /* @__PURE__ */ new Set()) => {
 	let currentNode = identifier.parent;
 	while (currentNode) {
-		if (isScopeNode(currentNode)) {
+		if (isScopeBoundary(currentNode)) {
 			const resolution = findResolutionInScope(currentNode, identifier.text, reactImportBindings, sourceFile, visitedDeclarations);
 			if (resolution) return resolution;
 		}
@@ -82638,8 +86047,18 @@ const shouldSuppressLocalUseHookDiagnostic = (diagnostic, rootDirectory) => {
 	return bindingResolution !== null && !bindingResolution.isReactUseBinding;
 };
 const FILEPATH_WITH_LOCATION_PATTERN = /\S+\.\w+:\d+:\d+[\s\S]*$/;
+const LEADING_SEVERITY_LABEL_PATTERN = /^(?:Error|Warning):\s*/;
+const TRAILING_PERIOD_PATTERN = /\.$/;
 const REACT_COMPILER_TITLE = "React Compiler can't optimize this";
-const REACT_COMPILER_MESSAGE = "This component misses React Compiler's automatic memoization & re-renders more than it should. Rewrite the flagged code so the compiler can optimize it.";
+const REACT_COMPILER_TODO_TITLE = "React Compiler doesn't support this syntax";
+const REACT_COMPILER_IMPACT = "This component misses React Compiler's automatic memoization & re-renders more than it should";
+const REACT_COMPILER_ACTION = "Rewrite the flagged code so the compiler can optimize it.";
+const REACT_COMPILER_GENERIC_MESSAGE = `${REACT_COMPILER_IMPACT}. ${REACT_COMPILER_ACTION}`;
+const buildReactCompilerMessage = (reasonSummary) => {
+	const normalizedSummary = reasonSummary.replace(TRAILING_PERIOD_PATTERN, "");
+	if (!normalizedSummary) return REACT_COMPILER_GENERIC_MESSAGE;
+	return `${REACT_COMPILER_IMPACT}: ${normalizedSummary}. ${REACT_COMPILER_ACTION}`;
+};
 const PLUGIN_CATEGORY_MAP = {
 	react: "Bugs",
 	"react-hooks": "Bugs",
@@ -82666,7 +86085,10 @@ const getRuleRecommendation = (ruleName, project) => {
 };
 const getRuleCategory = (ruleName) => src_default.rules[ruleName]?.category;
 const getRuleTitle = (ruleName) => src_default.rules[ruleName]?.title;
-const resolveDiagnosticTitle = (plugin, rule) => plugin === "react-hooks-js" ? REACT_COMPILER_TITLE : getRuleTitle(rule);
+const resolveDiagnosticTitle = (plugin, rule) => {
+	if (plugin !== "react-hooks-js") return getRuleTitle(rule);
+	return rule === "todo" ? REACT_COMPILER_TODO_TITLE : REACT_COMPILER_TITLE;
+};
 const cleanDiagnosticMessage = (message, help, plugin, rule, project) => {
 	const cleaned = resolveCleanedDiagnostic(typeof message === "string" ? message : "", typeof help === "string" ? help : "", plugin, rule, project);
 	return {
@@ -82675,10 +86097,19 @@ const cleanDiagnosticMessage = (message, help, plugin, rule, project) => {
 	};
 };
 const resolveCleanedDiagnostic = (message, help, plugin, rule, project) => {
-	if (plugin === "react-hooks-js") return {
-		message: REACT_COMPILER_MESSAGE,
-		help: appendReanimatedSharedValueHint(message.replace(FILEPATH_WITH_LOCATION_PATTERN, "").trim() || help, rule, project)
-	};
+	if (plugin === "react-hooks-js") {
+		const bailoutReason = message.replace(FILEPATH_WITH_LOCATION_PATTERN, "").trim().replace(LEADING_SEVERITY_LABEL_PATTERN, "").trim();
+		if (rule === "todo") return {
+			message: REACT_COMPILER_GENERIC_MESSAGE,
+			help: appendReanimatedSharedValueHint(bailoutReason || help, rule, project)
+		};
+		const [reasonSummary = "", ...reasonDetailLines] = bailoutReason.split("\n");
+		const reasonDetail = reasonDetailLines.join("\n").trim();
+		return {
+			message: buildReactCompilerMessage(reasonSummary.trim()),
+			help: appendReanimatedSharedValueHint(reasonDetail || help, rule, project)
+		};
+	}
 	return {
 		message: message.replace(FILEPATH_WITH_LOCATION_PATTERN, "").trim() || message,
 		help: help || getRuleRecommendation(rule, project) || ""
@@ -82740,9 +86171,9 @@ const parseOxlintOutput = (stdout, project, rootDirectory) => {
 	try {
 		parsed = JSON.parse(sanitizedStdout);
 	} catch {
-		throw new ReactDoctorError({ reason: new OxlintOutputUnparseable({ preview: stdout.slice(0, 200) }) });
+		throw new ReactDoctorError({ reason: new OxlintOutputUnparseable({ preview: stdout.slice(0, 600) }) });
 	}
-	if (!isOxlintOutput(parsed)) throw new ReactDoctorError({ reason: new OxlintOutputUnparseable({ preview: stdout.slice(0, 200) }) });
+	if (!isOxlintOutput(parsed)) throw new ReactDoctorError({ reason: new OxlintOutputUnparseable({ preview: stdout.slice(0, 600) }) });
 	const minifiedFileCache = /* @__PURE__ */ new Map();
 	const isMinifiedDiagnosticFile = (filename) => {
 		const absolutePath = path$1.isAbsolute(filename) ? filename : path$1.resolve(rootDirectory || ".", filename);
@@ -82779,15 +86210,19 @@ const parseOxlintOutput = (stdout, project, rootDirectory) => {
 		};
 	});
 };
-const SANITIZED_ENV = (() => {
-	const sanitized = {};
-	for (const [name, value] of Object.entries(process.env)) {
+const buildOxlintChildEnv = (sourceEnv) => {
+	const childEnv = {};
+	for (const [name, value] of Object.entries(sourceEnv)) {
 		if (name === "NODE_OPTIONS" || name === "NODE_DEBUG") continue;
 		if (name.startsWith("npm_config_")) continue;
-		sanitized[name] = value;
+		childEnv[name] = value;
 	}
-	return sanitized;
-})();
+	const isCompileCacheDisabled = Boolean(sourceEnv.NODE_DISABLE_COMPILE_CACHE);
+	const isCompileCacheAlreadySet = childEnv.NODE_COMPILE_CACHE !== void 0;
+	if (!isCompileCacheDisabled && !isCompileCacheAlreadySet) childEnv.NODE_COMPILE_CACHE = path$1.join(os.tmpdir(), NODE_COMPILE_CACHE_DIR_NAME);
+	return childEnv;
+};
+const SANITIZED_ENV = buildOxlintChildEnv(process.env);
 /**
 * Spawn one oxlint subprocess with hard ceilings on wall time and
 * output size. Returns stdout on success; raises a tagged
@@ -82804,7 +86239,11 @@ const SANITIZED_ENV = (() => {
 * The first three are splittable (the caller's binary-split retry
 * shrinks the batch and re-spawns); the fourth isn't.
 */
-const spawnOxlint = (args, rootDirectory, nodeBinaryPath, spawnTimeoutMs = OXLINT_SPAWN_TIMEOUT_MS, outputMaxBytes = OXLINT_OUTPUT_MAX_BYTES) => new Promise((resolve, reject) => {
+const spawnOxlint = (args, rootDirectory, nodeBinaryPath, spawnTimeoutMs = OXLINT_SPAWN_TIMEOUT_MS, outputMaxBytes = OXLINT_OUTPUT_MAX_BYTES, abortSignal) => new Promise((resolve, reject) => {
+	if (abortSignal?.aborted) {
+		reject(new ReactDoctorError({ reason: new OxlintSpawnFailed({ cause: "lint phase aborted" }) }));
+		return;
+	}
 	const child = spawn(nodeBinaryPath, args, {
 		cwd: rootDirectory,
 		env: SANITIZED_ENV,
@@ -82814,11 +86253,18 @@ const spawnOxlint = (args, rootDirectory, nodeBinaryPath, spawnTimeoutMs = OXLIN
 			"pipe"
 		]
 	});
+	const onAbort = () => {
+		child.kill("SIGKILL");
+		reject(new ReactDoctorError({ reason: new OxlintSpawnFailed({ cause: "lint phase aborted" }) }));
+	};
+	abortSignal?.addEventListener("abort", onAbort, { once: true });
+	const clearAbortListener = () => abortSignal?.removeEventListener("abort", onAbort);
 	const timeoutHandle = setTimeout(() => {
+		clearAbortListener();
 		child.kill("SIGKILL");
 		reject(new ReactDoctorError({ reason: new OxlintBatchExceeded({
 			kind: "timeout",
-			detail: `${spawnTimeoutMs / 1e3}s budget exceeded`
+			detail: `${spawnTimeoutMs / MILLISECONDS_PER_SECOND}s budget exceeded`
 		}) }));
 	}, spawnTimeoutMs);
 	timeoutHandle.unref?.();
@@ -82849,10 +86295,12 @@ const spawnOxlint = (args, rootDirectory, nodeBinaryPath, spawnTimeoutMs = OXLIN
 	});
 	child.on("error", (error) => {
 		clearTimeout(timeoutHandle);
+		clearAbortListener();
 		reject(new ReactDoctorError({ reason: new OxlintSpawnFailed({ cause: error }) }));
 	});
 	child.on("close", (_code, signal) => {
 		clearTimeout(timeoutHandle);
+		clearAbortListener();
 		if (didKillForSize) {
 			reject(new ReactDoctorError({ reason: new OxlintBatchExceeded({
 				kind: "output-too-large",
@@ -82919,26 +86367,28 @@ const isParallelismRelatedSpawnError = (error) => {
 * loop with a slimmer config in that case.
 */
 const spawnLintBatches = async (input) => {
-	const { baseArgs, fileBatches, rootDirectory, nodeBinaryPath, project, onPartialFailure, onFileProgress, spawnTimeoutMs, outputMaxBytes } = input;
+	const { baseArgs, fileBatches, rootDirectory, nodeBinaryPath, project, onPartialFailure, onFileProgress, spawnTimeoutMs, outputMaxBytes, splitTotalBudgetMs = OXLINT_SPLIT_TOTAL_BUDGET_MS, splitMaxDepth = 8, signal } = input;
 	const requestedConcurrency = resolveScanConcurrency(input.concurrency ?? 1);
 	const totalFileCount = fileBatches.reduce((sum, batch) => sum + batch.length, 0);
 	const runBatchPass = async (concurrency) => {
 		const allDiagnostics = [];
 		const droppedFiles = [];
 		let firstDropReason = null;
-		const spawnLintBatch = async (batch) => {
+		const splitDeadlineMs = Date.now() + splitTotalBudgetMs;
+		const spawnLintBatch = async (batch, depth) => {
 			const batchArgs = [...baseArgs, ...batch];
 			try {
-				return parseOxlintOutput(await spawnOxlint(batchArgs, rootDirectory, nodeBinaryPath, spawnTimeoutMs, outputMaxBytes), project, rootDirectory);
+				return parseOxlintOutput(await spawnOxlint(batchArgs, rootDirectory, nodeBinaryPath, spawnTimeoutMs, outputMaxBytes, signal), project, rootDirectory);
 			} catch (error) {
 				if (!isSplittableReactDoctorError(error)) throw error;
-				if (batch.length <= 1) {
+				const splitBudgetExhausted = Date.now() >= splitDeadlineMs || depth >= splitMaxDepth;
+				if (batch.length <= 1 || splitBudgetExhausted) {
 					droppedFiles.push(...batch);
-					if (firstDropReason === null) firstDropReason = error.message;
+					if (firstDropReason === null) firstDropReason = splitBudgetExhausted && batch.length > 1 ? `${error.message} (split budget exhausted after ${splitMaxDepth} levels / ${splitTotalBudgetMs / MILLISECONDS_PER_SECOND}s)` : error.message;
 					return [];
 				}
 				const splitIndex = Math.ceil(batch.length / 2);
-				return [...await spawnLintBatch(batch.slice(0, splitIndex)), ...await spawnLintBatch(batch.slice(splitIndex))];
+				return [...await spawnLintBatch(batch.slice(0, splitIndex), depth + 1), ...await spawnLintBatch(batch.slice(splitIndex), depth + 1)];
 			}
 		};
 		let startedFileCount = 0;
@@ -82955,7 +86405,7 @@ const spawnLintBatches = async (input) => {
 		try {
 			const batchResults = await mapWithConcurrency(fileBatches, concurrency, async (batch) => {
 				startedFileCount += batch.length;
-				const batchDiagnostics = await spawnLintBatch(batch);
+				const batchDiagnostics = await spawnLintBatch(batch, 0);
 				scannedFileCount += batch.length;
 				if (onFileProgress) {
 					displayedFileCount = Math.min(Math.max(displayedFileCount, scannedFileCount), totalFileCount);
@@ -83016,6 +86466,20 @@ const validateRuleRegistration = () => {
 	].filter((entry) => entry !== null).join("; ");
 	console.warn(`[react-doctor] rule-registration drift: ${detail}`);
 };
+const hashFileContents = (filePath) => {
+	try {
+		return crypto.createHash("sha1").update(fs$1.readFileSync(filePath)).digest("hex");
+	} catch {
+		return null;
+	}
+};
+const resolveReactDoctorCacheDir = (projectDirectory) => {
+	const nodeModulesDirectory = path$1.join(projectDirectory, "node_modules");
+	if (fs$1.existsSync(nodeModulesDirectory)) return path$1.join(nodeModulesDirectory, ".cache", "react-doctor");
+	const projectHash = crypto.createHash("sha256").update(projectDirectory).digest("hex").slice(0, 16);
+	return path$1.join(os.tmpdir(), "react-doctor-cache", projectHash);
+};
+const sortSourceFilesByCost = (entries) => [...entries].sort((left, right) => right.sizeBytes - left.sizeBytes).map((entry) => entry.path);
 /**
 * Atomically (re)writes the generated oxlintrc.json. Used twice in
 * the runner: once for the primary scan, once for the
@@ -83032,6 +86496,28 @@ const writeOxlintConfig = (configPath, configToWrite) => {
 	} finally {
 		fs$1.closeSync(fileHandle);
 	}
+};
+const REACT_HOOKS_JS_DROP_PREFIX = "React Compiler rules (react-hooks-js/*) skipped — eslint-plugin-react-hooks failed to load in this environment";
+/**
+* Detects an oxlint config-load crash caused by the optional
+* `react-hooks-js` (eslint-plugin-react-hooks) React Compiler plugin and
+* builds the partial-failure note for it; returns `null` when the failure
+* was anything else.
+*
+* oxlint prints a framed error to stdout (not stderr) and exits non-zero
+* when a `jsPlugins` entry can't be imported; that non-JSON stdout
+* surfaces as `OxlintOutputUnparseable`. Because oxlint fails the WHOLE
+* config load on it, leaving the plugin in would drop every curated
+* react-doctor diagnostic too — so the caller retries with the plugin
+* stripped (issue #833). Both markers sit at the start of oxlint's
+* message, so they survive the `preview` slice even for deep pnpm paths.
+*/
+const reactHooksJsPluginDropNote = (error) => {
+	if (!(error instanceof ReactDoctorError) || error.reason._tag !== "OxlintOutputUnparseable") return null;
+	const { preview } = error.reason;
+	if (!preview.includes("Failed to load JS plugin") || !preview.includes("eslint-plugin-react-hooks")) return null;
+	const underlyingReason = preview.match(/Error:[^\n]*/)?.[0]?.trim();
+	return `${REACT_HOOKS_JS_DROP_PREFIX}${underlyingReason ? `: ${underlyingReason}` : ""}. Other rules ran normally.`;
 };
 /**
 * The oxlint runner. Composed of three pieces in `runners/oxlint/`:
@@ -83052,7 +86538,7 @@ const writeOxlintConfig = (configPath, configToWrite) => {
 *   6. always restore disable directives + clean up the temp dir
 */
 const runOxlint = async (options) => {
-	const { rootDirectory, project, includePaths, nodeBinaryPath = process.execPath, customRulesOnly = false, respectInlineDisables = true, adoptExistingLintConfig = true, ignoredTags = /* @__PURE__ */ new Set(), userConfig, configSourceDirectory = rootDirectory, onPartialFailure, spawnTimeoutMs, outputMaxBytes } = options;
+	const { rootDirectory, project, includePaths, nodeBinaryPath = process.execPath, customRulesOnly = false, respectInlineDisables = true, adoptExistingLintConfig = true, ignoredTags = /* @__PURE__ */ new Set(), userConfig, configSourceDirectory = rootDirectory, onPartialFailure, perFileLintCacheEnabled = false, onCacheStats, spawnTimeoutMs, outputMaxBytes, lintBatchOrdering = "arrival" } = options;
 	const serverAuthFunctionNames = Array.isArray(userConfig?.serverAuthFunctionNames) ? userConfig.serverAuthFunctionNames.filter((entry) => typeof entry === "string" && entry.length > 0) : void 0;
 	const severityControls = buildRuleSeverityControls(userConfig);
 	validateRuleRegistration();
@@ -83060,38 +86546,165 @@ const runOxlint = async (options) => {
 	const pluginPath = resolvePluginPath();
 	const extendsPaths = (adoptExistingLintConfig && !customRulesOnly ? detectUserLintConfigPaths(rootDirectory) : []).filter(canOxlintExtendConfig);
 	const userPlugins = resolveUserPlugins(userConfig?.plugins, configSourceDirectory);
-	const buildConfig = (extendsForThisAttempt) => createOxlintConfig({
+	const buildConfig = (overrides) => createOxlintConfig({
 		pluginPath,
 		project,
 		customRulesOnly,
-		extendsPaths: extendsForThisAttempt,
+		extendsPaths: overrides.extendsPaths,
 		ignoredTags,
 		serverAuthFunctionNames,
 		severityControls,
-		userPlugins
+		userPlugins,
+		disableReactHooksJsPlugin: overrides.disableReactHooksJsPlugin,
+		ruleSelection: overrides.ruleSelection
 	});
 	const restoreDisableDirectives = respectInlineDisables ? () => {} : await neutralizeDisableDirectives(rootDirectory, includePaths);
 	const configDirectory = fs$1.mkdtempSync(path$1.join(os.tmpdir(), "react-doctor-oxlintrc-"));
 	const configPath = path$1.join(configDirectory, "oxlintrc.json");
 	try {
-		const baseArgs = [
-			resolveOxlintBinary(),
-			"-c",
-			configPath,
-			"--format",
-			"json"
-		];
+		const oxlintBinary = resolveOxlintBinary();
+		const sharedArgs = [];
+		let tsconfigContent = null;
 		if (project.hasTypeScript) {
 			const tsconfigRelativePath = resolveTsConfigRelativePath(rootDirectory);
-			if (tsconfigRelativePath) baseArgs.push("--tsconfig", tsconfigRelativePath);
+			if (tsconfigRelativePath) {
+				sharedArgs.push("--tsconfig", tsconfigRelativePath);
+				try {
+					tsconfigContent = fs$1.readFileSync(path$1.resolve(rootDirectory, tsconfigRelativePath), "utf8");
+				} catch {
+					tsconfigContent = null;
+				}
+			}
 		}
 		const combinedPatterns = collectIgnorePatterns(rootDirectory);
 		if (combinedPatterns.length > 0) {
 			const combinedIgnorePath = path$1.join(configDirectory, "combined.ignore");
 			fs$1.writeFileSync(combinedIgnorePath, `${combinedPatterns.join("\n")}\n`);
-			baseArgs.push("--ignore-path", combinedIgnorePath);
+			sharedArgs.push("--ignore-path", combinedIgnorePath);
 		}
-		const fileBatches = batchIncludePaths(baseArgs, includePaths !== void 0 ? includePaths : listSourceFiles(rootDirectory));
+		const makeBaseArgs = (oxlintConfigPath) => [
+			oxlintBinary,
+			"-c",
+			oxlintConfigPath,
+			"--format",
+			"json",
+			...sharedArgs
+		];
+		const discoverScanFiles = () => lintBatchOrdering === "cost" ? sortSourceFilesByCost(listSourceFilesWithSize(rootDirectory)) : listSourceFiles(rootDirectory);
+		const candidateFiles = includePaths !== void 0 ? includePaths : discoverScanFiles();
+		const runConfigOverFiles = async (buildConfigForPass, configFileName, files, fileProgress) => {
+			if (files.length === 0) return {
+				diagnostics: [],
+				didDropReactHooksJsPlugin: false,
+				hadPartialFailure: false
+			};
+			let hadPartialFailure = false;
+			const reportPartialFailure = (reason) => {
+				hadPartialFailure = true;
+				onPartialFailure?.(reason);
+			};
+			const passConfigPath = path$1.join(configDirectory, configFileName);
+			const passBaseArgs = makeBaseArgs(passConfigPath);
+			const passFileBatches = batchIncludePaths(passBaseArgs, files);
+			const spawnPass = () => spawnLintBatches({
+				baseArgs: passBaseArgs,
+				fileBatches: passFileBatches,
+				rootDirectory,
+				nodeBinaryPath,
+				project,
+				onPartialFailure: reportPartialFailure,
+				onFileProgress: fileProgress,
+				spawnTimeoutMs,
+				outputMaxBytes,
+				concurrency: options.concurrency,
+				signal: options.signal
+			});
+			writeOxlintConfig(passConfigPath, buildConfigForPass({}));
+			try {
+				return {
+					diagnostics: await spawnPass(),
+					didDropReactHooksJsPlugin: false,
+					hadPartialFailure
+				};
+			} catch (error) {
+				const reactHooksJsDropNote = reactHooksJsPluginDropNote(error);
+				if (reactHooksJsDropNote === null) throw error;
+				writeOxlintConfig(passConfigPath, buildConfigForPass({ disableReactHooksJsPlugin: true }));
+				const diagnostics = await spawnPass();
+				reportPartialFailure(reactHooksJsDropNote);
+				return {
+					diagnostics,
+					didDropReactHooksJsPlugin: true,
+					hadPartialFailure
+				};
+			}
+		};
+		if (perFileLintCacheEnabled && respectInlineDisables && !project.hasReactCompiler && extendsPaths.length === 0 && userPlugins.length === 0) {
+			const rulesetHash = computeRulesetHash({
+				config: buildConfig({
+					extendsPaths: [],
+					ruleSelection: "cacheable"
+				}),
+				toolchainVersions: resolveOxlintToolchainVersions(),
+				ignorePatterns: combinedPatterns,
+				tsconfigContent
+			});
+			const cache = createFileLintCache(resolveReactDoctorCacheDir(rootDirectory), rulesetHash);
+			const cacheKeyByFile = /* @__PURE__ */ new Map();
+			const missFiles = [];
+			const replayedDiagnostics = [];
+			for (const candidateFile of candidateFiles) {
+				const contentHash = hashFileContents(path$1.resolve(rootDirectory, candidateFile));
+				if (contentHash === null) {
+					missFiles.push(candidateFile);
+					continue;
+				}
+				const cacheKey = `${candidateFile.replaceAll("\\", "/")} ${contentHash}`;
+				cacheKeyByFile.set(candidateFile, cacheKey);
+				const cachedDiagnostics = cache.lookup(cacheKey);
+				if (cachedDiagnostics === null) missFiles.push(candidateFile);
+				else replayedDiagnostics.push(...cachedDiagnostics);
+			}
+			const cacheHitFileCount = candidateFiles.length - missFiles.length;
+			const cacheableResult = await runConfigOverFiles((overrides) => buildConfig({
+				extendsPaths: [],
+				ruleSelection: "cacheable",
+				disableReactHooksJsPlugin: overrides.disableReactHooksJsPlugin
+			}), "oxlintrc.cacheable.json", missFiles, void 0);
+			const sidecarResult = await runConfigOverFiles(() => buildConfig({
+				extendsPaths: [],
+				ruleSelection: "sidecar"
+			}), "oxlintrc.sidecar.json", candidateFiles, options.onFileProgress);
+			onCacheStats?.(cacheHitFileCount, candidateFiles.length);
+			const missFileByNormalizedPath = /* @__PURE__ */ new Map();
+			for (const missFile of missFiles) missFileByNormalizedPath.set(missFile.replaceAll("\\", "/"), missFile);
+			const freshDiagnosticsByFile = /* @__PURE__ */ new Map();
+			let isAttributionSound = true;
+			for (const diagnostic of cacheableResult.diagnostics) {
+				const missFile = missFileByNormalizedPath.get(diagnostic.filePath);
+				if (missFile === void 0) {
+					isAttributionSound = false;
+					break;
+				}
+				const fileDiagnostics = freshDiagnosticsByFile.get(missFile) ?? [];
+				fileDiagnostics.push(diagnostic);
+				freshDiagnosticsByFile.set(missFile, fileDiagnostics);
+			}
+			if (!cacheableResult.didDropReactHooksJsPlugin && !cacheableResult.hadPartialFailure && isAttributionSound) {
+				for (const missFile of missFiles) {
+					const cacheKey = cacheKeyByFile.get(missFile);
+					if (cacheKey !== void 0) cache.store(cacheKey, freshDiagnosticsByFile.get(missFile) ?? []);
+				}
+				cache.persist();
+			}
+			return dedupeDiagnostics([
+				...replayedDiagnostics,
+				...cacheableResult.diagnostics,
+				...sidecarResult.diagnostics
+			]);
+		}
+		const baseArgs = makeBaseArgs(configPath);
+		const fileBatches = batchIncludePaths(baseArgs, candidateFiles);
 		const runBatches = () => spawnLintBatches({
 			baseArgs,
 			fileBatches,
@@ -83102,14 +86715,25 @@ const runOxlint = async (options) => {
 			onFileProgress: options.onFileProgress,
 			spawnTimeoutMs,
 			outputMaxBytes,
-			concurrency: options.concurrency
+			concurrency: options.concurrency,
+			signal: options.signal
 		});
-		writeOxlintConfig(configPath, buildConfig(extendsPaths));
+		writeOxlintConfig(configPath, buildConfig({ extendsPaths }));
 		try {
 			return await runBatches();
 		} catch (error) {
+			const reactHooksJsDropNote = reactHooksJsPluginDropNote(error);
+			if (reactHooksJsDropNote !== null) {
+				writeOxlintConfig(configPath, buildConfig({
+					extendsPaths,
+					disableReactHooksJsPlugin: true
+				}));
+				const diagnostics = await runBatches();
+				onPartialFailure?.(reactHooksJsDropNote);
+				return diagnostics;
+			}
 			if (extendsPaths.length === 0) throw error;
-			writeOxlintConfig(configPath, buildConfig([]));
+			writeOxlintConfig(configPath, buildConfig({ extendsPaths: [] }));
 			return await runBatches();
 		}
 	} finally {
@@ -83171,9 +86795,11 @@ var Linter = class Linter extends Service()("react-doctor/Linter") {
 		const spawnTimeoutMs = yield* OxlintSpawnTimeoutMs;
 		const outputMaxBytes = yield* OxlintOutputMaxBytes;
 		const concurrency = yield* OxlintConcurrency;
+		const lintBatchOrdering = yield* LintBatchOrdering;
+		const perFileLintCacheEnabled = yield* PerFileLintCacheEnabled;
 		const collectedFailures = [];
 		const diagnostics = yield* tryPromise({
-			try: () => runOxlint({
+			try: (signal) => runOxlint({
 				rootDirectory: input.rootDirectory,
 				project: input.project,
 				includePaths: input.includePaths ? [...input.includePaths] : void 0,
@@ -83188,9 +86814,13 @@ var Linter = class Linter extends Service()("react-doctor/Linter") {
 					collectedFailures.push(reason);
 				},
 				onFileProgress: input.onFileProgress,
+				perFileLintCacheEnabled,
+				onCacheStats: input.onCacheStats,
 				spawnTimeoutMs,
 				outputMaxBytes,
-				concurrency
+				concurrency,
+				signal,
+				lintBatchOrdering
 			}),
 			catch: ensureReactDoctorError
 		});
@@ -83390,23 +87020,60 @@ var Score = class Score extends Service()("react-doctor/Score") {
 	}) }));
 	static layerOf = (result) => succeed$3(Score, Score.of({ compute: () => succeed$2(result) }));
 };
-const decodeArtifact = decodeUnknownOption(Struct({ score: optional(Struct({
+const isControlCharacter = (codePoint) => codePoint <= 31 || codePoint >= 127 && codePoint <= 159;
+const sanitizeTerminalText = (value) => {
+	let sanitized = "";
+	for (const character of value) {
+		if (isControlCharacter(character.codePointAt(0) ?? 0)) continue;
+		sanitized += character === "`" ? "'" : character;
+	}
+	return sanitized;
+};
+const SocketScoreSchema = Struct({
 	overall: Number$1,
 	license: Number$1,
 	maintenance: Number$1,
 	quality: Number$1,
 	supplyChain: Number$1,
 	vulnerability: Number$1
-})) }));
-const SCORE_AXES = [
-	{
-		key: "supplyChain",
-		label: "supply chain"
-	},
-	{
-		key: "vulnerability",
-		label: "vulnerability"
-	},
+});
+const SocketAlertSchema = Struct({
+	type: String$1,
+	severity: String$1,
+	file: optional(NullOr(String$1)),
+	props: optional(NullOr(Struct({ note: optional(NullOr(String$1)) })))
+});
+const SocketArtifactSchema = Struct({ score: optional(SocketScoreSchema) });
+const RawAlertsSchema = Struct({ alerts: optional(NullOr(ArraySchema(Unknown))) });
+const decodeArtifact = decodeUnknownOption(SocketArtifactSchema);
+const decodeRawAlerts = decodeUnknownOption(RawAlertsSchema);
+const decodeAlert = decodeUnknownOption(SocketAlertSchema);
+const extractAlerts = (parsed) => {
+	const rawAlerts = getOrNull(decodeRawAlerts(parsed))?.alerts;
+	if (!rawAlerts) return [];
+	const alerts = [];
+	for (const candidate of rawAlerts) {
+		const alert = getOrNull(decodeAlert(candidate));
+		if (alert !== null) alerts.push(alert);
+	}
+	return alerts;
+};
+const GATED_AXES = [{
+	key: "supplyChain",
+	label: "supply chain",
+	guidance: {
+		meaning: "risky install-time behavior — install scripts, obfuscated or native code, network/filesystem/shell access, or typosquatting",
+		remediation: "Confirm this is the package you meant to install, and prefer a more established, audited alternative"
+	}
+}, {
+	key: "vulnerability",
+	label: "vulnerability",
+	guidance: {
+		meaning: "known security vulnerabilities (CVEs) affecting this version",
+		remediation: "Upgrade to a version with no known advisories (run `npm audit` to find one), or replace it"
+	}
+}];
+const CONTEXT_AXES = [
 	{
 		key: "maintenance",
 		label: "maintenance"
@@ -83420,6 +87087,12 @@ const SCORE_AXES = [
 		label: "license"
 	}
 ];
+const SCORE_AXES = [...GATED_AXES, ...CONTEXT_AXES];
+const worstGatedAxis = (score) => {
+	let worst = GATED_AXES[0];
+	for (const axis of GATED_AXES) if (score[axis.key] < score[worst.key]) worst = axis;
+	return worst;
+};
 const clampScore = (value) => {
 	if (!Number.isFinite(value)) return 50;
 	return Math.min(Math.max(value, 0), 100);
@@ -83437,8 +87110,9 @@ const resolveConcreteVersion = (spec) => {
 	const trimmed = spec.trim();
 	if (trimmed.length === 0) return null;
 	if (trimmed.includes(":")) return null;
-	const match = trimmed.match(/\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/);
-	return match ? match[0] : null;
+	const range = import_semver.validRange(trimmed);
+	if (range === null || range === "*") return null;
+	return import_semver.minVersion(trimmed)?.version ?? null;
 };
 const locateDependencyKey = (packageJsonText, section, name) => {
 	const needle = `"${name}"`;
@@ -83496,33 +87170,8 @@ const readPackageJsonText = (packageJsonPath) => {
 		return "";
 	}
 };
-const collectWorkspaceDirectories = (startDirectory) => {
-	const monorepoRoot = isMonorepoRoot(startDirectory) ? startDirectory : findMonorepoRoot(startDirectory) ?? startDirectory;
-	const rootPackageJson = readPackageJson$1(path$1.join(monorepoRoot, "package.json"));
-	const directories = [monorepoRoot];
-	const visited = new Set([monorepoRoot]);
-	for (const pattern of getWorkspacePatterns(monorepoRoot, rootPackageJson)) for (const workspaceDirectory of resolveWorkspaceDirectories(monorepoRoot, pattern)) {
-		if (visited.has(workspaceDirectory)) continue;
-		visited.add(workspaceDirectory);
-		directories.push(workspaceDirectory);
-	}
-	return directories;
-};
-const collectMonorepoDependencies = (startDirectory, includeDevDependencies) => {
-	const dependenciesByKey = /* @__PURE__ */ new Map();
-	for (const directory of collectWorkspaceDirectories(startDirectory)) {
-		const packageJsonPath = path$1.join(directory, "package.json");
-		const packageJson = readPackageJson$1(packageJsonPath);
-		const packageJsonText = readPackageJsonText(packageJsonPath);
-		for (const dependency of collectDependenciesToScore(packageJson, packageJsonText, includeDevDependencies)) {
-			const key = `${dependency.name}@${dependency.version}`;
-			if (!dependenciesByKey.has(key)) dependenciesByKey.set(key, dependency);
-		}
-	}
-	return [...dependenciesByKey.values()];
-};
 const toPurl = (dependency) => `pkg:npm/${dependency.name}@${dependency.version}`;
-const parseScoreFromBody = (body) => {
+const parseArtifactFromBody = (body) => {
 	for (const line of body.split("\n")) {
 		if (line.trim().length === 0) continue;
 		let parsed;
@@ -83532,26 +87181,30 @@ const parseScoreFromBody = (body) => {
 			continue;
 		}
 		const artifact = getOrNull(decodeArtifact(parsed));
-		if (artifact?.score) return artifact.score;
+		if (artifact?.score) return {
+			score: artifact.score,
+			alerts: extractAlerts(parsed)
+		};
 	}
 	return null;
 };
-const fetchSocketScore = (dependency) => tryPromise(async (signal) => {
+const fetchSocketArtifact = (dependency) => tryPromise(async (signal) => {
 	const requestUrl = `${SOCKET_FREE_PURL_API_BASE}/${encodeURIComponent(toPurl(dependency))}`;
 	const response = await fetch(requestUrl, {
 		headers: { "User-Agent": SOCKET_FREE_USER_AGENT },
 		signal
 	});
 	if (!response.ok) return null;
-	return parseScoreFromBody(await response.text());
-}).pipe(timeout(FETCH_TIMEOUT_MS), orElseSucceed(() => null), tap$1((score) => {
+	return parseArtifactFromBody(await response.text());
+}).pipe(timeout(FETCH_TIMEOUT_MS), orElseSucceed(() => null), tap$1((artifact) => {
 	const scoreAttributes = {};
-	if (score !== null) {
-		scoreAttributes["socket.score.overall"] = toHundred(score.overall);
-		for (const axis of SCORE_AXES) scoreAttributes[`socket.score.${axis.key}`] = toHundred(score[axis.key]);
+	if (artifact !== null) {
+		scoreAttributes["socket.score.overall"] = toHundred(artifact.score.overall);
+		for (const axis of SCORE_AXES) scoreAttributes[`socket.score.${axis.key}`] = toHundred(artifact.score[axis.key]);
+		scoreAttributes["socket.alert.count"] = artifact.alerts.length;
 	}
 	return annotateCurrentSpan({
-		"socket.scored": score !== null,
+		"socket.scored": artifact !== null,
 		...scoreAttributes
 	});
 }), withSpan("SupplyChain.fetchScore", { attributes: {
@@ -83559,17 +87212,69 @@ const fetchSocketScore = (dependency) => tryPromise(async (signal) => {
 	"socket.version": dependency.version,
 	"socket.purl": toPurl(dependency)
 } }));
-const formatAxisScores = (score) => SCORE_AXES.map((axis) => `${axis.label} ${toHundred(score[axis.key])}`).join(", ");
-const buildLowScoreDiagnostic = (dependency, score, options) => {
-	const overall = toHundred(score.overall);
+const formatOtherAxisScores = (score, failingKey) => SCORE_AXES.filter((axis) => axis.key !== failingKey).map((axis) => `${axis.label} ${toHundred(score[axis.key])}`).join(", ");
+const ALERT_SEVERITY_RANK = {
+	critical: 4,
+	high: 3,
+	middle: 2,
+	medium: 2,
+	low: 1
+};
+const severityRank = (severity) => ALERT_SEVERITY_RANK[severity.toLowerCase()] ?? 0;
+const displaySeverity = (severity) => {
+	const normalized = sanitizeTerminalText(severity.toLowerCase());
+	return normalized === "middle" ? "medium" : normalized;
+};
+const ALERT_TYPE_LABELS = {
+	malware: "known malware",
+	gptMalware: "AI-detected malware",
+	gptSecurity: "AI-detected security risk",
+	gptAnomaly: "AI-detected code anomaly",
+	envVars: "environment-variable access",
+	usesEval: "use of eval",
+	troll: "protestware",
+	didYouMean: "possible typosquat",
+	typosquat: "possible typosquat"
+};
+const humanizeAlertType = (type) => type.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").toLowerCase().trim();
+const friendlyAlertType = (type) => ALERT_TYPE_LABELS[type] ?? sanitizeTerminalText(humanizeAlertType(type));
+const summarizeAlertNote = (note) => {
+	const collapsed = sanitizeTerminalText(note.replace(/\s+/g, " ").trim());
+	const firstSentence = collapsed.split(/(?<=\.)\s/)[0] || collapsed;
+	if (firstSentence.length <= 160) return firstSentence.replace(/\.$/, "");
+	return `${firstSentence.slice(0, 160).trimEnd()}…`;
+};
+const selectTopAlerts = (alerts) => [...alerts].sort((left, right) => severityRank(right.severity) - severityRank(left.severity)).slice(0, 3);
+const formatAlertReason = (topAlerts, totalCount) => {
+	if (topAlerts.length === 1) {
+		const [alert] = topAlerts;
+		const location = alert.file ? ` in \`${sanitizeTerminalText(alert.file)}\`` : "";
+		const note = alert.props?.note ? summarizeAlertNote(alert.props.note) : null;
+		const detail = note ? `: "${note}"` : "";
+		return `Socket flagged a ${displaySeverity(alert.severity)} ${friendlyAlertType(alert.type)} alert${location}${detail}.`;
+	}
+	return `Socket flagged ${totalCount} alerts (${topAlerts.map((alert) => friendlyAlertType(alert.type)).join(", ")}${totalCount > topAlerts.length ? ` (+${totalCount - topAlerts.length} more)` : ""}); most severe: ${displaySeverity(topAlerts[0].severity)}.`;
+};
+const formatDependencyIdentity = (dependency) => import_semver.valid(dependency.spec) !== null ? `${dependency.name}@${dependency.version}` : `${dependency.name}@${dependency.version} (lowest version "${dependency.spec}" allows)`;
+const buildSupplyChainHelp = (dependency, failingAxis, topAlerts, packagePageUrl, options) => {
+	const hasCriticalAlert = topAlerts.some((alert) => alert.severity.toLowerCase() === "critical");
+	const entry = `\`"${dependency.name}": "${dependency.spec}"\``;
+	return `${hasCriticalAlert ? `Treat ${dependency.name} as compromised — do not ship it. Remove ${entry} from package.json and your lockfile, then audit anything it ran.` : `${failingAxis.guidance.remediation}; update ${entry} in package.json.`} Full report: ${packagePageUrl}. ${hasCriticalAlert ? `Only if you've confirmed this is a false positive, set \`supplyChain.enabled: false\`.` : `If you've reviewed and accepted this package, raise \`supplyChain.minScore\` (currently ${options.minScore}) or set \`supplyChain.severity: "warning"\`.`}`;
+};
+const buildLowScoreDiagnostic = (dependency, artifact, failingAxis, options) => {
 	const packagePageUrl = `${SOCKET_PACKAGE_PAGE_BASE}/${dependency.name}/overview/${dependency.version}`;
+	const failingScore = toHundred(artifact.score[failingAxis.key]);
+	const topAlerts = selectTopAlerts(artifact.alerts);
+	const reason = topAlerts.length > 0 ? formatAlertReason(topAlerts, artifact.alerts.length) : `This points to ${failingAxis.guidance.meaning}.`;
+	const headline = `\`${formatDependencyIdentity(dependency)}\` scored ${failingScore}/100 on Socket's ${failingAxis.label} axis (minimum ${options.minScore}).`;
+	const otherAxes = `Other axes — ${formatOtherAxisScores(artifact.score, failingAxis.key)}.`;
 	return {
 		filePath: "package.json",
 		plugin: SUPPLY_CHAIN_PLUGIN,
 		rule: SUPPLY_CHAIN_RULE,
 		severity: options.severity,
-		message: `\`${dependency.name}\` (declared in package.json as "${dependency.spec}", scored at ${dependency.version}) has a Socket supply-chain score of ${overall}/100 (below the minimum of ${options.minScore}). Axis scores — ${formatAxisScores(score)}.`,
-		help: `Update or replace the \`"${dependency.name}": "${dependency.spec}"\` entry in package.json. Review ${dependency.name} on Socket: ${packagePageUrl}. Or raise \`supplyChain.minScore\` if you have vetted and accepted this package.`,
+		message: `${headline} ${reason} ${otherAxes}`,
+		help: buildSupplyChainHelp(dependency, failingAxis, topAlerts, packagePageUrl, options),
 		url: packagePageUrl,
 		line: dependency.line,
 		column: dependency.column,
@@ -83577,33 +87282,12 @@ const buildLowScoreDiagnostic = (dependency, score, options) => {
 	};
 };
 /**
-* Fetches the Socket score of every direct dependency declared across the
-* whole monorepo (the workspace root plus every workspace package.json),
-* de-duplicated by `name@version` — not just the ones below a threshold —
-* via the same free, keyless endpoint as {@link checkSupplyChain}. Backs the
-* CLI's `--sfw` demo listing. Unknown packages and per-package failures come
-* back with `overall: null` rather than being dropped, so the caller can show
-* them explicitly.
-*/
-const collectSupplyChainScores = (input) => gen(function* () {
-	const options = resolveOptions(input.userConfig);
-	const dependencies = collectMonorepoDependencies(input.rootDirectory, options.includeDevDependencies);
-	if (dependencies.length === 0) return [];
-	const scores = yield* forEach$1(dependencies, fetchSocketScore, { concurrency: 8 });
-	return dependencies.map((dependency, index) => {
-		const score = scores[index];
-		return {
-			name: dependency.name,
-			version: dependency.version,
-			overall: score ? toHundred(score.overall) : null
-		};
-	});
-});
-/**
 * Scores every direct dependency in the project's `package.json` against
 * Socket.dev's free PURL endpoint (the same one Socket Firewall's free tier
 * uses — no API key) and returns a diagnostic for each dependency whose
-* Socket `overall` score is below the configured `minScore`.
+* worst Socket *security* axis — supply chain or vulnerability — is below
+* the configured `minScore`. The quality / maintenance / license axes are
+* reported as context but never gate (see GATED_AXES).
 *
 * Lookups run with bounded concurrency via `Effect.forEach`. The check is
 * total/fail-open: each per-package lookup already recovers to `null`
@@ -83616,13 +87300,14 @@ const checkSupplyChain = (input) => gen(function* () {
 	const packageJsonPath = path$1.join(input.rootDirectory, "package.json");
 	const dependencies = collectDependenciesToScore(readPackageJson$1(packageJsonPath), readPackageJsonText(packageJsonPath), options.includeDevDependencies);
 	if (dependencies.length === 0) return [];
-	const scores = yield* forEach$1(dependencies, fetchSocketScore, { concurrency: 8 });
+	const artifacts = yield* forEach$1(dependencies, fetchSocketArtifact, { concurrency: 8 }).pipe(timeoutOption(input.totalTimeoutMs ?? 9e4), map$3((maybeArtifacts) => getOrElse$1(maybeArtifacts, () => [])));
 	const diagnostics = [];
 	for (let index = 0; index < dependencies.length; index += 1) {
-		const score = scores[index];
-		if (!score) continue;
-		if (toHundred(score.overall) >= options.minScore) continue;
-		diagnostics.push(buildLowScoreDiagnostic(dependencies[index], score, options));
+		const artifact = artifacts[index];
+		if (!artifact) continue;
+		const worstAxis = worstGatedAxis(artifact.score);
+		if (toHundred(artifact.score[worstAxis.key]) >= options.minScore) continue;
+		diagnostics.push(buildLowScoreDiagnostic(dependencies[index], artifact, worstAxis, options));
 	}
 	return diagnostics;
 });
@@ -83630,7 +87315,8 @@ const checkSupplyChain = (input) => gen(function* () {
 * `SupplyChain` scores the project's direct dependencies against Socket.dev's
 * free, keyless PURL endpoint — the same lookup Socket Firewall's free tier
 * (`sfw`) performs — and streams a diagnostic for each dependency whose
-* Socket score falls below the configured `supplyChain.minScore`.
+* worst Socket security axis (supply chain or vulnerability) falls below
+* the configured `supplyChain.minScore`.
 *
 * Runs by default (one network request per dependency); the orchestrator
 * provides `layerOf([])` only when the user opts out via
@@ -83639,6 +87325,10 @@ const checkSupplyChain = (input) => gen(function* () {
 * The underlying `checkSupplyChain` Effect is total/fail-open — per-package
 * timeouts and network failures recover to "skip" — so the stream never
 * fails, mirroring `DeadCode`'s stream shape so the two compose the same way.
+* The orchestrator (`run-inspect.ts`) consumes this stream on a background
+* fiber whose network time overlaps the lint pass, joined under a generous
+* wall-clock budget; a budget expiry is the same fail-open outcome as a Socket
+* outage.
 */
 var SupplyChain = class SupplyChain extends Service()("react-doctor/SupplyChain") {
 	static layerNode = succeed$3(SupplyChain, SupplyChain.of({ run: (input) => unwrap(checkSupplyChain(input).pipe(map$3((diagnostics) => fromIterable$1(diagnostics)), withSpan("SupplyChain.run"))) }));
@@ -83697,17 +87387,42 @@ const formatLintFailText = (reasonTag, nodeVersion) => {
 *
 * Phases:
 *
-*   1. Config.resolve(directory) → Project.discover → Git metadata
+*   1. Config.resolve(directory) → Project.discover → Git metadata.
+*      The GitHub viewer-permission lookup is forked onto a background
+*      fiber here and joined late (it feeds score metadata, not
+*      diagnostics).
 *   2. beforeLint hook (e.g. CLI renders the project-detection block)
-*   3. environment checks (reduced-motion + pnpm hardening)
-*   4. Linter.run + DeadCode.run — forked as concurrent fibers so
-*      their wall-clock times overlap. Progress spinners stay
-*      sequential (lint first, then dead-code) for clean terminal
-*      output. GitHub viewer permission also runs as a background
-*      fiber during this phase.
-*   5. afterLint hook
-*   6. Reporter.finalize
-*   7. Score.compute against the surface-filtered diagnostic set
+*   3. environment checks (reduced-motion + pnpm hardening +
+*      expo/react-native + security scan), collected synchronously
+*   4. The supply-chain check (Socket.dev) is forked onto a background
+*      fiber so its ~100% network-bound time overlaps the ~100%
+*      CPU/subprocess-bound lint pass below, collapsing two serial
+*      phases into roughly `max(supplyChain, lint)`. It is capped by
+*      `SupplyChainOverlapTimeoutMs` (measured from fork) so a hung
+*      socket can't drag out its join; on timeout it fails open to no
+*      diagnostics — the same outcome class as a Socket outage.
+*   5. Linter.run runs; DeadCode.run runs concurrently (forked child
+*      fiber) ONLY when the memory gate has headroom to run the 8 GB
+*      dead-code child alongside the oxlint workers — or when overlap is
+*      forced via REACT_DOCTOR_DEAD_CODE_OVERLAP. Otherwise dead-code
+*      runs sequentially after lint, exactly as it did pre-overlap. The
+*      fiber is joined (or interrupted, SIGKILLing its worker, on lint
+*      failure) before diagnostics are concatenated. The afterLint hook
+*      fires between lint and dead-code. Progress spinner labels AND the
+*      final diagnostic / score order stay independent of execution
+*      order, so terminal output is identical either way; supply-chain
+*      rides alongside without a spinner.
+*   6. Join the supply-chain fiber, then assemble the diagnostics in a
+*      FIXED order (env, supply-chain, lint, dead-code) so the output is
+*      byte-identical regardless of which fiber settled first. The
+*      viewer-permission fiber is joined later, during score-metadata
+*      assembly (it feeds score metadata, not diagnostics). The per-element
+*      `Reporter.emit` side-channel now interleaves supply-chain with lint
+*      emits, so capture-order assertions must target the deterministic
+*      concat below, not emit order (production `Reporter.layerNoop` makes
+*      emit a no-op).
+*   7. Reporter.finalize
+*   8. Score.compute against the surface-filtered diagnostic set
 *
 * The orchestrator owns spinner lifecycle via `Progress`; callers
 * choose `Progress.layerOra(...)` for CLI feedback or
@@ -83759,12 +87474,27 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 		...checkPnpmHardening(scanDirectory),
 		...checkReactServerComponentsAdvisory(scanDirectory, project),
 		...checkExpoProject(scanDirectory, project),
-		...checkReactNativeProject(scanDirectory, project)
+		...checkReactNativeProject(scanDirectory, project),
+		...checkSecurityScan(scanDirectory, {
+			project,
+			ignoredTags: input.ignoredTags
+		})
 	])));
-	const supplyChainCollected = !isDiffMode || (input.supplyChainManifestChanged ?? false) ? yield* runCollect(applyPerElementPipeline(supplyChainService.run({
+	const shouldRunSupplyChain = !isDiffMode || (input.supplyChainManifestChanged ?? false);
+	const supplyChainOverlapTimeout = yield* SupplyChainOverlapTimeoutMs;
+	const supplyChainFiber = yield* forkChild(shouldRunSupplyChain ? runCollect(applyPerElementPipeline(supplyChainService.run({
 		rootDirectory: scanDirectory,
 		userConfig: resolvedConfig.config
-	}))) : [];
+	}))).pipe(map$3((diagnostics) => ({
+		diagnostics,
+		timedOut: false
+	})), timeout(supplyChainOverlapTimeout), orElseSucceed(() => ({
+		diagnostics: [],
+		timedOut: true
+	}))) : succeed$2({
+		diagnostics: [],
+		timedOut: false
+	}));
 	const lintFailure = yield* make$13({
 		didFail: false,
 		reason: null,
@@ -83775,12 +87505,49 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 		didFail: false,
 		reason: null
 	});
-	const scanConcurrency = yield* OxlintConcurrency;
+	const scanConcurrency = resolveScanConcurrency(yield* OxlintConcurrency);
+	const lintPhaseTimeoutMs = yield* LintPhaseTimeoutMs;
+	const deadCodePhaseTimeoutMs = yield* DeadCodePhaseTimeoutMs;
+	const resolveDeadCodePhaseTimeoutMs = (scaledPhaseTimeoutMs) => deadCodePhaseTimeoutMs === 15e4 ? scaledPhaseTimeoutMs : deadCodePhaseTimeoutMs;
 	const workerCountSuffix = scanConcurrency > 1 ? ` ${highlighter.dim(`[~${scanConcurrency} workers]`)}` : "";
+	const shouldRunDeadCode = input.runDeadCode && !isDiffMode && (showWarnings || deadCodeMaySurfaceWhenWarningsHidden(resolvedConfig.config));
+	const deadCodeOverlapMode = yield* DeadCodeOverlap;
+	const shouldOverlapDeadCode = shouldRunDeadCode && deadCodeOverlapMode === "on";
+	const deadCodeParseConcurrency = shouldOverlapDeadCode ? Math.max(1, Math.floor(scanConcurrency * DEAD_CODE_OVERLAP_PARSE_SHARE)) : void 0;
+	const lintConcurrency = deadCodeParseConcurrency === void 0 ? scanConcurrency : Math.max(1, scanConcurrency - deadCodeParseConcurrency);
+	const buildCollectDeadCode = (deadCodeTimeout) => runCollect(applyPerElementPipeline(deadCodeService.run({
+		rootDirectory: scanDirectory,
+		userConfig: resolvedConfig.config,
+		parseConcurrency: deadCodeParseConcurrency,
+		workerTimeoutMs: deadCodeTimeout.workerTimeoutMs
+	}).pipe(catchTag("ReactDoctorError", (error) => unwrap(gen(function* () {
+		yield* set(deadCodeFailure, {
+			didFail: true,
+			reason: error.message
+		});
+		return empty$4;
+	})))))).pipe(timeoutOption(deadCodeTimeout.phaseTimeoutMs), flatMap$2(match$3({
+		onNone: () => set(deadCodeFailure, {
+			didFail: true,
+			reason: `Dead-code analysis exceeded ${Math.round(deadCodeTimeout.phaseTimeoutMs / MILLISECONDS_PER_SECOND)}s and was skipped.`
+		}).pipe(as([])),
+		onSome: succeed$2
+	})));
+	const overlapDeadCodeTimeout = resolveDeadCodeTimeout({
+		sourceFileCount: project.sourceFileCount,
+		deadCodeConcurrency: deadCodeParseConcurrency ?? scanConcurrency,
+		fullConcurrency: scanConcurrency
+	});
+	const deadCodeFiber = shouldOverlapDeadCode ? yield* forkChild(buildCollectDeadCode({
+		workerTimeoutMs: overlapDeadCodeTimeout.workerTimeoutMs,
+		phaseTimeoutMs: resolveDeadCodePhaseTimeoutMs(overlapDeadCodeTimeout.phaseTimeoutMs)
+	})) : null;
 	const scanProgress = yield* progressService.start("Scanning...");
 	const scanStartTime = Date.now();
 	let lastReportedTotalFileCount = 0;
-	const lintCollected = yield* runCollect(applyPerElementPipeline(linterService.run({
+	let lintCacheHitFileCount = null;
+	let lintCacheTotalFileCount = null;
+	const baseLintStream = linterService.run({
 		rootDirectory: scanDirectory,
 		project,
 		includePaths: lintIncludePaths ?? void 0,
@@ -83794,6 +87561,10 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 		onFileProgress: (scannedFileCount, totalFileCount) => {
 			lastReportedTotalFileCount = totalFileCount;
 			runSync(scanProgress.update(`Scanning files (${scannedFileCount}/${totalFileCount})${workerCountSuffix}...`));
+		},
+		onCacheStats: (cacheHitFileCount, totalConsideredFileCount) => {
+			lintCacheHitFileCount = cacheHitFileCount;
+			lintCacheTotalFileCount = totalConsideredFileCount;
 		}
 	}).pipe(catchTag("ReactDoctorError", (error) => unwrap(gen(function* () {
 		yield* set(lintFailure, {
@@ -83803,35 +87574,54 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 			reasonKind: error.reason._tag === "OxlintUnavailable" ? error.reason.kind : null
 		});
 		return empty$4;
-	}))))));
+	}))));
+	const lintCollected = yield* runCollect(applyPerElementPipeline(shouldOverlapDeadCode ? baseLintStream.pipe(provideService(OxlintConcurrency, lintConcurrency)) : baseLintStream)).pipe(timeoutOption(lintPhaseTimeoutMs), flatMap$2(match$3({
+		onNone: () => set(lintFailure, {
+			didFail: true,
+			reason: `Lint analysis exceeded ${lintPhaseTimeoutMs / MILLISECONDS_PER_SECOND}s and was skipped.`,
+			reasonTag: "OxlintBatchExceeded",
+			reasonKind: null
+		}).pipe(as([])),
+		onSome: succeed$2
+	})));
 	const lintFailureState = yield* get$2(lintFailure);
 	yield* afterLint(lintFailureState.didFail);
 	if (lintFailureState.didFail) yield* scanProgress.fail(formatLintFailText(lintFailureState.reasonTag, process.version));
-	const shouldRunDeadCode = input.runDeadCode && !isDiffMode && (showWarnings || deadCodeMaySurfaceWhenWarningsHidden(resolvedConfig.config));
-	const deadCodeCollected = lintFailureState.didFail || !shouldRunDeadCode ? [] : yield* scanProgress.update("Analyzing dead code...").pipe(andThen(runCollect(applyPerElementPipeline(deadCodeService.run({
-		rootDirectory: scanDirectory,
-		userConfig: resolvedConfig.config
-	}).pipe(catchTag("ReactDoctorError", (error) => unwrap(gen(function* () {
-		yield* set(deadCodeFailure, {
-			didFail: true,
-			reason: error.message
-		});
-		return empty$4;
-	}))))))));
-	const deadCodeFailureState = yield* get$2(deadCodeFailure);
-	const scanElapsedMilliseconds = Date.now() - scanStartTime;
-	const scanElapsedSeconds = (scanElapsedMilliseconds / 1e3).toFixed(1);
 	const totalFileCount = lastReportedTotalFileCount || (lintIncludePaths?.length ?? project.sourceFileCount);
+	const scannedFilesLabel = `${totalFileCount} ${totalFileCount === 1 ? "file" : "files"}`;
+	let deadCodeCollected = [];
+	if (lintFailureState.didFail) {
+		if (deadCodeFiber !== null) yield* interrupt(deadCodeFiber);
+	} else if (shouldRunDeadCode) {
+		yield* scanProgress.update(`Scanned ${scannedFilesLabel}, analyzing dead code...`);
+		const sequentialDeadCodeTimeout = resolveDeadCodeTimeout({
+			sourceFileCount: totalFileCount,
+			deadCodeConcurrency: scanConcurrency,
+			fullConcurrency: scanConcurrency
+		});
+		deadCodeCollected = deadCodeFiber !== null ? yield* join(deadCodeFiber) : yield* buildCollectDeadCode({
+			workerTimeoutMs: sequentialDeadCodeTimeout.workerTimeoutMs,
+			phaseTimeoutMs: resolveDeadCodePhaseTimeoutMs(sequentialDeadCodeTimeout.phaseTimeoutMs)
+		});
+	}
+	const deadCodeFailureState = lintFailureState.didFail ? {
+		didFail: false,
+		reason: null
+	} : yield* get$2(deadCodeFailure);
+	const scanElapsedMilliseconds = Date.now() - scanStartTime;
+	const scanElapsedSeconds = (scanElapsedMilliseconds / MILLISECONDS_PER_SECOND).toFixed(1);
 	if (!lintFailureState.didFail) if (deadCodeFailureState.didFail) yield* scanProgress.fail(DEAD_CODE_FAIL_TEXT);
 	else if (input.suppressScanSummary) yield* scanProgress.stop();
-	else yield* scanProgress.succeed(`Scanned ${totalFileCount} ${totalFileCount === 1 ? "file" : "files"} in ${scanElapsedSeconds}s${workerCountSuffix}`);
+	else yield* scanProgress.succeed(`Scanned ${scannedFilesLabel} in ${scanElapsedSeconds}s${workerCountSuffix}`);
+	const supplyChainResult = yield* join(supplyChainFiber);
+	const supplyChainCollected = supplyChainResult.diagnostics;
 	yield* reporterService.finalize;
-	const finalDiagnostics = [
+	const finalDiagnostics = sortDiagnosticsStable(assignFixGroups([
 		...envCollected,
 		...supplyChainCollected,
 		...lintCollected,
 		...deadCodeCollected
-	];
+	]));
 	const githubViewerPermission = yield* join(githubViewerPermissionFiber);
 	const scoreMetadata = {
 		...repo !== null ? { repo } : {},
@@ -83867,9 +87657,14 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 		lintPartialFailures,
 		didDeadCodeFail: deadCodeFailureState.didFail,
 		deadCodeFailureReason: deadCodeFailureState.reason,
+		deadCodeOverlapped: shouldOverlapDeadCode,
 		scannedFileCount: totalFileCount,
 		scannedFilePaths,
-		scanElapsedMilliseconds
+		scanElapsedMilliseconds,
+		scanConcurrency,
+		supplyChainOverlapTimedOut: supplyChainResult.timedOut,
+		lintCacheHitFileCount,
+		lintCacheTotalFileCount
 	};
 }).pipe(withSpan("runInspect", { attributes: {
 	"inspect.directory": input.directory,
@@ -83877,7 +87672,7 @@ const runInspect = (input, hooks = {}) => gen(function* () {
 	"inspect.runDeadCode": input.runDeadCode,
 	"inspect.isCi": input.isCi,
 	"inspect.scoreSurface": input.scoreSurface ?? "score"
-} }));
+} }), (scanProgram) => flatMap$2(ScanDeadlineMs, (scanDeadlineMs) => scanProgram.pipe(timeout(scanDeadlineMs), catchTag$1("TimeoutError", () => new ReactDoctorError({ reason: new ScanDeadlineExceeded({ detail: `${scanDeadlineMs / MILLISECONDS_PER_SECOND}s elapsed` }) })))));
 const parseNodeVersion = (versionString) => {
 	const [major = 0, minor = 0, patch = 0] = versionString.replace(/^v/, "").trim().split(".").map(Number);
 	return {
@@ -84058,7 +87853,7 @@ var StagedFiles = class StagedFiles extends Service()("react-doctor/StagedFiles"
 	static layerNode = effect(StagedFiles, gen(function* () {
 		const git = yield* Git;
 		return StagedFiles.of({
-			discoverSourceFiles: (directory) => git.stagedFilePaths(directory).pipe(map$3((entries) => entries.filter(isLintableSourceFile))),
+			discoverSourceFiles: (directory) => git.stagedFilePaths(directory).pipe(map$3((entries) => entries.filter(isLintableSourceFile)), withSpan("StagedFiles.discoverSourceFiles")),
 			materialize: ({ directory, stagedFiles, tempDirectory }) => materializeSourceTree({
 				directory,
 				files: stagedFiles,
@@ -84068,7 +87863,7 @@ var StagedFiles = class StagedFiles extends Service()("react-doctor/StagedFiles"
 				tempDirectory: tree.tempDirectory,
 				stagedFiles: tree.materializedFiles,
 				cleanup: tree.cleanup
-			})))
+			})), withSpan("StagedFiles.materialize"))
 		});
 	}));
 	/**
@@ -84201,6 +87996,7 @@ const buildJsonReport = (input) => {
 		score: result.score,
 		skippedChecks: result.skippedChecks,
 		...result.skippedCheckReasons ? { skippedCheckReasons: result.skippedCheckReasons } : {},
+		...typeof result.scannedFileCount === "number" ? { scannedFileCount: result.scannedFileCount } : {},
 		elapsedMilliseconds: result.elapsedMilliseconds
 	}));
 	const flattenedDiagnostics = projects.flatMap((entry) => entry.diagnostics);
@@ -84392,6 +88188,48 @@ const groupBy = (items, keyFn) => {
 * a 404. Gate the directive on this predicate.
 */
 const hasPublishedFixRecipe = (diagnostic) => diagnostic.plugin === "react-doctor" && Object.hasOwn(src_default.rules, diagnostic.rule);
+const unionValues = (baseValues, overrideValues) => [...new Set([...baseValues, ...overrideValues])];
+const mergeIgnores = (baseIgnore, overrideIgnore) => {
+	const mergedIgnore = {
+		...baseIgnore,
+		...overrideIgnore
+	};
+	if (baseIgnore.rules && overrideIgnore.rules) mergedIgnore.rules = unionValues(baseIgnore.rules, overrideIgnore.rules);
+	if (baseIgnore.files && overrideIgnore.files) mergedIgnore.files = unionValues(baseIgnore.files, overrideIgnore.files);
+	if (baseIgnore.tags && overrideIgnore.tags) mergedIgnore.tags = unionValues(baseIgnore.tags, overrideIgnore.tags);
+	if (baseIgnore.overrides && overrideIgnore.overrides) mergedIgnore.overrides = [...baseIgnore.overrides, ...overrideIgnore.overrides];
+	return mergedIgnore;
+};
+/**
+* Layer one `ReactDoctorConfig` on top of another, additively: `rules` /
+* `categories` / `supplyChain` merge per key, `ignore` lists union
+* (`ignore.overrides` concatenate), and every other field is a scalar the
+* override simply wins on when set. Returns the base unchanged when there
+* is no override, and vice versa — so callers can thread `null` /
+* `undefined` through without special-casing.
+*/
+const mergeReactDoctorConfigs = (baseConfig, overrideConfig) => {
+	if (overrideConfig === void 0) return baseConfig;
+	if (baseConfig === null) return overrideConfig;
+	const mergedConfig = {
+		...baseConfig,
+		...overrideConfig
+	};
+	if (baseConfig.rules && overrideConfig.rules) mergedConfig.rules = {
+		...baseConfig.rules,
+		...overrideConfig.rules
+	};
+	if (baseConfig.categories && overrideConfig.categories) mergedConfig.categories = {
+		...baseConfig.categories,
+		...overrideConfig.categories
+	};
+	if (baseConfig.supplyChain && overrideConfig.supplyChain) mergedConfig.supplyChain = {
+		...baseConfig.supplyChain,
+		...overrideConfig.supplyChain
+	};
+	if (baseConfig.ignore && overrideConfig.ignore) mergedConfig.ignore = mergeIgnores(baseConfig.ignore, overrideConfig.ignore);
+	return mergedConfig;
+};
 //#endregion
 //#region src/cli/utils/is-ci-environment.ts
 const CI_ENVIRONMENT_VARIABLES = [
@@ -84440,7 +88278,7 @@ const FALSY_CI_FLAG_VALUES = new Set([
 	"false"
 ]);
 const isCiFlagSet = (value) => value !== void 0 && !FALSY_CI_FLAG_VALUES.has(value.toLowerCase());
-const isCiEnvironment = () => CI_ENVIRONMENT_VARIABLES.some((environmentVariable) => Boolean(process.env[environmentVariable])) || isCiFlagSet(process.env.CI);
+const isCiEnvironment = (env = process.env) => CI_ENVIRONMENT_VARIABLES.some((environmentVariable) => Boolean(env[environmentVariable])) || isCiFlagSet(env.CI);
 const detectCiProvider = () => {
 	for (const [environmentVariable, provider] of CI_PROVIDER_BY_ENVIRONMENT_VARIABLE) if (process.env[environmentVariable]) return provider;
 	return isCiFlagSet(process.env.CI) ? "unknown" : null;
@@ -84465,6 +88303,53 @@ const detectCodingAgent = () => {
 const isCodingAgentEnvironment = () => detectCodingAgent() !== null;
 const isCiOrCodingAgentEnvironment = () => isCiEnvironment() || isCodingAgentEnvironment();
 //#endregion
+//#region src/cli/utils/detect-terminal-kind.ts
+const TERMINAL_BY_TERM_PROGRAM = [
+	["vscode", "vscode"],
+	["iTerm.app", "iterm"],
+	["Apple_Terminal", "apple-terminal"],
+	["WezTerm", "wezterm"],
+	["ghostty", "ghostty"],
+	["Hyper", "hyper"],
+	["Tabby", "tabby"],
+	["rio", "rio"]
+];
+/**
+* Best-effort label for the terminal emulator / editor hosting the CLI,
+* derived from terminal-identity env vars. Recorded as the `terminalKind` run
+* tag so we can see where React Doctor is actually run (nvim, VS Code, iTerm,
+* …) — the split Sentry can't otherwise see. Low-cardinality and free of any
+* username/path/secret, so it's safe as a tag. Editor terminals (nvim/vim)
+* win over the outer emulator because that's the surface a user is reading in;
+* "ci" marks a run with no interactive terminal; "unknown" when nothing matches.
+*/
+const detectTerminalKind = (env = process.env) => {
+	if (env.NVIM) return "neovim";
+	if (env.VIM_TERMINAL) return "vim";
+	const termProgram = env.TERM_PROGRAM;
+	if (termProgram) {
+		for (const [marker, label] of TERMINAL_BY_TERM_PROGRAM) if (termProgram === marker) return label;
+	}
+	if (env.KITTY_WINDOW_ID || env.TERM === "xterm-kitty") return "kitty";
+	if (env.WT_SESSION) return "windows-terminal";
+	if (env.ALACRITTY_WINDOW_ID || env.TERM === "alacritty") return "alacritty";
+	if (env.VTE_VERSION) return "vte";
+	if (env.TMUX) return "tmux";
+	if (isCiEnvironment(env)) return "ci";
+	return "unknown";
+};
+//#endregion
+//#region src/cli/utils/is-debug-flag.ts
+/**
+* Whether the user passed `--debug` (surface the run's Sentry trace id, and
+* force performance tracing on so there's a trace to surface). Read straight
+* from argv rather than Commander's parsed flags because `initializeSentry()`
+* runs before Commander parses — the same reason `shouldEnableSentry()` reads
+* `--no-score` from argv. Sharing this one reader keeps the init-time sampling
+* override and the end-of-run print in agreement.
+*/
+const isDebugFlagEnabled = (argv = process.argv) => argv.includes("--debug");
+//#endregion
 //#region src/cli/utils/is-git-hook-environment.ts
 const isGitHookEnvironment = () => Boolean(process.env.GIT_DIR);
 //#endregion
@@ -84487,6 +88372,7 @@ const NON_INTERACTIVE_ENVIRONMENT_VARIABLES = [
 const isNonInteractiveEnvironment = () => NON_INTERACTIVE_ENVIRONMENT_VARIABLES.some((envVariable) => Boolean(process.env[envVariable])) || isCodingAgentEnvironment();
 //#endregion
 //#region src/cli/utils/constants.ts
+const REACT_DOCTOR_CONFIG_PROJECT_NAME = "react-doctor";
 const STAGED_FILES_TEMP_DIR_PREFIX = "react-doctor-staged-";
 const BASELINE_FILES_TEMP_DIR_PREFIX = "react-doctor-baseline-";
 const GH_DEFAULT_BRANCH_PROBE_TIMEOUT_MS = 5e3;
@@ -84500,6 +88386,8 @@ const METRIC = {
 	cliInvoked: "cli.invoked",
 	cliError: "cli.error",
 	projectDetected: "project.detected",
+	projectPathSelected: "project.path_selected",
+	projectConfigSelected: "project.config_selected",
 	scanCompleted: "scan.completed",
 	scanDuration: "scan.duration",
 	scanPhaseDuration: "scan.phase_duration",
@@ -84569,7 +88457,7 @@ const makeNoopConsole = () => ({
 });
 //#endregion
 //#region src/cli/utils/version.ts
-const VERSION = "0.5.1";
+const VERSION = "0.5.7";
 //#endregion
 //#region src/cli/utils/json-mode.ts
 let context = null;
@@ -84719,8 +88607,11 @@ const buildRunContext = () => {
 		viaAction: isOfficialGithubAction(),
 		codingAgent: detectCodingAgent(),
 		interactive: !isNonInteractiveEnvironment(),
+		terminalKind: detectTerminalKind(),
 		jsonMode: isJsonModeActive(),
-		invokedVia: detectInvokedVia()
+		debug: isDebugFlagEnabled(),
+		invokedVia: detectInvokedVia(),
+		lintBatchOrdering: resolveLintBatchOrdering()
 	};
 };
 //#endregion
@@ -84789,9 +88680,12 @@ const buildSentryScope = (runContext = buildRunContext()) => {
 		viaAction: runContext.viaAction,
 		codingAgent: runContext.codingAgent,
 		interactive: runContext.interactive,
+		terminalKind: runContext.terminalKind,
 		jsonMode: runContext.jsonMode,
+		debug: runContext.debug,
 		invokedVia: runContext.invokedVia,
-		nodeMajor: runContext.nodeMajor
+		nodeMajor: runContext.nodeMajor,
+		lintBatchOrdering: runContext.lintBatchOrdering
 	};
 	const contexts = { run: { ...runContext } };
 	const projectInfo = getSentryProjectInfo();
@@ -84927,13 +88821,13 @@ const isDevVersion = (version) => version === "0.0.0" || version.includes("-");
 * uploads source-map artifacts under, so stack frames symbolicate. Honors the
 * standard `SENTRY_RELEASE` override.
 */
-const resolveSentryRelease = () => process.env.SENTRY_RELEASE || `react-doctor@0.5.1`;
+const resolveSentryRelease = () => process.env.SENTRY_RELEASE || `react-doctor@0.5.7`;
 /**
 * Deployment environment shown in Sentry's environment filter. Defaults to
 * `production` for tagged releases and `development` for dev/unbuilt versions,
 * overridable via the standard `SENTRY_ENVIRONMENT` env var.
 */
-const resolveSentryEnvironment = () => process.env.SENTRY_ENVIRONMENT || (isDevVersion("0.5.1") ? "development" : "production");
+const resolveSentryEnvironment = () => process.env.SENTRY_ENVIRONMENT || (isDevVersion("0.5.7") ? "development" : "production");
 /**
 * Performance-tracing sample rate in `[0, 1]`. Reads `SENTRY_TRACES_SAMPLE_RATE`
 * (set to `0` to disable tracing) and falls back to
@@ -84998,7 +88892,7 @@ const flushSentry = async () => {
 const initializeSentry = () => {
 	if (isInitialized || !shouldEnableSentry()) return;
 	isInitialized = true;
-	resolvedTracesSampleRate = resolveTracesSampleRate();
+	resolvedTracesSampleRate = isDebugFlagEnabled() ? 1 : resolveTracesSampleRate();
 	const { tags, contexts } = buildSentryScope();
 	Sentry.init({
 		dsn: process.env.SENTRY_DSN || "",
@@ -85137,7 +89031,7 @@ const externalSpanFrom = (sentrySpan) => {
 *    in-memory tracer — identical to the prior default behavior.
 */
 const applyObservability = (program, rootSentrySpan) => {
-	if (isOtlpExportConfigured()) return (rootSentrySpan ? program.pipe(provideService(ParentSpan, externalSpanFrom(rootSentrySpan))) : program).pipe(provide(layerOtlp));
+	if (isOtlpExportConfigured()) return (rootSentrySpan ? program.pipe(provideService$2(ParentSpan, externalSpanFrom(rootSentrySpan))) : program).pipe(provide(layerOtlp));
 	if (rootSentrySpan) return program.pipe(withTracer(makeSentryTracer(rootSentrySpan)));
 	return program.pipe(provide(layerOtlp));
 };
@@ -88214,6 +92108,11 @@ const setActiveRunTrace = (trace) => {
 	activeRunTrace = trace;
 };
 const getActiveRunTrace = () => activeRunTrace;
+let lastRunTraceId = null;
+const recordRunTraceId = (traceId) => {
+	lastRunTraceId = traceId;
+};
+const getLastRunTraceId = () => lastRunTraceId;
 //#endregion
 //#region src/cli/utils/to-span-attributes.ts
 /**
@@ -88232,12 +92131,13 @@ const toSpanAttributes = (tags) => {
 /**
 * Clears the module-level run-scoped Sentry state — the current scanned project
 * and the active run trace. `inspect()` calls this at the start of every run and
-* again after a clean one (it's invoked once per project in a workspace scan),
-* so a prior or just-finished scan can't attach its project tags / trace to a
-* later run or to a non-scan error (e.g. inspectAction's post-loop
-* finalize/handoff steps). A thrown scan error skips the post-run reset, leaving
-* the state for the command catch to attribute and link the crash. Safe to call
-* when Sentry is off (the refs are read only when an event is built).
+* again after a clean one, so a prior or just-finished scan can't attach its
+* project tags / trace to a later run or to a non-scan error (e.g.
+* inspectAction's post-loop finalize/handoff steps). A thrown scan error skips
+* the post-run reset, leaving the state for the command catch to attribute and
+* link the crash. Concurrent batch members (`concurrentScan`) never touch this
+* state — they neither write nor reset it. Safe to call when Sentry is off (the
+* refs are read only when an event is built).
 */
 const resetSentryRunState = () => {
 	setSentryProjectInfo(null);
@@ -88260,8 +92160,13 @@ const resetSentryRunState = () => {
 * state right after a clean run and at the start of the next one, so the trace
 * is never attached to a non-scan error; on a thrown error the state is left in
 * place for the command catch, then the process exits.
+*
+* A `concurrentScan` (one member of the CLI's multi-project pool) still gets
+* its own root span, but skips recording the active run trace — the module-
+* level handle has single-scan semantics, and overlapping writers would link a
+* crash to an arbitrary sibling's trace.
 */
-const withSentryRunSpan = (run) => {
+const withSentryRunSpan = (run, options = {}) => {
 	if (!isSentryTracingEnabled()) return run(void 0);
 	const { tags } = buildSentryScope();
 	const command = typeof tags.command === "string" ? tags.command : "inspect";
@@ -88271,7 +92176,8 @@ const withSentryRunSpan = (run) => {
 		attributes: toSpanAttributes(tags)
 	}, (rootSpan) => {
 		const spanContext = rootSpan.spanContext();
-		setActiveRunTrace({
+		recordRunTraceId(spanContext.traceId);
+		if (options.concurrentScan !== true) setActiveRunTrace({
 			traceId: spanContext.traceId,
 			spanId: spanContext.spanId,
 			sampled: (spanContext.traceFlags & 1) === 1
@@ -88286,9 +92192,15 @@ const withSentryRunSpan = (run) => {
 * run's root span so the transaction/trace carries the project shape too.
 * Always cheap — the span attribute set is skipped when `rootSpan` is absent
 * (tracing off), and storing the info is a plain assignment.
+*
+* A `concurrentScan` only sets the span attributes: the module-level project
+* ref has single-scan semantics, and overlapping writers would stamp events
+* and metrics with an arbitrary sibling's project. Wide events keep full
+* attribution (they ride the span); per-emit metrics simply omit the project
+* shape during a concurrent batch (absent, never wrong).
 */
-const recordSentryProjectContext = (projectInfo, rootSpan) => {
-	setSentryProjectInfo(projectInfo);
+const recordSentryProjectContext = (projectInfo, rootSpan, options = {}) => {
+	if (options.concurrentScan !== true) setSentryProjectInfo(projectInfo);
 	rootSpan?.setAttributes(toSpanAttributes(buildSentryProjectContext(projectInfo).tags));
 };
 //#endregion
@@ -88409,6 +92321,42 @@ const recordScanMetrics = (input) => {
 	});
 };
 //#endregion
+//#region src/cli/utils/diagnostic-grouping.ts
+const buildRulePriorityMap = (scores) => {
+	const rulePriority = /* @__PURE__ */ new Map();
+	for (const score of scores) {
+		if (!score?.rules) continue;
+		for (const [ruleKey, info] of Object.entries(score.rules)) if (typeof info.priority === "number") rulePriority.set(ruleKey, info.priority);
+	}
+	return rulePriority;
+};
+const compareByRulePriority = (ruleKeyA, ruleKeyB, rulePriority) => {
+	const priorityA = rulePriority?.get(ruleKeyA);
+	const priorityB = rulePriority?.get(ruleKeyB);
+	if (priorityA === void 0 && priorityB === void 0) return 0;
+	if (priorityA === void 0) return 1;
+	if (priorityB === void 0) return -1;
+	return priorityB - priorityA;
+};
+const sortRuleGroupsByImportance = (diagnosticGroups, rulePriority) => diagnosticGroups.toSorted(([ruleKeyA], [ruleKeyB]) => compareByRulePriority(ruleKeyA, ruleKeyB, rulePriority));
+const buildSortedRuleGroups = (diagnostics, rulePriority) => sortRuleGroupsByImportance([...groupBy([...diagnostics], (diagnostic) => `${diagnostic.plugin}/${diagnostic.rule}`)], rulePriority);
+const getSharedFixSiteCount = (diagnostics) => {
+	if (diagnostics.length < 2) return 0;
+	const firstFixGroupId = diagnostics[0]?.fixGroupId;
+	if (!firstFixGroupId) return 0;
+	return diagnostics.every((diagnostic) => diagnostic.fixGroupId === firstFixGroupId) ? diagnostics.length : 0;
+};
+const FIX_RECIPE_DIRECTIVE_LABEL = "Curl with no cache & follow the canonical fix and false positive check recipe before fixing";
+const formatFixRecipeLine = (diagnostic) => hasPublishedFixRecipe(diagnostic) ? `${FIX_RECIPE_DIRECTIVE_LABEL}: ${buildRuleRecipeUrl(diagnostic.plugin, diagnostic.rule)}` : null;
+const formatLearnMoreLine = (diagnostic) => hasPublishedFixRecipe(diagnostic) ? `Learn more: ${buildRuleDocsUrl(diagnostic.plugin, diagnostic.rule)}` : null;
+const buildRuleBlastRadii = (diagnostics) => buildSortedRuleGroups(diagnostics).map(([ruleKey, ruleDiagnostics]) => ({
+	ruleKey,
+	title: ruleDiagnostics[0].title ?? ruleKey,
+	siteCount: ruleDiagnostics.length,
+	fileCount: new Set(ruleDiagnostics.map((diagnostic) => diagnostic.filePath)).size
+})).toSorted((left, right) => right.fileCount - left.fileCount);
+const findMigrationScaleBuckets = (diagnostics) => buildRuleBlastRadii(diagnostics).filter((bucket) => bucket.fileCount >= 40);
+//#endregion
 //#region src/cli/utils/cli-logger.ts
 /**
 * Thin synchronous façade over Effect's `Console` module. Used by
@@ -88525,6 +92473,17 @@ const buildOutcomeAttributes = (input) => {
 		topRule = rule;
 		topRuleCount = count;
 	}
+	const largestRuleBucket = buildRuleBlastRadii(result.diagnostics)[0] ?? null;
+	let diagnosticsInTestFiles = 0;
+	let diagnosticsInStoryFiles = 0;
+	const findingsPerFixGroup = /* @__PURE__ */ new Map();
+	for (const diagnostic of result.diagnostics) {
+		if (diagnostic.fileContext === "test") diagnosticsInTestFiles += 1;
+		if (diagnostic.fileContext === "story") diagnosticsInStoryFiles += 1;
+		if (diagnostic.fixGroupId) findingsPerFixGroup.set(diagnostic.fixGroupId, (findingsPerFixGroup.get(diagnostic.fixGroupId) ?? 0) + 1);
+	}
+	let fixGroupedFindings = 0;
+	for (const count of findingsPerFixGroup.values()) fixGroupedFindings += count;
 	const attributes = {
 		outcome,
 		exitCode: wouldBlock ? 1 : 0,
@@ -88535,9 +92494,19 @@ const buildOutcomeAttributes = (input) => {
 		errorCount: summary.errorCount,
 		warningCount: summary.warningCount,
 		affectedFiles: summary.affectedFileCount,
+		diagnosticsInTestFiles,
+		diagnosticsInStoryFiles,
 		distinctRulesFired: countByRule.size,
+		"diag.fixGroups": findingsPerFixGroup.size,
+		"diag.fixGroupedFindings": fixGroupedFindings,
 		topRule,
+		"migration.largestRuleBucketFiles": largestRuleBucket ? largestRuleBucket.fileCount : null,
+		"migration.largestRuleBucketSites": largestRuleBucket ? largestRuleBucket.siteCount : null,
+		"migration.largestRuleBucketRule": largestRuleBucket ? largestRuleBucket.ruleKey : null,
 		scannedFileCount: result.scannedFileCount ?? null,
+		lintCacheHitFiles: result.lintCacheHitFileCount ?? null,
+		lintCacheTotalFiles: result.lintCacheTotalFileCount ?? null,
+		lintCacheHitRatio: result.lintCacheTotalFileCount != null && result.lintCacheTotalFileCount > 0 ? (result.lintCacheHitFileCount ?? 0) / result.lintCacheTotalFileCount : null,
 		elapsedMs: result.elapsedMilliseconds,
 		scanPhaseMs: result.scanElapsedMilliseconds ?? null,
 		score: result.score ? result.score.score : null,
@@ -88547,7 +92516,10 @@ const buildOutcomeAttributes = (input) => {
 		didLintFail: input.didLintFail ?? null,
 		lintFailureReasonKind: input.lintFailureReasonKind ?? null,
 		lintPartialFailureCount: input.lintPartialFailureCount ?? null,
-		didDeadCodeFail: input.didDeadCodeFail ?? null
+		lintDroppedFileCount: input.lintDroppedFileCount ?? null,
+		didDeadCodeFail: input.didDeadCodeFail ?? null,
+		supplyChainOverlapTimedOut: input.supplyChainOverlapTimedOut ?? null,
+		deadCodeOverlapped: input.deadCodeOverlapped ?? null
 	};
 	for (const [category, count] of countByCategory) attributes[`diag.category.${toCategoryKey(category)}`] = count;
 	if (result.baselineDelta) {
@@ -88582,6 +92554,7 @@ const buildConfigAttributes = (input) => {
 		noScore: input.noScore,
 		respectInlineDisables: input.respectInlineDisables,
 		showWarnings: input.showWarnings,
+		usedOutputDir: input.usedOutputDir,
 		ignoredTagCount: input.ignoredTagCount,
 		hasCustomConfig: input.hasCustomConfig,
 		rulesConfigured: ruleKeys.length,
@@ -88614,6 +92587,32 @@ const recordRunEvent = (rootSpan, input) => {
 		rootSpan.setAttributes(buildRunEventAttributes(input));
 	} catch {}
 };
+//#endregion
+//#region src/cli/utils/resolve-worker-telemetry.ts
+/**
+* Projects the resolved lint worker count into the `(workerCount, parallel)`
+* telemetry pair. `resolvedWorkerCount` is the count the scan actually fanned
+* out to (`InspectOutput.scanConcurrency`); `pinnedConcurrency` is the caller's
+* `inspect({ concurrency })` pin, used as the fallback when no scan resolved a
+* count (the pre-scan failure path, or a cache entry persisted before the
+* resolved count was tracked). `parallel` is derived from the count — NOT from
+* whether a count was pinned — so the common auto path (no pin) still reports
+* parallelism correctly instead of always reading `false`.
+*/
+const resolveWorkerTelemetry = (resolvedWorkerCount, pinnedConcurrency) => {
+	const workerCount = resolvedWorkerCount ?? pinnedConcurrency;
+	return {
+		workerCount,
+		parallel: workerCount !== void 0 && workerCount > 1
+	};
+};
+//#endregion
+//#region src/cli/utils/count-dropped-lint-files.ts
+const DROPPED_FILES_MESSAGE_PATTERN = /^(\d+) file\(s\) failed to lint and were skipped/;
+const countDroppedLintFiles = (lintPartialFailures) => lintPartialFailures.reduce((total, message) => {
+	const match = DROPPED_FILES_MESSAGE_PATTERN.exec(message);
+	return match ? total + Number(match[1]) : total;
+}, 0);
 //#endregion
 //#region src/cli/utils/path-format.ts
 const toForwardSlashes = (filePath) => filePath.replaceAll("\\", "/");
@@ -88693,9 +92692,10 @@ const AGENT_GUIDANCE_LINES = [
 	"Investigate deeply where relevant: race conditions, security-sensitive flows, state propagation, multi-file refactors, and downstream dependency chains.",
 	"Ignore pure style preferences, theoretical issues without real impact, missing features, and unrelated pre-existing code.",
 	"Start with high-confidence fixes that preserve behavior. Leave low-confidence or product-dependent changes as notes.",
-	`Run \`npx ${FORK_PACKAGE_SPEC} --verbose --diff\` before and after changes, plus relevant tests after each focused batch.`,
+	`Run \`npx ${FORK_PACKAGE_SPEC} --verbose --scope changed\` before and after changes, plus relevant tests after each focused batch.`,
 	"When available, spawn subagents or isolated worktrees for independent rule families, then review and merge only the best safe fixes.",
 	"Split unrelated, broad, or behavior-changing work into separate PRs/branches instead of one large cleanup.",
+	"When one rule spans dozens of files (a migration-scale change), fix a representative sample first, confirm the recipe holds, and get the code owner's sign-off before changing the rest. Don't mass-fix a broad pattern in one unreviewed pass.",
 	"For confirmed issues that cannot be fixed now, create GitHub issues with the rule, file/line, confidence, impact, and proposed fix.",
 	"If a fix needs an API, UX, or architecture decision, stop and ask before editing."
 ];
@@ -88704,29 +92704,6 @@ const printAgentGuidance = () => gen(function* () {
 	for (const line of AGENT_GUIDANCE_LINES) yield* log(highlighter.gray(`  - ${line}`));
 	yield* log("");
 });
-//#endregion
-//#region src/cli/utils/diagnostic-grouping.ts
-const buildRulePriorityMap = (scores) => {
-	const rulePriority = /* @__PURE__ */ new Map();
-	for (const score of scores) {
-		if (!score?.rules) continue;
-		for (const [ruleKey, info] of Object.entries(score.rules)) if (typeof info.priority === "number") rulePriority.set(ruleKey, info.priority);
-	}
-	return rulePriority;
-};
-const compareByRulePriority = (ruleKeyA, ruleKeyB, rulePriority) => {
-	const priorityA = rulePriority?.get(ruleKeyA);
-	const priorityB = rulePriority?.get(ruleKeyB);
-	if (priorityA === void 0 && priorityB === void 0) return 0;
-	if (priorityA === void 0) return 1;
-	if (priorityB === void 0) return -1;
-	return priorityB - priorityA;
-};
-const sortRuleGroupsByImportance = (diagnosticGroups, rulePriority) => diagnosticGroups.toSorted(([ruleKeyA], [ruleKeyB]) => compareByRulePriority(ruleKeyA, ruleKeyB, rulePriority));
-const buildSortedRuleGroups = (diagnostics, rulePriority) => sortRuleGroupsByImportance([...groupBy([...diagnostics], (diagnostic) => `${diagnostic.plugin}/${diagnostic.rule}`)], rulePriority);
-const FIX_RECIPE_DIRECTIVE_LABEL = "Curl with no cache & follow the canonical fix and false positive check recipe before fixing";
-const formatFixRecipeLine = (diagnostic) => hasPublishedFixRecipe(diagnostic) ? `${FIX_RECIPE_DIRECTIVE_LABEL}: ${buildRuleRecipeUrl(diagnostic.plugin, diagnostic.rule)}` : null;
-const formatLearnMoreLine = (diagnostic) => hasPublishedFixRecipe(diagnostic) ? `Learn more: ${buildRuleDocsUrl(diagnostic.plugin, diagnostic.rule)}` : null;
 //#endregion
 //#region src/cli/utils/box-text.ts
 const ESCAPE = String.fromCharCode(27);
@@ -88768,6 +92745,15 @@ const boxText = (content, innerWidth) => {
 	].join("\n");
 };
 //#endregion
+//#region src/cli/utils/resolve-absolute-path.ts
+/**
+* Resolves a diagnostic's `filePath` (relative to its project root, or
+* already absolute) to an absolute path. Shared by the code-frame reader and
+* the terminal hyperlink builder so both turn a relative path into the same
+* on-disk location.
+*/
+const resolveAbsolutePath = (filePath, rootDirectory) => path$1.isAbsolute(filePath) ? filePath : path$1.resolve(rootDirectory || ".", filePath);
+//#endregion
 //#region src/cli/utils/build-code-frame.ts
 /**
 * Renders a syntax-highlighted source excerpt around a diagnostic site
@@ -88778,7 +92764,7 @@ const boxText = (content, innerWidth) => {
 */
 const buildCodeFrame = (input) => {
 	if (input.line <= 0) return null;
-	const absolutePath = path$1.isAbsolute(input.filePath) ? input.filePath : path$1.resolve(input.rootDirectory || ".", input.filePath);
+	const absolutePath = resolveAbsolutePath(input.filePath, input.rootDirectory);
 	let source;
 	try {
 		source = fs$1.readFileSync(absolutePath, "utf8");
@@ -88817,6 +92803,16 @@ const resolveMeasureWidth = (reservedColumns = 0) => resolveClampedWidth({
 //#region src/cli/utils/build-section-divider.ts
 const DIVIDER_INDENT = "  ";
 const buildSectionDivider = () => highlighter.dim(`${DIVIDER_INDENT}${"─".repeat(resolveMeasureWidth(2))}`);
+//#endregion
+//#region src/cli/utils/format-hyperlink.ts
+const OSC = "\x1B]";
+const ST = "\x1B\\";
+/**
+* Wraps `text` in an OSC 8 hyperlink pointing at `uri`. The visible characters
+* are exactly `text`; the link is carried in escape sequences a capable
+* terminal turns into a click target.
+*/
+const formatHyperlink = (text, uri) => `${OSC}8;;${uri}${ST}${text}${OSC}8;;${ST}`;
 //#endregion
 //#region src/cli/utils/indent-multiline-text.ts
 const indentMultilineText = (text, linePrefix) => text.split("\n").map((lineText) => `${linePrefix}${lineText}`).join("\n");
@@ -88866,17 +92862,24 @@ const writeStdout = (text) => sync(() => {
 const POINTER = isUnicodeSupported() ? "›" : ">";
 const colorizeBySeverity = (text, severity) => severity === "error" ? highlighter.error(text) : highlighter.warn(text);
 const collectAffectedFiles = (diagnostics) => new Set(diagnostics.map((diagnostic) => diagnostic.filePath));
-const buildVerboseSiteMap = (diagnostics) => {
-	const fileSites = /* @__PURE__ */ new Map();
+const formatFileContextTag = (diagnostic) => diagnostic.fileContext ? ` (${diagnostic.fileContext} file)` : "";
+const buildVerboseFileEntries = (diagnostics) => {
+	const fileEntries = /* @__PURE__ */ new Map();
 	for (const diagnostic of diagnostics) {
-		const sites = fileSites.get(diagnostic.filePath) ?? [];
-		if (diagnostic.line > 0) sites.push({
+		let entry = fileEntries.get(diagnostic.filePath);
+		if (entry === void 0) {
+			entry = {
+				contextTag: formatFileContextTag(diagnostic),
+				sites: []
+			};
+			fileEntries.set(diagnostic.filePath, entry);
+		}
+		if (diagnostic.line > 0) entry.sites.push({
 			line: diagnostic.line,
 			suppressionHint: diagnostic.suppressionHint
 		});
-		fileSites.set(diagnostic.filePath, sites);
 	}
-	return fileSites;
+	return fileEntries;
 };
 const formatSiteCountBadge = (count) => count > 1 ? `×${count}` : "";
 const formatTrailingSiteBadge = (count) => {
@@ -88964,16 +92967,23 @@ const clusterNearbyDiagnostics = (diagnostics) => {
 	}
 	return clusters;
 };
-const formatClusterLocation = (cluster) => {
+const formatClusterLocationText = (cluster) => {
 	const { filePath } = cluster.diagnostics[0];
 	if (cluster.startLine <= 0) return filePath;
 	if (cluster.endLine > cluster.startLine) return `${filePath}:${cluster.startLine}-${cluster.endLine}`;
 	return `${filePath}:${cluster.startLine}`;
 };
-const buildDiagnosticClusterLines = (cluster, resolveSourceRoot, renderCodeFrame) => {
+const formatClusterLocation = (cluster, resolveSourceRoot, hyperlinks) => {
+	const lead = cluster.diagnostics[0];
+	const contextTag = formatFileContextTag(lead);
+	const location = formatClusterLocationText(cluster);
+	if (!hyperlinks) return `${location}${contextTag}`;
+	return `${formatHyperlink(location, pathToFileURL(resolveAbsolutePath(lead.filePath, resolveSourceRoot(lead))).href)}${contextTag}`;
+};
+const buildDiagnosticClusterLines = (cluster, resolveSourceRoot, renderCodeFrame, hyperlinks) => {
 	const lead = cluster.diagnostics[0];
 	const isMultiSite = cluster.diagnostics.length > 1;
-	const lines = ["", highlighter.gray(`${TOP_ERROR_DETAIL_INDENT}${formatClusterLocation(cluster)}`)];
+	const lines = ["", highlighter.gray(`${TOP_ERROR_DETAIL_INDENT}${formatClusterLocation(cluster, resolveSourceRoot, hyperlinks)}`)];
 	const codeFrame = renderCodeFrame ? buildCodeFrame({
 		filePath: lead.filePath,
 		line: cluster.startLine,
@@ -88992,7 +93002,7 @@ const buildDiagnosticClusterLines = (cluster, resolveSourceRoot, renderCodeFrame
 	}
 	return lines;
 };
-const buildRuleDetailBlock = (ruleKey, ruleDiagnostics, resolveSourceRoot, renderEverySite, isAgentEnvironment) => {
+const buildRuleDetailBlock = (ruleKey, ruleDiagnostics, resolveSourceRoot, renderEverySite, isAgentEnvironment, hyperlinks) => {
 	const representative = pickRepresentativeDiagnostic(ruleDiagnostics);
 	const { severity } = representative;
 	const trailingBadge = formatTrailingSiteBadge(ruleDiagnostics.length);
@@ -89006,13 +93016,15 @@ const buildRuleDetailBlock = (ruleKey, ruleDiagnostics, resolveSourceRoot, rende
 	const impactMessages = isCollapsedWarningGroup ? [...new Set(ruleDiagnostics.map((diagnostic) => diagnostic.message))] : [representative.message];
 	for (const impactMessage of impactMessages) for (const explanationLine of wrapTextToWidth(impactMessage, resolveMeasureWidth(4), { breakLongWords: false })) lines.push(`${TOP_ERROR_DETAIL_INDENT}${explanationLine}`);
 	if (representative.help) for (const fixLine of wrapTextToWidth(`→ ${representative.help}`, resolveMeasureWidth(4), { breakLongWords: false })) lines.push(highlighter.dim(`${TOP_ERROR_DETAIL_INDENT}${fixLine}`));
+	const sharedFixSiteCount = getSharedFixSiteCount(ruleDiagnostics);
+	if (sharedFixSiteCount > 0) lines.push(highlighter.dim(`${TOP_ERROR_DETAIL_INDENT}↳ One fix clears all ${sharedFixSiteCount} findings.`));
 	if (renderEverySite && isAgentEnvironment) {
 		const fixRecipeLine = formatFixRecipeLine(representative);
 		if (fixRecipeLine) lines.push(highlighter.gray(`${TOP_ERROR_DETAIL_INDENT}${fixRecipeLine}`));
 	}
 	const renderCodeFrame = severity === "error";
 	const sites = renderEverySite ? ruleDiagnostics : [representative];
-	if (!(isCollapsedWarningGroup && representative.help.includes(representative.filePath))) for (const cluster of clusterNearbyDiagnostics(sites)) lines.push(...buildDiagnosticClusterLines(cluster, resolveSourceRoot, renderCodeFrame));
+	if (!(isCollapsedWarningGroup && representative.help.includes(representative.filePath))) for (const cluster of clusterNearbyDiagnostics(sites)) lines.push(...buildDiagnosticClusterLines(cluster, resolveSourceRoot, renderCodeFrame, hyperlinks));
 	return lines;
 };
 const selectErrorRuleGroups = (diagnostics, rulePriority) => buildSortedRuleGroups(diagnostics.filter((diagnostic) => diagnostic.severity === "error"), rulePriority);
@@ -89024,8 +93036,21 @@ const buildOverflowSummaryLine = (diagnostics, rulePriority) => {
 	const command = highlighter.bold(highlighter.info(`npx ${FORK_PACKAGE_SPEC} --verbose`));
 	return `  ${highlighter.dim("Run")} ${command} ${highlighter.dim("to list every error and warning")}`;
 };
+const formatMigrationBucketLine = (bucket) => `${TOP_ERROR_DETAIL_INDENT}${bucket.title} ${highlighter.gray(`×${bucket.siteCount} across ${bucket.fileCount} files`)}`;
+const buildMigrationScaleAdvisoryLines = (diagnostics) => {
+	const buckets = findMigrationScaleBuckets(diagnostics);
+	if (buckets.length === 0) return [];
+	const shownBuckets = buckets.slice(0, 3);
+	const lines = [`  ${highlighter.warn("⚠")} ${highlighter.bold("Migration-scale change")}${highlighter.dim(": sample before you sweep")}`, ...shownBuckets.map(formatMigrationBucketLine)];
+	const remainingBuckets = buckets.length - shownBuckets.length;
+	if (remainingBuckets > 0) lines.push(highlighter.gray(`${TOP_ERROR_DETAIL_INDENT}+${remainingBuckets} more ${remainingBuckets === 1 ? "rule" : "rules"} at this scale`));
+	for (const guidanceLine of wrapTextToWidth("Fixing all of them at once is hard to review and prone to subtle mistakes across the whole repo. Fix a representative few first and confirm the recipe holds. Then get the code owner's sign-off before changing the rest.", resolveMeasureWidth(4), { breakLongWords: false })) lines.push(highlighter.dim(`${TOP_ERROR_DETAIL_INDENT}${guidanceLine}`));
+	const command = highlighter.info(`npx ${FORK_PACKAGE_SPEC} <path>`);
+	lines.push(`${TOP_ERROR_DETAIL_INDENT}${highlighter.dim("Scope it down one area at a time:")} ${command}`);
+	return lines;
+};
 const getTopErrorRuleKeys = (diagnostics, limit, rulePriority) => new Set(selectTopErrorRuleGroups(diagnostics, limit, rulePriority).map(([ruleKey]) => ruleKey));
-const buildTopErrorsSection = (diagnostics, resolveSourceRoot, rulePriority) => {
+const buildTopErrorsSection = (diagnostics, resolveSourceRoot, hyperlinks, rulePriority) => {
 	const topRuleGroups = selectErrorRuleGroups(diagnostics, rulePriority).slice(0, 3);
 	if (topRuleGroups.length === 0) return {
 		lines: [],
@@ -89035,7 +93060,7 @@ const buildTopErrorsSection = (diagnostics, resolveSourceRoot, rulePriority) => 
 	const blockOffsets = [];
 	for (const [ruleKey, ruleDiagnostics] of topRuleGroups) {
 		blockOffsets.push(lines.length);
-		lines.push(...buildRuleDetailBlock(ruleKey, ruleDiagnostics, resolveSourceRoot, false, false));
+		lines.push(...buildRuleDetailBlock(ruleKey, ruleDiagnostics, resolveSourceRoot, false, false, hyperlinks));
 		lines.push("");
 	}
 	return {
@@ -89073,24 +93098,24 @@ const buildOverviewHeaderLines = (diagnostics) => {
 * single Effect.forEach over Console.log so failures or fiber
 * interruption produce predictable partial output.
 */
-const printDiagnostics = (diagnostics, isVerbose, sourceRoot, rulePriority, isAgentEnvironment = false, onboarding = {}) => gen(function* () {
+const printDiagnostics = (diagnostics, isVerbose, sourceRoot, rulePriority, isAgentEnvironment = false, onboarding = {}, hyperlinks = false) => gen(function* () {
 	const sectionPause = onboarding.sectionPause ?? void_;
 	const animateCountUp = onboarding.animateCountUp ?? false;
 	const resolveSourceRoot = typeof sourceRoot === "function" ? sourceRoot : () => sourceRoot;
 	let detailLines;
 	let topErrorBlockOffsets = [];
 	if (!isVerbose) {
-		const topErrors = buildTopErrorsSection(diagnostics, resolveSourceRoot, rulePriority);
+		const topErrors = buildTopErrorsSection(diagnostics, resolveSourceRoot, hyperlinks, rulePriority);
 		detailLines = topErrors.lines;
 		topErrorBlockOffsets = topErrors.blockOffsets;
 	} else detailLines = buildSortedRuleGroups(diagnostics, rulePriority).flatMap(([ruleKey, ruleDiagnostics]) => {
-		return [...buildRuleDetailBlock(ruleKey, ruleDiagnostics, resolveSourceRoot, true, isAgentEnvironment), ""];
+		return [...buildRuleDetailBlock(ruleKey, ruleDiagnostics, resolveSourceRoot, true, isAgentEnvironment, hyperlinks), ""];
 	});
 	const overflowLine = isVerbose ? void 0 : buildOverflowSummaryLine(diagnostics, rulePriority);
 	const categoryTallies = buildCategoryDiagnosticGroups(diagnostics, rulePriority).map(buildCategoryTally);
 	const categoryLines = buildCategoryTallyLines(categoryTallies);
 	const overviewDividerLines = detailLines.length > 0 && categoryLines.length > 0 ? [buildSectionDivider()] : [];
-	const { lines, sectionStarts } = joinSections(detailLines, overviewDividerLines, buildOverviewHeaderLines(diagnostics), categoryLines, overflowLine ? [overflowLine] : []);
+	const { lines, sectionStarts } = joinSections(detailLines, overviewDividerLines, buildOverviewHeaderLines(diagnostics), categoryLines, overflowLine ? [overflowLine] : [], buildMigrationScaleAdvisoryLines(diagnostics));
 	const [detailStart, , , categoryStart] = sectionStarts;
 	const pauseBeforeLineIndices = detailStart == null ? /* @__PURE__ */ new Set() : new Set(topErrorBlockOffsets.map((offset) => detailStart + offset));
 	let lineIndex = 0;
@@ -89111,25 +93136,26 @@ const formatElapsedTime = (elapsedMilliseconds) => {
 };
 const formatRuleSummary = (ruleKey, ruleDiagnostics) => {
 	const firstDiagnostic = ruleDiagnostics[0];
+	const distinctMessages = [...new Set(ruleDiagnostics.map((diagnostic) => diagnostic.message))];
 	const sections = [
 		`Rule: ${ruleKey}`,
 		`Severity: ${firstDiagnostic.severity}`,
 		`Category: ${firstDiagnostic.category}`,
 		`Count: ${ruleDiagnostics.length}`,
 		"",
-		firstDiagnostic.message
+		distinctMessages.join("\n\n")
 	];
 	if (firstDiagnostic.help) sections.push("", `Suggestion: ${firstDiagnostic.help}`);
 	if (firstDiagnostic.url) sections.push("", `Docs: ${firstDiagnostic.url}`);
 	const fixRecipeLine = formatFixRecipeLine(firstDiagnostic);
 	if (fixRecipeLine) sections.push("", fixRecipeLine);
 	sections.push("", "Files:");
-	const fileSites = buildVerboseSiteMap(ruleDiagnostics);
-	for (const [filePath, sites] of fileSites) if (sites.length > 0) for (const site of sites) {
-		sections.push(`  ${filePath}:${site.line}`);
+	const fileEntries = buildVerboseFileEntries(ruleDiagnostics);
+	for (const [filePath, { contextTag, sites }] of fileEntries) if (sites.length > 0) for (const site of sites) {
+		sections.push(`  ${filePath}:${site.line}${contextTag}`);
 		if (site.suppressionHint) sections.push(`    ${site.suppressionHint}`);
 	}
-	else sections.push(`  ${filePath}`);
+	else sections.push(`  ${filePath}${contextTag}`);
 	return sections.join("\n") + "\n";
 };
 //#endregion
@@ -89144,6 +93170,48 @@ const computeProjectedScore = async (topErrorSource, rescoreSource, currentScore
 //#endregion
 //#region src/cli/utils/filter-diagnostics-by-categories.ts
 const filterDiagnosticsByCategories = (diagnostics, categories) => categories.size === 0 ? [...diagnostics] : diagnostics.filter((diagnostic) => categories.has(diagnostic.category));
+//#endregion
+//#region src/cli/utils/supports-hyperlinks.ts
+const HYPERLINK_CAPABLE_TERM_PROGRAMS = new Set([
+	"iTerm.app",
+	"WezTerm",
+	"vscode",
+	"Hyper",
+	"ghostty",
+	"Tabby",
+	"rio"
+]);
+const parseVteVersion = (raw) => {
+	const parsed = Number.parseInt(raw ?? "", 10);
+	return Number.isNaN(parsed) ? 0 : parsed;
+};
+/**
+* Whether `stream` is a terminal that renders OSC 8 hyperlinks. Auto-detected
+* from terminal-identity env vars; the de-facto `FORCE_HYPERLINK` env var
+* overrides detection (`FORCE_HYPERLINK=0`/`false` forces off, any other value
+* forces on), mirroring how the ecosystem's terminal libraries gate the same
+* feature. Off for non-TTYs, `TERM=dumb`, and CI (whose log viewers render the
+* raw escape rather than a link). Unknown terminals default to off.
+*/
+const supportsHyperlinks = (stream = process.stdout, env = process.env) => {
+	const forced = env.FORCE_HYPERLINK;
+	if (forced !== void 0 && forced !== "") return forced !== "0" && forced.toLowerCase() !== "false";
+	if (stream.isTTY !== true) return false;
+	if (env.TERM === "dumb") return false;
+	if (isCiEnvironment(env)) return false;
+	if (env.WT_SESSION) return true;
+	if (env.KITTY_WINDOW_ID || env.TERM === "xterm-kitty") return true;
+	if (parseVteVersion(env.VTE_VERSION) >= 5e3) return true;
+	return Boolean(env.TERM_PROGRAM && HYPERLINK_CAPABLE_TERM_PROGRAMS.has(env.TERM_PROGRAM));
+};
+//#endregion
+//#region src/cli/utils/should-render-hyperlinks.ts
+/**
+* Whether to emit OSC 8 clickable `file:line` locations for this run: a
+* hyperlink-capable terminal AND not a coding agent (whose output parsers
+* would choke on the escape sequences).
+*/
+const shouldRenderHyperlinks = (stream = process.stdout) => supportsHyperlinks(stream) && !isCodingAgentEnvironment();
 const FORCE_ONBOARDING_ENV_VAR = "REACT_DOCTOR_FORCE_ONBOARDING";
 const FALSY_FLAG_VALUES = new Set([
 	"",
@@ -89162,26 +93230,182 @@ const canAnimateOnboarding = (stream = process.stdout) => {
 	return !isGitHookEnvironment() && !isCiEnvironment();
 };
 //#endregion
-//#region src/cli/utils/onboarding-state.ts
-const GLOBAL_CONFIG_PROJECT_NAME$2 = "react-doctor";
-const ONBOARDED_AT_KEY = "onboardedAt";
-const getOnboardingStore = (options = {}) => new Conf({
-	projectName: GLOBAL_CONFIG_PROJECT_NAME$2,
-	cwd: options.cwd
-});
-const hasCompletedOnboarding = (options = {}) => {
-	try {
-		return typeof getOnboardingStore(options).get(ONBOARDED_AT_KEY) === "string";
-	} catch {
-		return true;
+//#region src/cli/utils/now-iso.ts
+const nowIso = () => (/* @__PURE__ */ new Date()).toISOString();
+const ONBOARDING_EVENT = "onboarding";
+const CI_PITCH_EVENT = "ci-pitch";
+const ACTION_UPGRADE_EVENT = "action-upgrade-v2";
+const SETUP_HINT_EVENT = "setup-hint";
+const foldLegacyDecisions = (projects, legacy, eventId) => {
+	for (const [hash, record] of Object.entries(legacy ?? {})) {
+		const existing = projects[hash] ?? { rootDirectory: record.rootDirectory ?? "" };
+		projects[hash] = {
+			...existing,
+			events: {
+				...existing.events,
+				[eventId]: {
+					firedAt: record.at ?? nowIso(),
+					version: 1,
+					...record.outcome ? { outcome: record.outcome } : {}
+				}
+			}
+		};
 	}
 };
-const markOnboardingComplete = (options = {}) => {
+const migrateCliState = (state) => {
+	if (state.schemaVersion === 2) return state;
+	const projects = {};
+	for (const [hash, record] of Object.entries(state.projects ?? {})) {
+		const carried = {
+			rootDirectory: record.rootDirectory,
+			...record.events ? { events: record.events } : {},
+			...record.migrations ? { migrations: record.migrations } : {}
+		};
+		projects[hash] = record.setupPrompt === false ? {
+			...carried,
+			events: {
+				...carried.events,
+				[SETUP_HINT_EVENT]: {
+					firedAt: nowIso(),
+					version: 1,
+					outcome: "declined"
+				}
+			}
+		} : carried;
+	}
+	foldLegacyDecisions(projects, state.ciPrompts, CI_PITCH_EVENT);
+	foldLegacyDecisions(projects, state.actionUpgrades, ACTION_UPGRADE_EVENT);
+	return {
+		schemaVersion: 2,
+		global: typeof state.onboardedAt === "string" ? { events: { [ONBOARDING_EVENT]: {
+			firedAt: state.onboardedAt,
+			version: 1
+		} } } : {},
+		projects
+	};
+};
+const resolveConfigDir = (options) => options.cwd ?? (process.env["REACT_DOCTOR_CONFIG_DIR"] || void 0);
+const openStore = (options = {}) => new Conf({
+	projectName: REACT_DOCTOR_CONFIG_PROJECT_NAME,
+	cwd: resolveConfigDir(options)
+});
+const openMigratedStore = (options) => {
+	const store = openStore(options);
+	if (store.store.schemaVersion !== 2) store.store = migrateCliState(store.store);
+	return store;
+};
+const readCliState = (select, fallback, options = {}) => {
 	try {
-		const store = getOnboardingStore(options);
-		if (typeof store.get(ONBOARDED_AT_KEY) === "string") return;
-		store.set(ONBOARDED_AT_KEY, (/* @__PURE__ */ new Date()).toISOString());
-	} catch {}
+		return select(openMigratedStore(options).store);
+	} catch {
+		return fallback;
+	}
+};
+const updateCliState = (update, options = {}) => {
+	try {
+		const store = openMigratedStore(options);
+		store.store = update(store.store);
+		return true;
+	} catch {
+		return false;
+	}
+};
+//#endregion
+//#region src/cli/utils/hash-project-root.ts
+const hashProjectRoot = (projectRoot) => createHash("sha256").update(path$1.resolve(projectRoot)).digest("hex");
+//#endregion
+//#region src/cli/utils/cli-lifecycle.ts
+const versionOf = (item) => item.version ?? 1;
+const selectScope = (state, scoped, projectRoot) => scoped.scope === "global" ? state.global : projectRoot === void 0 ? void 0 : state.projects?.[hashProjectRoot(projectRoot)];
+const updateScope = (state, scoped, projectRoot, updateScopeState) => {
+	if (scoped.scope === "global") return {
+		...state,
+		global: updateScopeState(state.global ?? {})
+	};
+	if (projectRoot === void 0) return state;
+	const projectKey = hashProjectRoot(projectRoot);
+	const base = state.projects?.[projectKey] ?? { rootDirectory: path$1.resolve(projectRoot) };
+	return {
+		...state,
+		projects: {
+			...state.projects,
+			[projectKey]: {
+				...base,
+				...updateScopeState(base)
+			}
+		}
+	};
+};
+const isGatePending = (gate, target = {}, options = {}) => {
+	if (gate.scope === "project" && target.projectRoot === void 0) return false;
+	return readCliState((state) => {
+		const record = selectScope(state, gate, target.projectRoot)?.events?.[gate.id];
+		return !record || record.version < versionOf(gate);
+	}, gate.fireWhenUnknown ?? false, options);
+};
+const recordGate = (gate, target = {}, options = {}) => updateCliState((state) => updateScope(state, gate, target.projectRoot, (scope) => ({
+	...scope,
+	events: {
+		...scope.events,
+		[gate.id]: {
+			firedAt: nowIso(),
+			version: versionOf(gate),
+			...target.outcome ? { outcome: target.outcome } : {}
+		}
+	}
+})), options);
+const isMigrationPending = (migration, target = {}, options = {}) => {
+	if (migration.scope === "project" && target.projectRoot === void 0) return false;
+	return readCliState((state) => {
+		const record = selectScope(state, migration, target.projectRoot)?.migrations?.[migration.id];
+		return !record || record.version < versionOf(migration);
+	}, false, options);
+};
+const recordMigration = (migration, projectRoot, record, options) => updateCliState((state) => updateScope(state, migration, projectRoot, (scope) => ({
+	...scope,
+	migrations: {
+		...scope.migrations,
+		[migration.id]: record
+	}
+})), options);
+const runMigrations = async (migrations, target = {}, options = {}) => {
+	const results = [];
+	for (const migration of migrations) {
+		if (!isMigrationPending(migration, target, options)) {
+			results.push({
+				id: migration.id,
+				ran: false,
+				applied: true
+			});
+			continue;
+		}
+		let applied = false;
+		try {
+			applied = await migration.run({ projectRoot: target.projectRoot });
+		} catch {
+			applied = false;
+		}
+		if (applied) recordMigration(migration, target.projectRoot, {
+			ranAt: nowIso(),
+			version: versionOf(migration)
+		}, options);
+		results.push({
+			id: migration.id,
+			ran: true,
+			applied
+		});
+	}
+	return results;
+};
+//#endregion
+//#region src/cli/utils/onboarding-state.ts
+const ONBOARDING_GATE = {
+	id: ONBOARDING_EVENT,
+	scope: "global"
+};
+const hasCompletedOnboarding = (options = {}) => !isGatePending(ONBOARDING_GATE, {}, options);
+const markOnboardingComplete = (options = {}) => {
+	if (isGatePending(ONBOARDING_GATE, {}, options)) recordGate(ONBOARDING_GATE, {}, options);
 };
 //#endregion
 //#region src/cli/utils/render-project-detection.ts
@@ -89399,15 +93623,22 @@ const printNoScoreHeader = (noScoreMessage) => gen(function* () {
 });
 //#endregion
 //#region src/cli/utils/write-diagnostics-directory.ts
-const writeDiagnosticsDirectory = (diagnostics) => {
-	const outputDirectory = path$1.join(tmpdir(), `react-doctor-${randomUUID()}`);
-	fs$1.mkdirSync(outputDirectory, { recursive: true });
-	for (const [ruleKey, ruleDiagnostics] of buildSortedRuleGroups(diagnostics)) {
-		const fileName = ruleKey.replace(/\//g, "--") + ".txt";
-		fs$1.writeFileSync(path$1.join(outputDirectory, fileName), formatRuleSummary(ruleKey, ruleDiagnostics));
+const ruleDumpFileName = (ruleKey) => ruleKey.replace(/\//g, "--") + ".txt";
+const readPreviousRuleDumpFileNames = (directory) => {
+	try {
+		const previous = JSON.parse(fs$1.readFileSync(path$1.join(directory, "diagnostics.json"), "utf8"));
+		return new Set(previous.filter((d) => typeof d?.plugin === "string" && typeof d?.rule === "string").map((d) => ruleDumpFileName(`${d.plugin}/${d.rule}`)));
+	} catch {
+		return /* @__PURE__ */ new Set();
 	}
-	fs$1.writeFileSync(path$1.join(outputDirectory, "diagnostics.json"), JSON.stringify(diagnostics));
-	return outputDirectory;
+};
+const writeDiagnosticsDirectory = (diagnostics, outputDirectory) => {
+	const directory = outputDirectory ? path$1.resolve(outputDirectory) : path$1.join(tmpdir(), `react-doctor-${randomUUID()}`);
+	if (outputDirectory) for (const fileName of readPreviousRuleDumpFileNames(directory)) fs$1.rmSync(path$1.join(directory, fileName), { force: true });
+	fs$1.mkdirSync(directory, { recursive: true });
+	for (const [ruleKey, ruleDiagnostics] of buildSortedRuleGroups(diagnostics)) fs$1.writeFileSync(path$1.join(directory, ruleDumpFileName(ruleKey)), formatRuleSummary(ruleKey, ruleDiagnostics));
+	fs$1.writeFileSync(path$1.join(directory, "diagnostics.json"), JSON.stringify(diagnostics));
+	return directory;
 };
 //#endregion
 //#region src/cli/utils/render-summary.ts
@@ -89444,6 +93675,16 @@ const printFooter = (input) => gen(function* () {
 	yield* log(`  ${highlighter.bold("GitHub:")} ${highlighter.info(CANONICAL_GITHUB_URL)}`);
 	yield* printFooterDescription("Report issues and star the repository!");
 });
+const printDiagnosticsDump = (diagnostics, outputDirectory, verbose, stream = "stdout") => gen(function* () {
+	const writtenDirectory = yield* try_({
+		try: () => writeDiagnosticsDirectory(diagnostics, outputDirectory),
+		catch: (cause) => cause
+	}).pipe(orElseSucceed(() => null));
+	if (writtenDirectory !== null && (verbose || outputDirectory)) {
+		const pathLine = highlighter.gray(`  Full diagnostics written to ${writtenDirectory}`);
+		yield* stream === "stderr" || Boolean(outputDirectory) && isJsonModeActive() ? sync(() => process.stderr.write(`${pathLine}\n`)) : log(pathLine);
+	}
+});
 const printSummary = (input) => gen(function* () {
 	if (input.scoreResult) {
 		const animateProjection = Boolean(input.animateProjection) && input.potentialScore != null && !input.verbose;
@@ -89454,11 +93695,7 @@ const printSummary = (input) => gen(function* () {
 			if (animateProjection) yield* animateScoreProjection(input.scoreResult, input.potentialScore, 5);
 		}
 	} else yield* printNoScoreHeader(input.noScoreMessage);
-	const diagnosticsDirectory = yield* try_({
-		try: () => writeDiagnosticsDirectory(input.diagnostics),
-		catch: (cause) => cause
-	}).pipe(orElseSucceed(() => null));
-	if (diagnosticsDirectory !== null && input.verbose) yield* log(highlighter.gray(`  Full diagnostics written to ${diagnosticsDirectory}`));
+	yield* printDiagnosticsDump(input.diagnostics, input.outputDirectory, input.verbose);
 });
 //#endregion
 //#region src/cli/utils/should-auto-select-current-choice.ts
@@ -89609,6 +93846,78 @@ const resolveCliCategories = (categoryFlag) => {
 	return resolvedCategories.length > 0 ? resolvedCategories : void 0;
 };
 //#endregion
+//#region src/cli/utils/git-hook-shared.ts
+const HOOK_FILE_NAME = "pre-commit";
+const HOOK_RELATIVE_PATH = "hooks/pre-commit";
+const LEGACY_HOOK_RUNNER_RELATIVE_PATH = ".react-doctor/hooks/pre-commit";
+const HUSKY_HOOKS_PATH = ".husky";
+const VITE_PLUS_HOOKS_PATH = ".vite-hooks";
+const LEFTHOOK_CONFIG_FILES = ["lefthook.yml", "lefthook.yaml"];
+const PRE_COMMIT_CONFIG_FILE = ".pre-commit-config.yaml";
+const OVERCOMMIT_CONFIG_FILE = ".overcommit.yml";
+const REACT_DOCTOR_COMMAND = "react-doctor --staged --blocking warning";
+const NON_BLOCKING_REACT_DOCTOR_COMMAND = [
+	"react_doctor_output=$(mktemp \"${TMPDIR:-/tmp}/react-doctor-hook.XXXXXX\");",
+	`if ${REACT_DOCTOR_COMMAND} > "$react_doctor_output" 2>&1; then`,
+	"rm -f \"$react_doctor_output\";",
+	"else",
+	"rm -f \"$react_doctor_output\";",
+	`printf "%s\\n" "React Doctor found staged regressions." "Run ${REACT_DOCTOR_COMMAND} to inspect." "Want them fixed? Ask your agent to run that command and resolve the findings." >&2;`,
+	"fi"
+].join(" ");
+const PACKAGE_JSON_FILE_NAME = "package.json";
+const runGit = (projectRoot, args) => {
+	try {
+		return execFileSync("git", [...args], {
+			cwd: projectRoot,
+			encoding: "utf8",
+			stdio: [
+				"ignore",
+				"pipe",
+				"ignore"
+			]
+		}).trim();
+	} catch {
+		return null;
+	}
+};
+const resolveGitPath = (baseDirectory, value) => path$1.isAbsolute(value) ? value : path$1.resolve(baseDirectory, value);
+const isRecord$1 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+const getPackageJsonPath = (projectRoot) => path$1.join(projectRoot, PACKAGE_JSON_FILE_NAME);
+const readPackageJson = (projectRoot) => {
+	try {
+		return JSON.parse(fs$1.readFileSync(getPackageJsonPath(projectRoot), "utf8"));
+	} catch {
+		return null;
+	}
+};
+const writeJsonFile$1 = (filePath, value) => {
+	fs$1.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+};
+const packageHasDependency = (projectRoot, dependencyName) => {
+	const packageJson = readPackageJson(projectRoot);
+	if (!isRecord$1(packageJson)) return false;
+	return [
+		"dependencies",
+		"devDependencies",
+		"optionalDependencies"
+	].some((fieldName) => {
+		const dependencies = packageJson[fieldName];
+		return isRecord$1(dependencies) && typeof dependencies[dependencyName] === "string";
+	});
+};
+const packageHasRecordKey = (projectRoot, key) => {
+	const packageJson = readPackageJson(projectRoot);
+	return isRecord$1(packageJson) && isRecord$1(packageJson[key]);
+};
+const packageHasNestedRecordKey = (projectRoot, key, nestedKey) => {
+	const packageJson = readPackageJson(projectRoot);
+	if (!isRecord$1(packageJson)) return false;
+	const value = packageJson[key];
+	return isRecord$1(value) && isRecord$1(value[nestedKey]);
+};
+const ensureTrailingNewline = (content) => content.endsWith("\n") ? content : `${content}\n`;
+//#endregion
 //#region src/cli/utils/scan-result-cache.ts
 const CACHE_DISABLED_VALUES = new Set(["1", "true"]);
 const TOOLCHAIN_PACKAGE_SPECIFIERS = [
@@ -89619,7 +93928,7 @@ const TOOLCHAIN_PACKAGE_SPECIFIERS = [
 	"eslint-plugin-react-hooks/package.json"
 ];
 const bundledRequire = createRequire(import.meta.url);
-const isRecord$1 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 const normalizeForStableJson = (value) => {
 	if (value === null) return null;
 	if (value === void 0) return void 0;
@@ -89648,24 +93957,9 @@ const stringifyStableJson = (value) => {
 	}
 };
 const hashString = (value) => crypto.createHash("sha1").update(value).digest("hex");
-const runGit$1 = (directory, args) => {
-	try {
-		return execFileSync("git", [...args], {
-			cwd: directory,
-			encoding: "utf8",
-			stdio: [
-				"ignore",
-				"pipe",
-				"ignore"
-			]
-		}).trim();
-	} catch {
-		return null;
-	}
-};
-const readHeadSha = (projectDirectory) => runGit$1(projectDirectory, ["rev-parse", "HEAD"]);
+const readHeadSha = (projectDirectory) => runGit(projectDirectory, ["rev-parse", "HEAD"]);
 const isWorktreeClean = (projectDirectory) => {
-	const status = runGit$1(projectDirectory, [
+	const status = runGit(projectDirectory, [
 		"status",
 		"--porcelain=v1",
 		"--untracked-files=normal"
@@ -89673,7 +93967,7 @@ const isWorktreeClean = (projectDirectory) => {
 	return status !== null && status.length === 0;
 };
 const hasHiddenTrackedFileState = (projectDirectory) => {
-	const output = runGit$1(projectDirectory, ["ls-files", "-v"]);
+	const output = runGit(projectDirectory, ["ls-files", "-v"]);
 	if (output === null) return true;
 	return output.split("\n").some((line) => line.length > 0 && line[0] !== "H");
 };
@@ -89686,27 +93980,27 @@ const resolveCacheFilePath = (projectDirectory) => {
 const readPersistedCache = (cacheFilePath) => {
 	try {
 		const parsed = JSON.parse(fs.readFileSync(cacheFilePath, "utf8"));
-		if (!isRecord$1(parsed) || parsed.version !== 1) return {
-			version: 1,
+		if (!isRecord(parsed) || parsed.version !== 2) return {
+			version: 2,
 			entries: []
 		};
 		if (!Array.isArray(parsed.entries)) return {
-			version: 1,
+			version: 2,
 			entries: []
 		};
 		const entries = [];
 		for (const entry of parsed.entries) {
-			if (!isRecord$1(entry) || typeof entry.key !== "string" || typeof entry.createdAtMs !== "number") continue;
-			if (!isRecord$1(entry.payload) || !Array.isArray(entry.payload.diagnostics)) continue;
+			if (!isRecord(entry) || typeof entry.key !== "string" || typeof entry.createdAtMs !== "number") continue;
+			if (!isRecord(entry.payload) || !Array.isArray(entry.payload.diagnostics)) continue;
 			entries.push(entry);
 		}
 		return {
-			version: 1,
+			version: 2,
 			entries
 		};
 	} catch {
 		return {
-			version: 1,
+			version: 2,
 			entries: []
 		};
 	}
@@ -89759,7 +94053,7 @@ const buildScanResultCacheKey = (input) => {
 	if (headSha === null) return null;
 	if (stringifyStableJson(input.userConfig) === null) return null;
 	const cacheKeyJson = stringifyStableJson({
-		schemaVersion: 1,
+		schemaVersion: 2,
 		projectIdentity: resolveProjectIdentity(input.projectDirectory),
 		headSha,
 		reactDoctorVersion: input.version,
@@ -89779,6 +94073,7 @@ const buildScanResultCacheKey = (input) => {
 			adoptExistingLintConfig: input.options.adoptExistingLintConfig,
 			ignoredTags: [...input.options.ignoredTags].sort(),
 			concurrency: input.options.concurrency,
+			lintBatchOrdering: resolveLintBatchOrdering(),
 			baselineRef: input.options.baseline?.ref,
 			changedLineRanges: input.options.changedLineRanges ?? void 0,
 			noScore: input.options.noScore,
@@ -89796,7 +94091,7 @@ const createScanResultCache = (projectDirectory) => {
 	for (const entry of persistedCache.entries) entries.set(entry.key, entry);
 	const persist = () => {
 		writePersistedCache(cacheFilePath, {
-			version: 1,
+			version: 2,
 			entries: [...entries.values()].sort((firstEntry, secondEntry) => secondEntry.createdAtMs - firstEntry.createdAtMs).slice(0, 20)
 		});
 	};
@@ -89812,7 +94107,7 @@ const createScanResultCache = (projectDirectory) => {
 		}
 	};
 };
-const shouldStoreScanPayload = (payload) => !payload.didLintFail && !payload.didDeadCodeFail && payload.lintPartialFailures.length === 0;
+const shouldStoreScanPayload = (payload) => !payload.didLintFail && !payload.didDeadCodeFail && payload.lintPartialFailures.length === 0 && !payload.supplyChainOverlapTimedOut;
 //#endregion
 //#region src/inspect.ts
 const silentConsole = makeNoopConsole();
@@ -89848,6 +94143,7 @@ const mergeInspectOptions = (inputOptions, userConfig) => ({
 	lint: inputOptions.lint ?? userConfig?.lint ?? true,
 	deadCode: inputOptions.deadCode ?? userConfig?.deadCode ?? true,
 	verbose: inputOptions.verbose ?? userConfig?.verbose ?? false,
+	outputDirectory: inputOptions.outputDirectory || null,
 	scoreOnly: inputOptions.scoreOnly ?? false,
 	noScore: inputOptions.noScore ?? userConfig?.noScore ?? false,
 	isCi: inputOptions.isCi ?? false,
@@ -89864,6 +94160,7 @@ const mergeInspectOptions = (inputOptions, userConfig) => ({
 	ignoredTags: buildIgnoredTags(userConfig),
 	outputSurface: inputOptions.outputSurface ?? "cli",
 	suppressRendering: inputOptions.suppressRendering ?? false,
+	concurrentScan: inputOptions.concurrentScan ?? false,
 	concurrency: inputOptions.concurrency,
 	baseline: inputOptions.baseline ?? null,
 	changedLineRanges: inputOptions.changedLineRanges ?? null,
@@ -89874,23 +94171,28 @@ const deriveScope = (options) => {
 	if (options.changedLineRanges !== null) return "lines";
 	return options.includePaths.length > 0 ? "files" : "full";
 };
-const buildRunEventConfig = (options, userConfig, hasCustomConfig) => ({
-	scope: deriveScope(options),
-	parallel: options.concurrency !== void 0,
-	workerCount: options.concurrency,
-	lint: options.lint,
-	deadCode: options.deadCode,
-	scoreOnly: options.scoreOnly,
-	noScore: options.noScore,
-	respectInlineDisables: options.respectInlineDisables,
-	showWarnings: options.warnings,
-	ignoredTagCount: options.ignoredTags.size,
-	hasCustomConfig,
-	userConfig
-});
+const buildRunEventConfig = (options, userConfig, hasCustomConfig, resolvedWorkerCount) => {
+	const { workerCount, parallel } = resolveWorkerTelemetry(resolvedWorkerCount, options.concurrency);
+	return {
+		scope: deriveScope(options),
+		parallel,
+		workerCount,
+		lint: options.lint,
+		deadCode: options.deadCode,
+		scoreOnly: options.scoreOnly,
+		noScore: options.noScore,
+		respectInlineDisables: options.respectInlineDisables,
+		showWarnings: options.warnings,
+		usedOutputDir: options.outputDirectory !== null,
+		ignoredTagCount: options.ignoredTags.size,
+		hasCustomConfig,
+		userConfig
+	};
+};
 const inspect = async (directory, inputOptions = {}) => {
 	const startTime = performance$1.now();
-	resetSentryRunState();
+	const isConcurrentScan = inputOptions.concurrentScan === true;
+	if (!isConcurrentScan) resetSentryRunState();
 	const hasConfigOverride = inputOptions.configOverride !== void 0;
 	let scanDirectory;
 	let userConfig;
@@ -89898,7 +94200,7 @@ const inspect = async (directory, inputOptions = {}) => {
 	if (hasConfigOverride) {
 		scanDirectory = directory;
 		userConfig = inputOptions.configOverride ?? null;
-		configSourceDirectory = null;
+		configSourceDirectory = inputOptions.configSourceDirectory ?? null;
 	} else {
 		const scanTarget = await resolveScanTarget(directory);
 		scanDirectory = scanTarget.resolvedDirectory;
@@ -89906,8 +94208,9 @@ const inspect = async (directory, inputOptions = {}) => {
 		configSourceDirectory = scanTarget.configSourceDirectory;
 	}
 	const options = mergeInspectOptions(inputOptions, userConfig);
+	const ownsSpinnerSilence = options.silent && !isConcurrentScan;
 	const wasSpinnerSilent = isSpinnerSilent();
-	if (options.silent) setSpinnerSilent(true);
+	if (ownsSpinnerSilence) setSpinnerSilent(true);
 	try {
 		const result = await withSentryRunSpan(async (rootSentrySpan) => {
 			try {
@@ -89920,11 +94223,11 @@ const inspect = async (directory, inputOptions = {}) => {
 				});
 				throw error;
 			}
-		});
-		resetSentryRunState();
+		}, { concurrentScan: isConcurrentScan });
+		if (!isConcurrentScan) resetSentryRunState();
 		return result;
 	} finally {
-		if (options.silent) setSpinnerSilent(wasSpinnerSilent);
+		if (ownsSpinnerSilence) setSpinnerSilent(wasSpinnerSilent);
 	}
 };
 /**
@@ -89977,7 +94280,7 @@ const runBaselineComparison = async (params) => {
 			resolveLocalGithubViewerPermission: false,
 			suppressScanSummary: true,
 			supplyChainManifestChanged: params.options.supplyChainManifestChanged
-		}, {}).pipe(provide(baseLayers), provideService(Console, silentConsole))));
+		}, {}).pipe(provide(baseLayers), provideService$2(Console, silentConsole))));
 		if (baseOutput.didLintFail) return null;
 		const delta = computeDiagnosticDelta({
 			headDiagnostics: params.headDiagnostics,
@@ -90013,7 +94316,7 @@ const runInspectWithRuntime = async (directory, options, userConfig, hasConfigOv
 	const scanResultCache = cacheKey === null ? null : createScanResultCache(directory);
 	const cachedPayload = cacheKey === null ? null : scanResultCache?.lookup(cacheKey) ?? null;
 	if (cachedPayload) {
-		recordSentryProjectContext(cachedPayload.project, rootSentrySpan);
+		recordSentryProjectContext(cachedPayload.project, rootSentrySpan, { concurrentScan: options.concurrentScan });
 		recordCount(METRIC.projectDetected, 1);
 		await renderCachedProjectDetection({
 			payload: cachedPayload,
@@ -90035,7 +94338,7 @@ const runInspectWithRuntime = async (directory, options, userConfig, hasConfigOv
 		recordOnboardingCompletion(options);
 		return result;
 	}
-	const shouldShowProgressSpinners = !options.isCiOrCodingAgentEnvironment && !options.silent && !options.scoreOnly && options.lint && Boolean(resolvedNodeBinaryPath);
+	const shouldShowProgressSpinners = !options.isCiOrCodingAgentEnvironment && !options.silent && !options.scoreOnly && !options.suppressRendering && options.lint && Boolean(resolvedNodeBinaryPath);
 	const layers = buildRuntimeLayers({
 		directory,
 		hasConfigOverride,
@@ -90062,9 +94365,10 @@ const runInspectWithRuntime = async (directory, options, userConfig, hasConfigOv
 		runId: getRunId(),
 		resolveLocalGithubViewerPermission: !options.noScore,
 		suppressScanSummary: options.suppressRendering,
-		supplyChainManifestChanged: options.supplyChainManifestChanged
+		supplyChainManifestChanged: options.supplyChainManifestChanged,
+		concurrentScan: options.concurrentScan
 	}, { beforeLint: (projectInfo, lintIncludePaths) => gen(function* () {
-		recordSentryProjectContext(projectInfo, rootSentrySpan);
+		recordSentryProjectContext(projectInfo, rootSentrySpan, { concurrentScan: options.concurrentScan });
 		recordCount(METRIC.projectDetected, 1);
 		if (options.scoreOnly || options.suppressRendering) return;
 		const lintSourceFileCount = lintIncludePaths?.length ?? projectInfo.sourceFileCount;
@@ -90076,7 +94380,7 @@ const runInspectWithRuntime = async (directory, options, userConfig, hasConfigOv
 			lintSourceFileCount
 		});
 	}) });
-	const output = await runPromise(restoreLegacyThrow(applyObservability(options.silent ? program.pipe(provide(layers), provideService(Console, silentConsole)) : program.pipe(provide(layers)), rootSentrySpan)));
+	const output = await runPromise(restoreLegacyThrow(applyObservability(options.silent ? program.pipe(provide(layers), provideService$2(Console, silentConsole)) : program.pipe(provide(layers)), rootSentrySpan)));
 	const didLintFail = lintBindingMissing || output.didLintFail;
 	const lintFailureReason = lintBindingMissing ? `oxlint native binding not found for Node ${process.version}; expected one matching ${OXLINT_NODE_REQUIREMENT}` : output.lintFailureReason;
 	if (!options.scoreOnly && !lintBindingMissing && output.didLintFail && lintFailureReason !== null) if (output.lintFailureReasonKind === "native-binding-missing") runConsole(log(highlighter.gray(`  Upgrade to Node ${OXLINT_NODE_REQUIREMENT} or run: npx -p oxlint@latest ${FORK_PACKAGE_SPEC}`)));
@@ -90113,12 +94417,15 @@ const runInspectWithRuntime = async (directory, options, userConfig, hasConfigOv
 		lintPartialFailures: output.lintPartialFailures,
 		didDeadCodeFail: output.didDeadCodeFail,
 		deadCodeFailureReason: output.deadCodeFailureReason,
+		deadCodeOverlapped: output.deadCodeOverlapped,
 		directory: output.resolvedDirectory,
 		scannedFileCount: output.scannedFileCount,
 		scannedFilePaths: output.scannedFilePaths,
 		scanElapsedMilliseconds: output.scanElapsedMilliseconds,
+		scanConcurrency: output.scanConcurrency,
 		baselineDelta,
-		lintFailureReasonKind: lintBindingMissing ? "native-binding-missing" : output.lintFailureReasonKind
+		lintFailureReasonKind: lintBindingMissing ? "native-binding-missing" : output.lintFailureReasonKind,
+		supplyChainOverlapTimedOut: output.supplyChainOverlapTimedOut
 	};
 	if (cacheKey !== null && scanResultCache !== null && shouldStoreScanPayload(payload)) scanResultCache.store(cacheKey, payload);
 	const result = await renderAndRecordScan({
@@ -90129,12 +94436,14 @@ const runInspectWithRuntime = async (directory, options, userConfig, hasConfigOv
 		startTime,
 		rootSentrySpan,
 		scanMode: baselineDelta ? "baseline" : isDiffMode ? "diff" : "full",
-		baselineDegraded
+		baselineDegraded,
+		lintCacheHitFileCount: output.lintCacheHitFileCount,
+		lintCacheTotalFileCount: output.lintCacheTotalFileCount
 	});
 	recordOnboardingCompletion(options);
 	return result;
 };
-const runMaybeSilent = (effect, silent) => silent ? effect.pipe(provideService(Console, silentConsole)) : effect;
+const runMaybeSilent = (effect, silent) => silent ? effect.pipe(provideService$2(Console, silentConsole)) : effect;
 const renderCachedProjectDetection = async (input) => {
 	if (input.options.scoreOnly || input.options.suppressRendering) return;
 	await runPromise(runMaybeSilent(printProjectDetection({
@@ -90162,14 +94471,17 @@ const renderAndRecordScan = async (input) => {
 		scannedFileCount: input.payload.scannedFileCount,
 		scannedFilePaths: input.payload.scannedFilePaths,
 		scanElapsedMilliseconds: input.payload.scanElapsedMilliseconds,
+		lintCacheHitFileCount: input.lintCacheHitFileCount ?? null,
+		lintCacheTotalFileCount: input.lintCacheTotalFileCount ?? null,
 		baselineDelta: input.payload.baselineDelta
 	}), input.options.silent));
+	const { workerCount: resolvedWorkerCount, parallel } = resolveWorkerTelemetry(input.payload.scanConcurrency, input.options.concurrency);
 	recordScanMetrics({
 		result,
 		mode: input.scanMode,
 		baselineDegraded: input.baselineDegraded,
-		parallel: input.options.concurrency !== void 0,
-		workerCount: input.options.concurrency,
+		parallel,
+		workerCount: resolvedWorkerCount,
 		lint: input.options.lint,
 		deadCode: input.options.deadCode,
 		scoreOnly: input.options.scoreOnly,
@@ -90179,19 +94491,22 @@ const renderAndRecordScan = async (input) => {
 		didDeadCodeFail: input.payload.didDeadCodeFail
 	});
 	recordRunEvent(input.rootSentrySpan, {
-		...buildRunEventConfig(input.options, input.userConfig, input.hasCustomConfig),
+		...buildRunEventConfig(input.options, input.userConfig, input.hasCustomConfig, resolvedWorkerCount),
 		result,
 		mode: input.scanMode,
 		gateExempt: input.baselineDegraded,
 		didLintFail: input.payload.didLintFail,
 		lintFailureReasonKind: input.payload.lintFailureReasonKind,
 		lintPartialFailureCount: input.payload.lintPartialFailures.length,
-		didDeadCodeFail: input.payload.didDeadCodeFail
+		lintDroppedFileCount: countDroppedLintFiles(input.payload.lintPartialFailures),
+		didDeadCodeFail: input.payload.didDeadCodeFail,
+		supplyChainOverlapTimedOut: input.payload.supplyChainOverlapTimedOut,
+		deadCodeOverlapped: input.payload.deadCodeOverlapped
 	});
 	return result;
 };
 const finalizeAndRender = (input) => gen(function* () {
-	const { options, elapsedMilliseconds, diagnostics, score, project, userConfig, didLintFail, lintFailureReason, lintPartialFailures, didDeadCodeFail, deadCodeFailureReason, directory, scannedFileCount, scannedFilePaths, scanElapsedMilliseconds, baselineDelta } = input;
+	const { options, elapsedMilliseconds, diagnostics, score, project, userConfig, didLintFail, lintFailureReason, lintPartialFailures, didDeadCodeFail, deadCodeFailureReason, directory, scannedFileCount, scannedFilePaths, scanElapsedMilliseconds, lintCacheHitFileCount, lintCacheTotalFileCount, baselineDelta } = input;
 	const { skippedChecks, skippedCheckReasons } = buildSkippedChecks({
 		didLintFail,
 		lintFailureReason,
@@ -90211,18 +94526,24 @@ const finalizeAndRender = (input) => gen(function* () {
 		scannedFileCount,
 		scannedFilePaths,
 		scanElapsedMilliseconds,
+		...lintCacheTotalFileCount !== null ? {
+			lintCacheHitFileCount,
+			lintCacheTotalFileCount
+		} : {},
 		...baselineDelta ? { baselineDelta } : {}
 	});
 	if (options.suppressRendering) return buildResult();
+	const surfaceDiagnostics = filterDiagnosticsForSurface([...diagnostics], options.outputSurface, userConfig);
+	const printedDiagnostics = filterDiagnosticsByCategories(surfaceDiagnostics, options.categoryFilters);
 	if (options.scoreOnly) {
+		if (options.outputDirectory !== null) yield* printDiagnosticsDump(printedDiagnostics, options.outputDirectory, false, "stderr");
 		if (score) yield* log(`${score.score}`);
-		else yield* log(highlighter.gray(noScoreMessage));
+		else yield* error$1(highlighter.gray(noScoreMessage));
 		return buildResult();
 	}
 	const animateRender = !options.silent && !options.verbose && canAnimateOnboarding(process.stdout);
 	const pause = onboardingSectionPause(animateRender);
-	const surfaceDiagnostics = filterDiagnosticsForSurface([...diagnostics], options.outputSurface, userConfig);
-	const printedDiagnostics = filterDiagnosticsByCategories(surfaceDiagnostics, options.categoryFilters);
+	const useHyperlinks = shouldRenderHyperlinks(process.stdout);
 	const demotedDiagnosticCount = diagnostics.length - surfaceDiagnostics.length;
 	const lintSourceFileCount = options.includePaths.length > 0 ? options.includePaths.length : project.sourceFileCount;
 	if (printedDiagnostics.length === 0) {
@@ -90240,6 +94561,7 @@ const finalizeAndRender = (input) => gen(function* () {
 			yield* log(highlighter.gray("  Score not shown — some checks could not complete."));
 		} else if (score) yield* printScoreHeader(score);
 		else yield* printNoScoreHeader(noScoreMessage);
+		if (options.outputDirectory !== null) yield* printDiagnosticsDump(printedDiagnostics, options.outputDirectory);
 		return buildResult();
 	}
 	yield* pause;
@@ -90247,7 +94569,7 @@ const finalizeAndRender = (input) => gen(function* () {
 	yield* printDiagnostics([...printedDiagnostics], options.verbose, directory, buildRulePriorityMap([score]), isCodingAgentEnvironment(), {
 		sectionPause: pause,
 		animateCountUp: animateRender
-	});
+	}, useHyperlinks);
 	if (options.isNonInteractiveEnvironment && options.outputSurface !== "prComment") yield* printAgentGuidance();
 	if (options.categoryFilters.size === 0 && demotedDiagnosticCount > 0) {
 		yield* log(highlighter.gray(`  ${demotedDiagnosticCount} demoted from the ${options.outputSurface} surface (e.g. design cleanup) — run \`npx ${FORK_PACKAGE_SPEC} .\` locally for the full list.`));
@@ -90264,6 +94586,7 @@ const finalizeAndRender = (input) => gen(function* () {
 		totalSourceFileCount: lintSourceFileCount,
 		noScoreMessage,
 		verbose: options.verbose,
+		outputDirectory: options.outputDirectory,
 		animateProjection: animateRender
 	});
 	if (hasSkippedChecks) {
@@ -90435,24 +94758,18 @@ const isExpectedUserError = (error) => error instanceof CliInputError || isProje
 //#region src/cli/utils/build-handoff-payload.ts
 const buildHandoffPayload = (input) => {
 	const topGroups = buildSortedRuleGroups(input.diagnostics).slice(0, 3);
-	let diagnosticsDirectory = null;
+	const migrationScaleBuckets = new Map(findMigrationScaleBuckets(input.diagnostics).map((bucket) => [bucket.ruleKey, bucket]));
+	let outputDirectory = null;
 	try {
-		diagnosticsDirectory = writeDiagnosticsDirectory([...input.diagnostics]);
+		outputDirectory = writeDiagnosticsDirectory([...input.diagnostics], input.outputDirectory);
 	} catch {}
-	const lines = [
-		"Before fixing anything, first ask me whether I'd like to add React Doctor to CI so every pull request is scanned automatically. Explain that:",
-		`- It's used by teams at ${CI_TRUST_COMPANIES}.`,
-		"- I don't have to fix everything at once; CI keeps new PRs clean while I incrementally pay down the existing issues.",
-		`- Setup guide: ${CI_URL}`,
-		`If I say yes, run \`npx ${FORK_PACKAGE_SPEC} install\` (or add the GitHub Actions workflow). Either way, then continue with the fixes below.`,
-		"",
-		`Fix the top ${topGroups.length} React Doctor ${topGroups.length === 1 ? "issue" : "issues"} in ${input.projectName} on this pass — leave the rest for a follow-up.`,
-		""
-	];
+	const lines = [`Fix the top ${topGroups.length} React Doctor ${topGroups.length === 1 ? "issue" : "issues"} in ${input.projectName} on this pass — leave the rest for a follow-up.`, ""];
 	topGroups.forEach(([ruleKey, ruleDiagnostics], index) => {
 		const representative = ruleDiagnostics[0];
 		const severityLabel = representative.severity === "error" ? "ERROR" : "WARN";
-		lines.push(`${index + 1}. ${severityLabel} ${representative.category}: ${representative.title ?? ruleKey} (×${ruleDiagnostics.length})`, `   ${representative.message}`);
+		const sharedFixSiteCount = getSharedFixSiteCount(ruleDiagnostics);
+		const countBadge = sharedFixSiteCount > 0 ? `one fix · ${sharedFixSiteCount} sites` : `×${ruleDiagnostics.length}`;
+		lines.push(`${index + 1}. ${severityLabel} ${representative.category}: ${representative.title ?? ruleKey} (${countBadge})`, `   ${representative.message}`);
 		const fixRecipeLine = formatFixRecipeLine(representative);
 		if (fixRecipeLine) lines.push(`   ${fixRecipeLine}`);
 		const uniqueFiles = [...new Set(ruleDiagnostics.map((diagnostic) => diagnostic.filePath))];
@@ -90462,10 +94779,19 @@ const buildHandoffPayload = (input) => {
 		}
 		const remainingFiles = uniqueFiles.length - 3;
 		if (remainingFiles > 0) lines.push(`   - +${remainingFiles} more files`);
+		const migrationBucket = migrationScaleBuckets.get(ruleKey);
+		if (migrationBucket) lines.push(`   Migration-scale (${migrationBucket.fileCount} files): fix a representative sample, confirm the recipe holds, and get the code owner's sign-off before changing the rest in one pass.`);
 	});
 	lines.push("");
-	if (diagnosticsDirectory) lines.push(`Full results for all ${input.diagnostics.length} issues (diagnostics.json + a .txt per rule): ${diagnosticsDirectory}`, "");
-	lines.push("Read each file and fix the root cause — don't suppress or silence the rule.", "", `Verify against the real thing, don't assume: confirm each change matches the canonical fix recipe you fetched for that rule, then re-run \`npx ${FORK_PACKAGE_SPEC} --verbose\` and check the issue is actually gone against the real tool before moving on.`, "", "Teach me as you go: for every issue you touch, explain it in plain language (no jargon) — what the problem is, why it's a problem, and how serious it is in human terms. Describe the real-world impact and severity concretely (e.g. \"this crashes the page for users on Safari\" vs. \"this is a minor cleanup with no user impact\") so I understand why it matters, not just what changed.", "", "Then work through the rest from the full results above.");
+	if (outputDirectory) lines.push(`Full results for all ${input.diagnostics.length} issues (diagnostics.json + a .txt per rule): ${outputDirectory}`, "");
+	lines.push("Read each file and fix the root cause — don't suppress or silence the rule.", "", "Findings that share a `fixGroupId` (in diagnostics.json) are one root cause — a single fix clears all of them, so treat each `fixGroupId` as ONE task, not one per site.", "", `Verify against the real thing, don't assume: confirm each change matches the canonical fix recipe you fetched for that rule, then re-run \`npx ${FORK_PACKAGE_SPEC} --verbose\` and check the issue is actually gone against the real tool before moving on.`, "", "Teach me as you go: for every issue you touch, explain it in plain language (no jargon) — what the problem is, why it's a problem, and how serious it is in human terms. Describe the real-world impact and severity concretely (e.g. \"this crashes the page for users on Safari\" vs. \"this is a minor cleanup with no user impact\") so I understand why it matters, not just what changed.", "");
+	const shownRuleKeys = new Set(topGroups.map(([ruleKey]) => ruleKey));
+	const deferredMigrationBuckets = [...migrationScaleBuckets.values()].filter((bucket) => !shownRuleKeys.has(bucket.ruleKey));
+	if (deferredMigrationBuckets.length > 0) {
+		const ruleSummaries = deferredMigrationBuckets.map((bucket) => `${bucket.title} (${bucket.fileCount} files)`).join(", ");
+		lines.push(`Some of the rest are migration-scale (span dozens of files): ${ruleSummaries}. For each, fix a representative sample, confirm the recipe holds, and get the code owner's sign-off before changing the rest in one pass.`, "");
+	}
+	lines.push("Then work through the rest from the full results above.");
 	return lines.join("\n");
 };
 //#endregion
@@ -90509,78 +94835,6 @@ const detectAvailableAgents = async () => {
 	return getSkillAgentTypes().filter((agent) => agent !== "universal" && detected.has(agent));
 };
 //#endregion
-//#region src/cli/utils/git-hook-shared.ts
-const HOOK_FILE_NAME = "pre-commit";
-const HOOK_RELATIVE_PATH = "hooks/pre-commit";
-const LEGACY_HOOK_RUNNER_RELATIVE_PATH = ".react-doctor/hooks/pre-commit";
-const HUSKY_HOOKS_PATH = ".husky";
-const VITE_PLUS_HOOKS_PATH = ".vite-hooks";
-const LEFTHOOK_CONFIG_FILES = ["lefthook.yml", "lefthook.yaml"];
-const PRE_COMMIT_CONFIG_FILE = ".pre-commit-config.yaml";
-const OVERCOMMIT_CONFIG_FILE = ".overcommit.yml";
-const REACT_DOCTOR_COMMAND = "react-doctor --staged --blocking warning";
-const NON_BLOCKING_REACT_DOCTOR_COMMAND = [
-	"react_doctor_output=$(mktemp \"${TMPDIR:-/tmp}/react-doctor-hook.XXXXXX\");",
-	`if ${REACT_DOCTOR_COMMAND} > "$react_doctor_output" 2>&1; then`,
-	"rm -f \"$react_doctor_output\";",
-	"else",
-	"rm -f \"$react_doctor_output\";",
-	`printf "%s\\n" "React Doctor found staged regressions." "Run ${REACT_DOCTOR_COMMAND} to inspect." "Want them fixed? Ask your agent to run that command and resolve the findings." >&2;`,
-	"fi"
-].join(" ");
-const PACKAGE_JSON_FILE_NAME = "package.json";
-const runGit = (projectRoot, args) => {
-	try {
-		return execFileSync("git", [...args], {
-			cwd: projectRoot,
-			encoding: "utf8",
-			stdio: [
-				"ignore",
-				"pipe",
-				"ignore"
-			]
-		}).trim();
-	} catch {
-		return null;
-	}
-};
-const resolveGitPath = (baseDirectory, value) => path$1.isAbsolute(value) ? value : path$1.resolve(baseDirectory, value);
-const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
-const getPackageJsonPath = (projectRoot) => path$1.join(projectRoot, PACKAGE_JSON_FILE_NAME);
-const readPackageJson = (projectRoot) => {
-	try {
-		return JSON.parse(fs$1.readFileSync(getPackageJsonPath(projectRoot), "utf8"));
-	} catch {
-		return null;
-	}
-};
-const writeJsonFile$1 = (filePath, value) => {
-	fs$1.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
-};
-const packageHasDependency = (projectRoot, dependencyName) => {
-	const packageJson = readPackageJson(projectRoot);
-	if (!isRecord(packageJson)) return false;
-	return [
-		"dependencies",
-		"devDependencies",
-		"optionalDependencies"
-	].some((fieldName) => {
-		const dependencies = packageJson[fieldName];
-		return isRecord(dependencies) && typeof dependencies[dependencyName] === "string";
-	});
-};
-const packageHasRecordKey = (projectRoot, key) => {
-	const packageJson = readPackageJson(projectRoot);
-	return isRecord(packageJson) && isRecord(packageJson[key]);
-};
-const packageHasNestedRecordKey = (projectRoot, key, nestedKey) => {
-	const packageJson = readPackageJson(projectRoot);
-	if (!isRecord(packageJson)) return false;
-	const value = packageJson[key];
-	return isRecord(value) && isRecord(value[nestedKey]);
-};
-const ensureTrailingNewline = (content) => content.endsWith("\n") ? content : `${content}\n`;
-//#endregion
 //#region src/cli/utils/install-doctor-script.ts
 const DOCTOR_SCRIPT_NAME = "doctor";
 const FALLBACK_DOCTOR_SCRIPT_NAME = "react-doctor";
@@ -90606,31 +94860,31 @@ const findNearestPackageDirectory = (startDirectory, stopDirectory) => {
 };
 const hasDoctorScript = (projectRoot) => {
 	const packageJson = readPackageJson(findNearestPackageDirectory(projectRoot) ?? projectRoot);
-	if (!isRecord(packageJson)) return false;
+	if (!isRecord$1(packageJson)) return false;
 	const scripts = packageJson.scripts;
-	if (!isRecord(scripts)) return false;
+	if (!isRecord$1(scripts)) return false;
 	return isReactDoctorScriptCommand(scripts[DOCTOR_SCRIPT_NAME]) || isReactDoctorScriptCommand(scripts[FALLBACK_DOCTOR_SCRIPT_NAME]);
 };
 const hasDoctorDependency = (packageJson) => DEPENDENCY_FIELD_NAMES.some((fieldName) => {
 	const dependencies = packageJson[fieldName];
-	return isRecord(dependencies) && Object.hasOwn(dependencies, "react-doctor");
+	return isRecord$1(dependencies) && Object.hasOwn(dependencies, "react-doctor");
 });
 const installDoctorScript = (options) => {
 	const packageDirectory = findNearestPackageDirectory(options.projectRoot) ?? options.projectRoot;
 	const packageJsonPath = getPackageJsonPath(packageDirectory);
 	const packageJson = readPackageJson(packageDirectory);
-	if (!isRecord(packageJson)) return {
+	if (!isRecord$1(packageJson)) return {
 		packageJsonPath,
 		scriptStatus: "skipped",
 		scriptReason: "missing-or-invalid-package-json"
 	};
 	const scripts = packageJson.scripts;
 	const scriptTarget = (() => {
-		if (scripts !== void 0 && !isRecord(scripts)) return {
+		if (scripts !== void 0 && !isRecord$1(scripts)) return {
 			status: "skipped",
 			reason: "invalid-scripts"
 		};
-		const scriptRecord = isRecord(scripts) ? scripts : {};
+		const scriptRecord = isRecord$1(scripts) ? scripts : {};
 		if (isReactDoctorScriptCommand(scriptRecord[DOCTOR_SCRIPT_NAME])) return {
 			scriptName: DOCTOR_SCRIPT_NAME,
 			status: "existing"
@@ -90664,7 +94918,7 @@ const installDoctorScript = (options) => {
 	if (scriptStatus === "created") writeJsonFile$1(packageJsonPath, {
 		...packageJson,
 		scripts: {
-			...isRecord(scripts) ? scripts : {},
+			...isRecord$1(scripts) ? scripts : {},
 			[scriptTarget.scriptName ?? DOCTOR_SCRIPT_NAME]: DOCTOR_SCRIPT_COMMAND
 		}
 	});
@@ -90815,40 +95069,27 @@ const upgradeReactDoctorWorkflowInPlace = (projectRoot) => {
 	}
 };
 //#endregion
-//#region src/cli/utils/hash-project-root.ts
-const hashProjectRoot = (projectRoot) => createHash("sha256").update(path$1.resolve(projectRoot)).digest("hex");
-//#endregion
 //#region src/cli/utils/action-upgrade-prompt.ts
-const GLOBAL_CONFIG_PROJECT_NAME$1 = "react-doctor";
-const getActionUpgradeStore = (options = {}) => new Conf({
-	projectName: GLOBAL_CONFIG_PROJECT_NAME$1,
-	cwd: options.cwd
-});
-const hasHandledActionUpgrade = (projectRoot, storeOptions = {}) => {
-	try {
-		const upgrades = getActionUpgradeStore(storeOptions).get("actionUpgrades", {});
-		return Boolean(upgrades[hashProjectRoot(projectRoot)]);
-	} catch {
-		return true;
-	}
+const ACTION_UPGRADE_GATE = {
+	id: ACTION_UPGRADE_EVENT,
+	scope: "project"
 };
-const recordActionUpgradeDecision = (projectRoot, outcome, storeOptions = {}) => {
-	try {
-		const store = getActionUpgradeStore(storeOptions);
-		const upgrades = store.get("actionUpgrades", {});
-		store.set("actionUpgrades", {
-			...upgrades,
-			[hashProjectRoot(projectRoot)]: {
-				rootDirectory: path$1.resolve(projectRoot),
-				outcome,
-				at: (/* @__PURE__ */ new Date()).toISOString()
-			}
-		});
-		return true;
-	} catch {
-		return false;
-	}
+const hasHandledActionUpgrade = (projectRoot, options = {}) => !isGatePending(ACTION_UPGRADE_GATE, { projectRoot }, options);
+const recordActionUpgradeDecision = (projectRoot, outcome, options = {}) => recordGate(ACTION_UPGRADE_GATE, {
+	projectRoot,
+	outcome
+}, options);
+//#endregion
+//#region src/cli/utils/ci-prompt-decision.ts
+const CI_PITCH_GATE = {
+	id: CI_PITCH_EVENT,
+	scope: "project"
 };
+const hasHandledCiPrompt = (projectRoot, options = {}) => !isGatePending(CI_PITCH_GATE, { projectRoot }, options);
+const recordCiPromptDecision = (projectRoot, outcome, options = {}) => recordGate(CI_PITCH_GATE, {
+	projectRoot,
+	outcome
+}, options);
 //#endregion
 //#region src/cli/utils/open-url.ts
 const resolveOpenCommand = (url) => {
@@ -91014,39 +95255,80 @@ const DEFAULT_PR_TITLE = "Add React Doctor to GitHub Actions";
 const DEFAULT_PR_BODY = `Adds a [React Doctor](https://github.com/gcharang/react-doctor) scan to every pull request and every push to the default branch. The workflow file is documented inline.
 
 Docs: https://github.com/gcharang/react-doctor`;
-const findUniqueBranchName = async (cwd) => {
-	if (!(await runCommand("git", [
+const findUniqueBranchName = async (cwd, run) => {
+	if (!(await run("git", [
 		"rev-parse",
 		"--verify",
 		NEW_BRANCH_PREFIX
 	], cwd)).success) return NEW_BRANCH_PREFIX;
 	return `${NEW_BRANCH_PREFIX}-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace(/[-:T]/g, "")}`;
 };
+const findExistingSetupPullRequest = async (cwd, run) => {
+	const prList = await run("gh", [
+		"pr",
+		"list",
+		"--state",
+		"open",
+		"--json",
+		"headRefName,url",
+		"--limit",
+		String(100)
+	], cwd);
+	if (!prList.success) return null;
+	try {
+		return JSON.parse(prList.stdout).find((pullRequest) => (pullRequest.headRefName ?? "").startsWith(NEW_BRANCH_PREFIX)) ?? null;
+	} catch {
+		return null;
+	}
+};
+const hasUnrelatedTrackedChanges = async (cwd, workflowRelative, run) => {
+	const statusProbe = await run("git", [
+		"status",
+		"--porcelain",
+		"--",
+		".",
+		`:!${workflowRelative}`
+	], cwd);
+	if (!statusProbe.success) return true;
+	return statusProbe.stdout.split(/\r?\n/).filter(Boolean).some((statusLine) => !statusLine.startsWith("??"));
+};
 const openWorkflowPullRequest = async (params) => {
 	const workflowPath = path$1.resolve(params.workflowPath);
 	const commitMessage = params.commitMessage ?? DEFAULT_COMMIT_MESSAGE;
 	const prTitle = params.prTitle ?? DEFAULT_PR_TITLE;
 	const prBody = params.prBody ?? DEFAULT_PR_BODY;
-	const repoRootProbe = await runCommand("git", ["rev-parse", "--show-toplevel"], path$1.dirname(workflowPath));
+	const run = params.run ?? runCommand;
+	const checkCommandAvailable = params.checkCommandAvailable ?? isCommandAvailable;
+	const repoRootProbe = await run("git", ["rev-parse", "--show-toplevel"], path$1.dirname(workflowPath));
 	if (!repoRootProbe.success) return {
 		status: "not-attempted",
 		reason: "not-a-git-repo"
 	};
 	const cwd = repoRootProbe.stdout;
-	if (!isCommandAvailable("gh")) return {
+	const workflowRelative = toForwardSlashes(path$1.relative(cwd, workflowPath));
+	if (!checkCommandAvailable("gh")) return {
 		status: "not-attempted",
 		reason: "gh-not-installed"
 	};
-	if (!(await runCommand("gh", ["auth", "status"], cwd)).success) return {
+	if (!(await run("gh", ["auth", "status"], cwd)).success) return {
 		status: "not-attempted",
 		reason: "gh-not-authenticated"
 	};
-	const defaultBranch = params.baseBranch ?? await detectDefaultBranch(cwd);
+	const existingSetupPullRequest = await findExistingSetupPullRequest(cwd, run);
+	if (existingSetupPullRequest) return {
+		status: "pr-exists",
+		url: existingSetupPullRequest.url ?? ""
+	};
+	if (await hasUnrelatedTrackedChanges(cwd, workflowRelative, run)) return {
+		status: "not-attempted",
+		reason: "working-tree-dirty"
+	};
+	const defaultBranch = params.baseBranch ?? await detectDefaultBranch(cwd, run);
 	if (!defaultBranch) return {
 		status: "not-attempted",
 		reason: "no-default-branch"
 	};
-	const previousBranchProbe = await runCommand("git", [
+	const previousBranchProbe = await run("git", [
 		"rev-parse",
 		"--abbrev-ref",
 		"HEAD"
@@ -91056,13 +95338,13 @@ const openWorkflowPullRequest = async (params) => {
 		reason: "detached-head"
 	};
 	const previousBranch = previousBranchProbe.stdout;
-	await runCommand("git", [
+	await run("git", [
 		"fetch",
 		"origin",
 		defaultBranch
 	], cwd);
-	const newBranch = await findUniqueBranchName(cwd);
-	if (!(await runCommand("git", [
+	const newBranch = await findUniqueBranchName(cwd, run);
+	if (!(await run("git", [
 		"checkout",
 		"-b",
 		newBranch,
@@ -91072,17 +95354,17 @@ const openWorkflowPullRequest = async (params) => {
 		reason: "checkout-failed"
 	};
 	const restoreToPreviousBranch = async (deleteNewBranch) => {
-		await runCommand("git", ["checkout", previousBranch], cwd);
-		if (deleteNewBranch) await runCommand("git", [
+		await run("git", ["checkout", previousBranch], cwd);
+		if (deleteNewBranch) await run("git", [
 			"branch",
 			"-D",
 			newBranch
 		], cwd);
 	};
-	if (!(await runCommand("git", [
+	if (!(await run("git", [
 		"add",
 		"--",
-		path$1.relative(cwd, workflowPath)
+		workflowRelative
 	], cwd)).success) {
 		await restoreToPreviousBranch(true);
 		return {
@@ -91090,7 +95372,7 @@ const openWorkflowPullRequest = async (params) => {
 			reason: "git-add-failed"
 		};
 	}
-	if (!(await runCommand("git", [
+	if (!(await run("git", [
 		"commit",
 		"-m",
 		commitMessage
@@ -91101,7 +95383,7 @@ const openWorkflowPullRequest = async (params) => {
 			reason: "git-commit-failed"
 		};
 	}
-	if (!(await runCommand("git", [
+	if (!(await run("git", [
 		"push",
 		"-u",
 		"origin",
@@ -91113,7 +95395,7 @@ const openWorkflowPullRequest = async (params) => {
 			reason: "git-push-failed"
 		};
 	}
-	const prCreate = await runCommand("gh", [
+	const prCreate = await run("gh", [
 		"pr",
 		"create",
 		"--title",
@@ -91137,12 +95419,13 @@ const openWorkflowPullRequest = async (params) => {
 };
 const stageWorkflowFile = async (params) => {
 	const workflowPath = path$1.resolve(params.workflowPath);
-	const repoRootProbe = await runCommand("git", ["rev-parse", "--show-toplevel"], path$1.dirname(workflowPath));
+	const run = params.run ?? runCommand;
+	const repoRootProbe = await run("git", ["rev-parse", "--show-toplevel"], path$1.dirname(workflowPath));
 	if (!repoRootProbe.success) return false;
-	return (await runCommand("git", [
+	return (await run("git", [
 		"add",
 		"--",
-		path$1.relative(repoRootProbe.stdout, workflowPath)
+		toForwardSlashes(path$1.relative(repoRootProbe.stdout, workflowPath))
 	], repoRootProbe.stdout)).success;
 };
 //#endregion
@@ -91183,6 +95466,7 @@ const setUpGitHubActions = async (options) => {
 			baseBranch: defaultBranch
 		});
 		if (pullRequestResult.status === "pr-opened") pullRequestSpinner.succeed(`Opened pull request for review: ${highlighter.info(pullRequestResult.url)}`);
+		else if (pullRequestResult.status === "pr-exists") pullRequestSpinner.succeed(`A React Doctor setup pull request is already open: ${highlighter.info(pullRequestResult.url)}`);
 		else if (pullRequestResult.status === "branch-pushed") pullRequestSpinner.warn(`Pushed branch ${highlighter.bold(pullRequestResult.branch)} but couldn't open a PR. Open one with: gh pr create --head ${pullRequestResult.branch}`);
 		else {
 			pullRequestSpinner.stop();
@@ -91305,22 +95589,22 @@ const buildAgentHookScript = () => [
 	"",
 	"run_react_doctor() {",
 	"  if [ -x ./node_modules/.bin/react-doctor ]; then",
-	"    ./node_modules/.bin/react-doctor --verbose --diff --blocking warning --no-score",
+	"    ./node_modules/.bin/react-doctor --verbose --scope changed --blocking warning --no-score",
 	"    return",
 	"  fi",
 	"",
 	"  if command -v react-doctor >/dev/null 2>&1; then",
-	"    react-doctor --verbose --diff --blocking warning --no-score",
+	"    react-doctor --verbose --scope changed --blocking warning --no-score",
 	"    return",
 	"  fi",
 	"",
 	"  if command -v pnpm >/dev/null 2>&1; then",
-	`    pnpm dlx ${FORK_PACKAGE_SPEC} --verbose --diff --blocking warning --no-score`,
+	`    pnpm dlx ${FORK_PACKAGE_SPEC} --verbose --scope changed --blocking warning --no-score`,
 	"    return",
 	"  fi",
 	"",
 	"  if command -v npx >/dev/null 2>&1; then",
-	`    npx --yes ${FORK_PACKAGE_SPEC} --verbose --diff --blocking warning --no-score`,
+	`    npx --yes ${FORK_PACKAGE_SPEC} --verbose --scope changed --blocking warning --no-score`,
 	"    return",
 	"  fi",
 	"",
@@ -91478,13 +95762,13 @@ const installPackageJsonHook = (options, strategy) => {
 	const packageJsonPath = getPackageJsonPath(options.projectRoot);
 	const didHookExist = fs$1.existsSync(packageJsonPath);
 	const packageJson = readPackageJson(options.projectRoot);
-	const nextPackageJson = isRecord(packageJson) ? { ...packageJson } : {};
+	const nextPackageJson = isRecord$1(packageJson) ? { ...packageJson } : {};
 	const parentKeys = strategy.path.slice(0, -1);
 	const leafKey = strategy.path[strategy.path.length - 1];
 	let parent = nextPackageJson;
 	for (const key of parentKeys) {
 		const existing = parent[key];
-		const cloned = isRecord(existing) ? { ...existing } : {};
+		const cloned = isRecord$1(existing) ? { ...existing } : {};
 		parent[key] = cloned;
 		parent = cloned;
 	}
@@ -91655,7 +95939,7 @@ const isHuskyProject = (projectRoot) => fs$1.existsSync(path$1.join(projectRoot,
 const isVitePlusProject = (projectRoot) => packageHasDependency(projectRoot, "vite-plus");
 const isSimpleGitHooksProject = (projectRoot) => {
 	const packageJson = readPackageJson(projectRoot);
-	return isRecord(packageJson) && isRecord(packageJson["simple-git-hooks"]) || packageHasDependency(projectRoot, "simple-git-hooks") || fs$1.existsSync(path$1.join(projectRoot, ".simple-git-hooks.cjs"));
+	return isRecord$1(packageJson) && isRecord$1(packageJson["simple-git-hooks"]) || packageHasDependency(projectRoot, "simple-git-hooks") || fs$1.existsSync(path$1.join(projectRoot, ".simple-git-hooks.cjs"));
 };
 const getLefthookConfigPath = (projectRoot) => {
 	for (const fileName of LEFTHOOK_CONFIG_FILES) {
@@ -91821,7 +96105,7 @@ const detectPackageManager = (projectRoot) => {
 	let currentDirectory = path$1.resolve(projectRoot);
 	while (true) {
 		const packageJson = readPackageJson(currentDirectory);
-		if (isRecord(packageJson) && typeof packageJson.packageManager === "string") {
+		if (isRecord$1(packageJson) && typeof packageJson.packageManager === "string") {
 			const packageManagerName = packageJson.packageManager.split("@")[0];
 			if (packageManagerName === "pnpm" || packageManagerName === "yarn" || packageManagerName === "bun" || packageManagerName === "npm") return packageManagerName;
 		}
@@ -91897,12 +96181,12 @@ const isSupplyChainTrustError = (error) => {
 const formatInstallCommand = (input) => [input.command, ...input.args].join(" ");
 const installReactDoctorDependency = async (options) => {
 	const packageJson = readPackageJson(options.projectRoot);
-	if (!isRecord(packageJson)) return {
+	if (!isRecord$1(packageJson)) return {
 		dependencyStatus: "skipped",
 		dependencyReason: "missing-or-invalid-package-json"
 	};
 	if (hasDoctorDependency(packageJson)) return { dependencyStatus: "existing" };
-	if (packageJson.devDependencies !== void 0 && !isRecord(packageJson.devDependencies)) return {
+	if (packageJson.devDependencies !== void 0 && !isRecord$1(packageJson.devDependencies)) return {
 		dependencyStatus: "skipped",
 		dependencyReason: "invalid-dev-dependencies"
 	};
@@ -92066,10 +96350,12 @@ const runInstallReactDoctor = async (options = {}) => {
 	const existingWorkflow = readReactDoctorWorkflow(projectRoot);
 	const canInstallWorkflow = !fs$1.existsSync(workflowTargetPath);
 	const canUpgradeWorkflow = existingWorkflow !== null && workflowUsesV1Action(existingWorkflow.content) && !hasHandledActionUpgrade(projectRoot);
-	const shouldInstallWorkflow = canInstallWorkflow && (Boolean(options.yes) || !skipPrompts && await askAddToGitHubActions(prompt) === "yes");
+	const ciPromptOutcome = canInstallWorkflow && !options.yes && !skipPrompts && !hasHandledCiPrompt(projectRoot) ? await askAddToGitHubActions(prompt) : null;
+	const shouldInstallWorkflow = canInstallWorkflow && (Boolean(options.yes) || ciPromptOutcome === "yes");
 	const upgradePromptOutcome = canUpgradeWorkflow && !options.yes && !skipPrompts ? await askUpgradeActionVersion(prompt) : null;
 	const shouldUpgradeWorkflow = canUpgradeWorkflow && (Boolean(options.yes) || upgradePromptOutcome === "yes");
 	if (upgradePromptOutcome === "no" && !options.dryRun) recordActionUpgradeDecision(projectRoot, "declined");
+	if ((ciPromptOutcome === "yes" || ciPromptOutcome === "no") && !options.dryRun) recordCiPromptDecision(projectRoot, ciPromptOutcome === "yes" ? "accepted" : "declined");
 	const selectedAgents = skipPrompts ? detectedAgents : (await prompt({
 		type: "multiselect",
 		name: "agents",
@@ -92281,7 +96567,12 @@ const upgradeGitHubActionsWorkflow = async (workflow) => {
 		prBody: UPGRADE_PR_BODY
 	});
 	if (pullRequestResult.status === "pr-opened") upgradeSpinner.succeed(`Opened pull request for review: ${highlighter.info(pullRequestResult.url)}`);
-	else if (pullRequestResult.status === "branch-pushed") upgradeSpinner.warn(`Pushed branch ${highlighter.bold(pullRequestResult.branch)} but couldn't open a PR. Open one with: gh pr create --head ${pullRequestResult.branch}`);
+	else if (pullRequestResult.status === "pr-exists") {
+		try {
+			fs$1.writeFileSync(workflow.workflowPath, workflow.content);
+		} catch {}
+		upgradeSpinner.succeed(`A React Doctor pull request is already open: ${highlighter.info(pullRequestResult.url)}`);
+	} else if (pullRequestResult.status === "branch-pushed") upgradeSpinner.warn(`Pushed branch ${highlighter.bold(pullRequestResult.branch)} but couldn't open a PR. Open one with: gh pr create --head ${pullRequestResult.branch}`);
 	else {
 		upgradeSpinner.stop();
 		try {
@@ -92316,18 +96607,24 @@ const handoffToAgent = async (input) => {
 	if (!input.interactive || input.diagnostics.length === 0) return;
 	cliLogger.break();
 	const projectRootForCi = findNearestPackageDirectory(input.rootDirectory) ?? input.rootDirectory;
-	if (!isReactDoctorWorkflowInstalled(projectRootForCi)) {
+	const isGitHubActionsConfigured = isReactDoctorWorkflowInstalled(projectRootForCi);
+	if (!isGitHubActionsConfigured && !hasHandledCiPrompt(projectRootForCi)) {
 		const ciOutcome = await askAddToGitHubActions();
 		recordCount(METRIC.agentHandoff, 1, {
 			outcome: `ci-${ciOutcome}`,
 			diagnosticsCount: input.diagnostics.length
 		});
 		if (ciOutcome === "cancel") return;
+		recordCiPromptDecision(projectRootForCi, ciOutcome === "yes" ? "accepted" : "declined");
 		if (ciOutcome === "yes") {
 			await setUpGitHubActions({ rootDirectory: input.rootDirectory });
 			cliLogger.break();
 		}
-	} else await maybeOfferActionUpgrade(projectRootForCi);
+	} else if (isGitHubActionsConfigured) await maybeOfferActionUpgrade(projectRootForCi);
+	else recordCount(METRIC.agentHandoff, 1, {
+		outcome: "ci-suppressed",
+		diagnosticsCount: input.diagnostics.length
+	});
 	const { handoffTarget } = await prompts({
 		type: "select",
 		name: "handoffTarget",
@@ -92363,7 +96660,8 @@ const handoffToAgent = async (input) => {
 	if (handoffTarget === void 0 || handoffTarget === SKIP_CHOICE) return;
 	const payload = buildHandoffPayload({
 		diagnostics: input.diagnostics,
-		projectName: input.projectName
+		projectName: input.projectName,
+		outputDirectory: input.outputDirectory
 	});
 	if (handoffTarget === CLIPBOARD_CHOICE) {
 		if (await copyToClipboard(payload)) cliLogger.log("Copied the prompt to your clipboard.");
@@ -92452,6 +96750,22 @@ export default ${serializeTsObjectLiteral(config)} satisfies ReactDoctorConfig;
 	fs$1.rmSync(legacy.legacyFilePath, { force: true });
 	return targetPath;
 };
+const PROJECT_MIGRATIONS = [{
+	id: "config-json-to-ts",
+	scope: "project",
+	run: ({ projectRoot }) => {
+		if (projectRoot === void 0) return false;
+		const legacyConfig = findLegacyConfig(projectRoot);
+		if (!legacyConfig) return false;
+		const migratedPath = migrateLegacyConfig(legacyConfig);
+		if (!migratedPath) return false;
+		cliLogger.success("Migrated react-doctor.config.json → doctor.config.ts");
+		cliLogger.dim(`  Your settings were preserved. Review ${toRelativePath(migratedPath, projectRoot)} and commit it.`);
+		cliLogger.break();
+		return true;
+	}
+}];
+const runProjectMigrations = (projectRoot, options = {}) => runMigrations(PROJECT_MIGRATIONS, { projectRoot }, options);
 //#endregion
 //#region src/cli/utils/print-branded-header.ts
 /**
@@ -92549,6 +96863,7 @@ const reportErrorToSentry = async (error) => {
 				sampled: runTrace.sampled,
 				sampleRand: Math.random()
 			});
+			recordRunTraceId(scope.getPropagationContext().traceId);
 			return Sentry.captureException(error);
 		});
 		await Sentry.flush(SENTRY_FLUSH_TIMEOUT_MS);
@@ -92584,6 +96899,9 @@ const readChangedFilesFrom = (filePath) => {
 	return [...uniqueFiles];
 };
 //#endregion
+//#region src/cli/utils/filter-scans-for-surface.ts
+const filterScansForSurface = (completedScans, surface) => completedScans.flatMap((scan) => filterDiagnosticsForSurface([...scan.result.diagnostics], surface, scan.config));
+//#endregion
 //#region src/cli/utils/render-multi-project-summary.ts
 const getScoreLabel = (score) => {
 	if (score >= 75) return "Great";
@@ -92611,10 +96929,10 @@ const findLowestScoredScan = (completedScans) => {
 	return scoredScans.reduce((worst, scan) => scan.result.score.score < worst.result.score.score ? scan : worst);
 };
 const printMultiProjectSummary = (input) => gen(function* () {
-	const { completedScans, userConfig, verbose, isOffline, projectName } = input;
+	const { completedScans, verbose, isOffline, projectName, totalElapsedMilliseconds } = input;
 	const categoryFilters = input.categoryFilters ?? /* @__PURE__ */ new Set();
 	const animateRender = !verbose && canAnimateOnboarding(process.stdout);
-	const displayDiagnostics = filterDiagnosticsByCategories(filterDiagnosticsForSurface(completedScans.flatMap((scan) => scan.result.diagnostics), "cli", userConfig), categoryFilters);
+	const displayDiagnostics = filterDiagnosticsByCategories(filterScansForSurface(completedScans, "cli"), categoryFilters);
 	const projectRootByDiagnostic = /* @__PURE__ */ new WeakMap();
 	for (const scan of completedScans) for (const diagnostic of scan.result.diagnostics) projectRootByDiagnostic.set(diagnostic, scan.result.project.rootDirectory);
 	const resolveDiagnosticSourceRoot = (diagnostic) => projectRootByDiagnostic.get(diagnostic) ?? "";
@@ -92626,27 +96944,27 @@ const printMultiProjectSummary = (input) => gen(function* () {
 		else fileCountFromScansWithoutPaths += scan.result.scannedFileCount ?? scan.result.project.sourceFileCount;
 	}
 	const totalScannedFileCount = uniqueScannedFilePaths.size + fileCountFromScansWithoutPaths;
-	const totalScanElapsedMilliseconds = completedScans.reduce((sum, scan) => sum + (scan.result.scanElapsedMilliseconds ?? scan.result.elapsedMilliseconds), 0);
-	yield* log(`${highlighter.success("✔")} Scanned ${totalScannedFileCount} ${totalScannedFileCount === 1 ? "file" : "files"} in ${formatElapsedTime(totalScanElapsedMilliseconds)}`);
+	yield* log(`${highlighter.success("✔")} Scanned ${totalScannedFileCount} ${totalScannedFileCount === 1 ? "file" : "files"} in ${formatElapsedTime(totalElapsedMilliseconds)}`);
 	if (displayDiagnostics.length > 0) {
 		yield* log("");
-		yield* printDiagnostics(displayDiagnostics, verbose, resolveDiagnosticSourceRoot, buildRulePriorityMap(completedScans.map((scan) => scan.result.score)), isCodingAgentEnvironment(), { animateCountUp: animateRender });
+		yield* printDiagnostics(displayDiagnostics, verbose, resolveDiagnosticSourceRoot, buildRulePriorityMap(completedScans.map((scan) => scan.result.score)), isCodingAgentEnvironment(), { animateCountUp: animateRender }, shouldRenderHyperlinks(process.stdout));
 	}
 	const lowestScoredScan = findLowestScoredScan(completedScans);
 	const aggregateScore = lowestScoredScan?.result.score ?? null;
 	const totalSourceFileCount = completedScans.reduce((sum, scan) => sum + scan.result.project.sourceFileCount, 0);
 	yield* printSummary({
 		diagnostics: displayDiagnostics,
-		elapsedMilliseconds: completedScans.reduce((sum, scan) => sum + scan.result.elapsedMilliseconds, 0),
+		elapsedMilliseconds: totalElapsedMilliseconds,
 		scoreResult: aggregateScore,
-		potentialScore: lowestScoredScan ? yield* promise(() => computeProjectedScore(displayDiagnostics, filterDiagnosticsForSurface(lowestScoredScan.result.diagnostics, "cli", userConfig), lowestScoredScan.result.score)) : null,
+		potentialScore: lowestScoredScan ? yield* promise(() => computeProjectedScore(displayDiagnostics, filterScansForSurface([lowestScoredScan], "cli"), lowestScoredScan.result.score)) : null,
 		totalSourceFileCount,
 		noScoreMessage: "Score unavailable.",
 		verbose,
+		outputDirectory: input.outputDirectory,
 		animateProjection: animateRender
 	});
 	const entries = completedScans.map((scan) => {
-		const projectDiagnostics = filterDiagnosticsByCategories(filterDiagnosticsForSurface([...scan.result.diagnostics], "cli", userConfig), categoryFilters);
+		const projectDiagnostics = filterDiagnosticsByCategories(filterScansForSurface([scan], "cli"), categoryFilters);
 		const errorCount = projectDiagnostics.filter((diagnostic) => diagnostic.severity === "error").length;
 		return {
 			projectName: scan.result.project.projectName,
@@ -92667,19 +96985,16 @@ const printMultiProjectSummary = (input) => gen(function* () {
 });
 //#endregion
 //#region src/cli/utils/prompt-install-setup.ts
-const GLOBAL_CONFIG_PROJECT_NAME = "react-doctor";
-const getSetupPromptStore = (options = {}) => new Conf({
-	projectName: GLOBAL_CONFIG_PROJECT_NAME,
-	cwd: options.cwd
-});
-const getSetupPromptProjectKey = (projectRoot) => hashProjectRoot(projectRoot);
-const hasDisabledSetupPrompt = (projectRoot, storeOptions = {}) => {
-	try {
-		return getSetupPromptStore(storeOptions).get("projects", {})[getSetupPromptProjectKey(projectRoot)]?.setupPrompt === false;
-	} catch {
-		return false;
-	}
+const SETUP_HINT_GATE = {
+	id: SETUP_HINT_EVENT,
+	scope: "project",
+	fireWhenUnknown: true
 };
+const hasDisabledSetupPrompt = (projectRoot, options = {}) => !isGatePending(SETUP_HINT_GATE, { projectRoot }, options);
+const disableSetupPrompt = (projectRoot, options = {}) => recordGate(SETUP_HINT_GATE, {
+	projectRoot,
+	outcome: "declined"
+}, options);
 const resolveInstallSetupProjectRoot = (options) => {
 	if (options.scanDirectories.length === 0) return findNearestPackageDirectory(options.scanRoot) ?? options.scanRoot;
 	const packageDirectories = /* @__PURE__ */ new Set();
@@ -92866,6 +97181,7 @@ const resolveCliInspectOptions = (flags, userConfig) => {
 		lint: flags.lint,
 		deadCode: flags.deadCode,
 		verbose: flags.verbose,
+		outputDirectory: flags.outputDir,
 		respectInlineDisables: flags.respectInlineDisables === false ? false : void 0,
 		warnings: wantsWarningGate ? true : flags.warnings,
 		scoreOnly: flags.score === true,
@@ -93002,16 +97318,22 @@ const parseFileLineArgument = (rawArgument) => {
 };
 //#endregion
 //#region src/cli/utils/select-projects.ts
-const selectProjects = async (rootDirectory, projectFlag, skipPrompts) => {
+const selectProjects = async (rootDirectory, projectFlag, skipPrompts, configProjects) => {
 	const hasRootPackageJson = isFile(path$1.join(rootDirectory, "package.json"));
 	let packages = listWorkspacePackages(rootDirectory);
 	if (packages.length === 0 && (!hasRootPackageJson || isMonorepoRoot(rootDirectory))) packages = discoverReactSubprojects(rootDirectory);
+	if (projectFlag) return resolveProjectFlag(projectFlag, packages, rootDirectory);
+	const configRequestedNames = (configProjects ?? []).map((requestedName) => requestedName.trim()).filter((requestedName) => requestedName.length > 0);
+	if (configRequestedNames.length > 0) {
+		const resolvedDirectories = resolveRequestedProjects(configRequestedNames, packages, rootDirectory, "config");
+		recordCount(METRIC.projectConfigSelected, resolvedDirectories.length);
+		return resolvedDirectories;
+	}
 	if (packages.length === 0) return [rootDirectory];
 	if (packages.length === 1) {
 		cliLogger.log(`${highlighter.success("✔")} Select projects ${highlighter.dim("›")} ${packages[0].name}`);
 		return [packages[0].directory];
 	}
-	if (projectFlag) return resolveProjectFlag(projectFlag, packages);
 	if (skipPrompts) {
 		printDiscoveredProjects(packages);
 		return packages.map((workspacePackage) => workspacePackage.directory);
@@ -93019,17 +97341,25 @@ const selectProjects = async (rootDirectory, projectFlag, skipPrompts) => {
 	return promptProjectSelection(packages, rootDirectory);
 };
 const ALL_PROJECTS_SENTINEL = "*";
-const resolveProjectFlag = (projectFlag, workspacePackages) => {
+const resolveProjectFlag = (projectFlag, workspacePackages, rootDirectory) => {
 	const requestedNames = projectFlag.split(",").map((name) => name.trim()).filter((name) => name.length > 0);
 	if (requestedNames.length === 0) throw new CliInputError(`--project "${projectFlag}" did not name any project. Pass a project name, a comma-separated list, or "*" for all.`);
-	if (requestedNames.includes(ALL_PROJECTS_SENTINEL)) return workspacePackages.map((workspacePackage) => workspacePackage.directory);
-	const resolvedDirectories = [];
-	for (const requestedName of requestedNames) {
+	return resolveRequestedProjects(requestedNames, workspacePackages, rootDirectory, "flag");
+};
+const resolveRequestedProjects = (requestedNames, workspacePackages, rootDirectory, source) => {
+	if (requestedNames.includes(ALL_PROJECTS_SENTINEL)) return workspacePackages.length > 0 ? workspacePackages.map((workspacePackage) => workspacePackage.directory) : [rootDirectory];
+	const sourceLabel = source === "flag" ? "Project" : "Config \"projects\" entry";
+	return requestedNames.map((requestedName) => {
 		const matched = workspacePackages.find((workspacePackage) => workspacePackage.name === requestedName || path$1.basename(workspacePackage.directory) === requestedName);
-		if (!matched) throw new CliInputError(`Project "${requestedName}" not found. Available: ${workspacePackages.map((workspacePackage) => workspacePackage.name).join(", ")}`);
-		resolvedDirectories.push(matched.directory);
-	}
-	return resolvedDirectories;
+		if (matched) return matched.directory;
+		const candidateDirectory = path$1.resolve(rootDirectory, requestedName);
+		if (isDirectory(candidateDirectory)) {
+			recordCount(METRIC.projectPathSelected);
+			return candidateDirectory;
+		}
+		const availableNames = workspacePackages.map((workspacePackage) => workspacePackage.name).join(", ");
+		throw new CliInputError(workspacePackages.length > 0 ? `${sourceLabel} "${requestedName}" is not a workspace project or a directory. Available projects: ${availableNames}` : `${sourceLabel} "${requestedName}" is not a directory under ${rootDirectory}.`);
+	});
 };
 const printDiscoveredProjects = (packages) => {
 	cliLogger.log(`${highlighter.success("✔")} Select projects ${highlighter.dim("›")} ${packages.map((workspacePackage) => workspacePackage.name).join(", ")}`);
@@ -93081,6 +97411,14 @@ const runExplain = async (fileLineArgument, context) => {
 		const colorizedRule = colorizeRuleByDiagnostic(ruleIdentifier, diagnostic.severity);
 		const severityLabel = colorizeRuleByDiagnostic(diagnostic.severity, diagnostic.severity);
 		cliLogger.log(`${severitySymbol} ${colorizedRule} ${highlighter.dim(`(${severityLabel})`)} — ${diagnostic.message}`);
+		const codeFrame = buildCodeFrame({
+			filePath: diagnostic.filePath,
+			line: diagnostic.line,
+			column: diagnostic.column,
+			endLine: diagnostic.endLine,
+			rootDirectory: targetDirectory
+		});
+		if (codeFrame) cliLogger.log(indentMultilineText(codeFrame, "  "));
 		if (diagnostic.category) cliLogger.dim(`  Category: ${diagnostic.category}`);
 		if (diagnostic.help) cliLogger.dim(`  ${diagnostic.help}`);
 		cliLogger.dim(`  If this needs follow-up or looks like a false positive, open: ${buildDiagnosticIssueUrl({
@@ -93111,47 +97449,6 @@ const projectManifestChanged = (rootDirectory, projectDirectory, diffInfo) => {
 	return diffInfo.changedFiles.some((filePath) => toForwardSlashes(filePath) === manifestPath);
 };
 //#endregion
-//#region src/cli/utils/render-supply-chain-scores.ts
-const scoreLabel = (score) => {
-	if (score >= 75) return "Healthy";
-	if (score >= 50) return "Review";
-	return "At risk";
-};
-const byRiskThenName = (left, right) => {
-	if (left.overall === null) return right.overall === null ? 0 : 1;
-	if (right.overall === null) return -1;
-	if (left.overall !== right.overall) return left.overall - right.overall;
-	return left.name.localeCompare(right.name);
-};
-/**
-* Renders the `--sfw` demo table: every direct dependency with its Socket.dev
-* supply-chain score (0–100), color-coded and labelled. Pure string builder —
-* the command prints the result through `cliLogger`.
-*/
-const renderSupplyChainScores = (rows) => {
-	if (rows.length === 0) return highlighter.dim("  No direct dependencies found in package.json.");
-	const sorted = [...rows].sort(byRiskThenName);
-	const nameWidth = Math.max(...sorted.map((row) => row.name.length));
-	const versionWidth = Math.max(...sorted.map((row) => row.version.length));
-	const lines = [
-		highlighter.bold("  Socket supply-chain scores"),
-		highlighter.dim(`  ${rows.length} ${rows.length === 1 ? "dependency" : "dependencies"}`),
-		""
-	];
-	for (const row of sorted) {
-		const paddedName = row.name.padEnd(nameWidth);
-		const paddedVersion = row.version.padEnd(versionWidth);
-		if (row.overall === null) {
-			lines.push(`  ${highlighter.dim(paddedName)}  ${highlighter.dim(paddedVersion)}  ${highlighter.dim("  — no score")}`);
-			continue;
-		}
-		const score = colorizeByScore(String(row.overall).padStart(3), row.overall);
-		const label = colorizeByScore(scoreLabel(row.overall), row.overall);
-		lines.push(`  ${paddedName}  ${highlighter.dim(paddedVersion)}  ${score}  ${label}`);
-	}
-	return lines.join("\n");
-};
-//#endregion
 //#region src/cli/utils/warn-deprecated-fail-on.ts
 const warnDeprecatedFailOn = (flags, userConfig) => {
 	const usedFlag = flags.failOn !== void 0;
@@ -93171,15 +97468,9 @@ const validateModeFlags = (flags) => {
 	if (flags.staged && (flags.scope === "full" || flags.scope === "changed")) throw new CliInputError(`Cannot combine --staged with --scope ${flags.scope}; use --scope files or --scope lines, or drop --scope.`);
 	if (flags.score && flags.json) throw new CliInputError("Cannot combine --score and --json; pick one output mode.");
 	if (flags.score && flags.telemetry === false) throw new CliInputError("Cannot combine --score with --no-telemetry; --score prints the score that --no-telemetry disables.");
-	if (flags.sfw) {
-		const conflictingFlag = [
-			flags.json ? "--json" : null,
-			flags.score ? "--score" : null,
-			flags.staged ? "--staged" : null,
-			usedScope(flags) ? "--scope" : null,
-			usedDiffAlias(flags) ? "--diff" : null
-		].find((name) => name !== null);
-		if (conflictingFlag) throw new CliInputError(`Cannot combine --sfw with ${conflictingFlag}; --sfw is a standalone demo listing.`);
+	if (flags.debug && (flags.score === false || flags.telemetry === false)) {
+		const disablingFlag = flags.score === false ? "--no-score" : "--no-telemetry";
+		throw new CliInputError(`Cannot combine --debug with ${disablingFlag}; ${disablingFlag} disables the Sentry reporting --debug needs to capture a trace.`);
 	}
 };
 //#endregion
@@ -93224,7 +97515,7 @@ const finalizeScans = (input) => {
 		}));
 	}
 	if (input.isScoreOnly || baselineDegraded) return;
-	if (shouldBlockCi(filterDiagnosticsForSurface(input.diagnostics, "ciFailure", input.userConfig), resolveBlockingLevel(input.flags, input.userConfig))) process.exitCode = 1;
+	if (shouldBlockCi(filterScansForSurface(input.completedScans, "ciFailure"), resolveBlockingLevel(input.flags, input.userConfig))) process.exitCode = 1;
 };
 const buildChangedFilesDiffInfo = (changedFiles) => ({
 	currentBranch: process.env.GITHUB_HEAD_REF?.trim() || null,
@@ -93241,15 +97532,9 @@ const buildChangedFilesDiffInfo = (changedFiles) => ({
 * are left untouched — the loader still reads the legacy file as a deprecated
 * fallback and warns — so a scan never mutates the repo unattended.
 */
-const maybeMigrateLegacyConfig = (requestedDirectory, { isQuiet, isStaged }) => {
+const maybeMigrateLegacyConfig = async (requestedDirectory, { isQuiet, isStaged }) => {
 	if (!(!isQuiet && !isStaged && process.stdout.isTTY === true && !isCiOrCodingAgentEnvironment())) return;
-	const legacyConfig = findLegacyConfig(requestedDirectory);
-	if (!legacyConfig) return;
-	const migratedPath = migrateLegacyConfig(legacyConfig);
-	if (!migratedPath) return;
-	cliLogger.success("Migrated react-doctor.config.json → doctor.config.ts");
-	cliLogger.dim(`  Your settings were preserved. Review ${toRelativePath(migratedPath, requestedDirectory)} and commit it.`);
-	cliLogger.break();
+	await runProjectMigrations(requestedDirectory);
 };
 const inspectAction = async (directory, flags) => {
 	const isScoreOnly = Boolean(flags.score);
@@ -93264,7 +97549,7 @@ const inspectAction = async (directory, flags) => {
 	recordCount(METRIC.cliInvoked, 1, { command: "inspect" });
 	try {
 		validateModeFlags(flags);
-		maybeMigrateLegacyConfig(requestedDirectory, {
+		await maybeMigrateLegacyConfig(requestedDirectory, {
 			isQuiet,
 			isStaged: Boolean(flags.staged)
 		});
@@ -93286,18 +97571,6 @@ const inspectAction = async (directory, flags) => {
 				scanOptions: resolveCliInspectOptions(flags, userConfig),
 				projectFlag: flags.project
 			});
-			return;
-		}
-		if (flags.sfw) {
-			const sfwSpinner = spinner("Scoring dependencies against Socket.dev…").start();
-			const scores = await runPromise(collectSupplyChainScores({
-				rootDirectory: resolvedDirectory,
-				userConfig
-			}));
-			sfwSpinner.stop();
-			cliLogger.break();
-			cliLogger.log(renderSupplyChainScores(scores));
-			cliLogger.break();
 			return;
 		}
 		if (!isQuiet) if (!flags.verbose && canAnimateOnboarding(process.stdout)) await runPromise(playWelcomeScene({ speedMultiplier: !isOnboardingForced() && hasCompletedOnboarding() ? 2 : 1 }));
@@ -93357,7 +97630,6 @@ const inspectAction = async (directory, flags) => {
 					filePath: path$1.isAbsolute(diagnostic.filePath) ? diagnostic.filePath.replaceAll(snapshot.tempDirectory, () => resolvedDirectory) : diagnostic.filePath
 				}));
 				finalizeScans({
-					diagnostics: remappedDiagnostics,
 					completedScans: [{
 						directory: resolvedDirectory,
 						result: {
@@ -93367,7 +97639,8 @@ const inspectAction = async (directory, flags) => {
 								...scanResult.project,
 								rootDirectory: resolvedDirectory
 							}
-						}
+						},
+						config: userConfig
 					}],
 					mode: "staged",
 					diff: null,
@@ -93385,7 +97658,7 @@ const inspectAction = async (directory, flags) => {
 			}
 			return;
 		}
-		const projectDirectories = await selectProjects(resolvedDirectory, flags.project, skipPrompts);
+		const projectDirectories = await selectProjects(resolvedDirectory, flags.project, skipPrompts, userConfig?.projects);
 		const changedFilesDiffInfo = flags.changedFilesFrom ? buildChangedFilesDiffInfo(readChangedFilesFrom(path$1.resolve(flags.changedFilesFrom))) : null;
 		const requestedScope = resolveScope(flags, userConfig);
 		const scopeRequest = requestedScope.scope === void 0 && changedFilesDiffInfo !== null ? {
@@ -93424,56 +97697,87 @@ const inspectAction = async (directory, flags) => {
 			}
 			cliLogger.break();
 		}
-		const allDiagnostics = [];
 		const completedScans = [];
 		const isMultiProject = projectDirectories.length > 1;
-		const supplyChainEnabled = userConfig?.supplyChain?.enabled !== false;
-		for (const projectDirectory of projectDirectories) {
+		const scanProject = async (projectDirectory) => {
+			const projectScanTarget = projectDirectory === resolvedDirectory ? scanTarget : await resolveScanTarget(projectDirectory, { allowAmbiguous: true });
+			const scanDirectory = projectScanTarget.resolvedDirectory;
+			const projectConfig = projectDirectory === resolvedDirectory ? userConfig : mergeReactDoctorConfigs(userConfig, projectScanTarget.userConfig ?? void 0);
+			const projectConfigSourceDirectory = projectScanTarget.userConfig?.plugins === void 0 ? scanTarget.configSourceDirectory : projectScanTarget.configSourceDirectory;
+			const supplyChainEnabled = projectConfig?.supplyChain?.enabled !== false;
 			let includePaths;
 			let supplyChainManifestChanged = false;
 			if (isDiffMode) {
-				const changedSourceFiles = diffInfo === null ? [] : resolveProjectDiffIncludePaths(resolvedDirectory, projectDirectory, diffInfo);
-				supplyChainManifestChanged = supplyChainEnabled && diffInfo !== null && projectManifestChanged(resolvedDirectory, projectDirectory, diffInfo);
+				const changedSourceFiles = diffInfo === null ? [] : resolveProjectDiffIncludePaths(resolvedDirectory, scanDirectory, diffInfo);
+				supplyChainManifestChanged = supplyChainEnabled && diffInfo !== null && projectManifestChanged(resolvedDirectory, scanDirectory, diffInfo);
 				if (changedSourceFiles.length === 0 && !supplyChainManifestChanged) {
 					if (!isQuiet) {
-						cliLogger.dim(`No changed source files in ${projectDirectory}, skipping.`);
+						cliLogger.dim(`No changed source files in ${scanDirectory}, skipping.`);
 						cliLogger.break();
 					}
-					continue;
+					return null;
 				}
 				includePaths = [...changedSourceFiles];
 				if (supplyChainManifestChanged) includePaths.push("package.json");
 			}
 			if (!isQuiet && !isMultiProject) cliLogger.dim("  ");
-			const scanResult = await inspect(projectDirectory, {
+			const scanResult = await inspect(scanDirectory, {
 				...scanOptions,
 				includePaths,
-				configOverride: userConfig,
+				configOverride: projectConfig,
+				configSourceDirectory: projectConfigSourceDirectory ?? void 0,
 				suppressRendering: isMultiProject,
+				concurrentScan: isMultiProject,
 				baseline: baselineRef ? { ref: baselineRef } : void 0,
-				changedLineRanges: scope === "lines" && changedLineRanges !== null ? resolveProjectChangedLineRanges(resolvedDirectory, projectDirectory, changedLineRanges) : void 0,
+				changedLineRanges: scope === "lines" && changedLineRanges !== null ? resolveProjectChangedLineRanges(resolvedDirectory, scanDirectory, changedLineRanges) : void 0,
 				supplyChainManifestChanged
 			});
-			allDiagnostics.push(...scanResult.diagnostics);
-			completedScans.push({
-				directory: projectDirectory,
-				result: scanResult
-			});
 			if (!isQuiet && !isMultiProject) cliLogger.break();
+			return {
+				directory: scanDirectory,
+				result: scanResult,
+				config: projectConfig
+			};
+		};
+		const scanLoopStartTime = performance$1.now();
+		const projectCount = projectDirectories.length;
+		const batchSpinner = isMultiProject && !isQuiet ? spinner(`Scanning ${projectCount} projects…`).start() : null;
+		const ownsBatchSpinnerSilence = isMultiProject && scanOptions.silent === true;
+		const wasSpinnerSilent = isSpinnerSilent();
+		if (ownsBatchSpinnerSilence) setSpinnerSilent(true);
+		let finishedProjectCount = 0;
+		let scanOutcomes;
+		try {
+			scanOutcomes = await mapWithConcurrency(projectDirectories, isMultiProject ? 4 : 1, async (projectDirectory) => {
+				const scanOutcome = await scanProject(projectDirectory);
+				finishedProjectCount += 1;
+				batchSpinner?.update(`Scanning ${projectCount} projects… (${finishedProjectCount}/${projectCount})`);
+				return scanOutcome;
+			});
+		} finally {
+			if (ownsBatchSpinnerSilence) setSpinnerSilent(wasSpinnerSilent);
+			batchSpinner?.stop();
+		}
+		for (const scanOutcome of scanOutcomes) {
+			if (scanOutcome === null) continue;
+			completedScans.push(scanOutcome);
 		}
 		if (!isQuiet && isMultiProject && completedScans.length > 0) {
 			const shouldShowShareLink = !scanOptions.noScore && (userConfig?.share ?? true) && !scanOptions.isCi;
 			await runPromise(printMultiProjectSummary({
 				completedScans,
 				categoryFilters,
-				userConfig,
 				verbose: Boolean(flags.verbose),
+				outputDirectory: flags.outputDir,
 				isOffline: !shouldShowShareLink,
-				projectName: path$1.basename(resolvedDirectory)
+				projectName: path$1.basename(resolvedDirectory),
+				totalElapsedMilliseconds: performance$1.now() - scanLoopStartTime
 			}));
 		}
+		const selectedSurfaceDiagnostics = filterDiagnosticsByCategories(filterScansForSurface(completedScans, scanOptions.outputSurface ?? "cli"), categoryFilters);
+		const didScansWriteDump = isMultiProject ? !isQuiet && completedScans.length > 0 : completedScans.length > 0;
+		if (flags.outputDir && !didScansWriteDump) await runPromise(printDiagnosticsDump(selectedSurfaceDiagnostics, flags.outputDir, false, isQuiet ? "stderr" : "stdout"));
 		finalizeScans({
-			diagnostics: allDiagnostics,
 			completedScans,
 			mode: baselineRef ? "baseline" : isDiffMode ? "diff" : "full",
 			diff: isDiffMode ? diffInfo : null,
@@ -93486,13 +97790,13 @@ const inspectAction = async (directory, flags) => {
 			resolvedDirectory,
 			startTime
 		});
-		const selectedSurfaceDiagnostics = filterDiagnosticsByCategories(filterDiagnosticsForSurface(allDiagnostics, scanOptions.outputSurface ?? "cli", userConfig), categoryFilters);
 		if (!isQuiet && !skipPrompts && process.stdout.isTTY === true && !isCiOrCodingAgentEnvironment() && selectedSurfaceDiagnostics.length > 0) {
 			await handoffToAgent({
 				diagnostics: selectedSurfaceDiagnostics,
 				projectName: path$1.basename(resolvedDirectory),
 				rootDirectory: resolvedDirectory,
-				interactive: true
+				interactive: true,
+				outputDirectory: flags.outputDir
 			});
 			return;
 		}
@@ -93510,11 +97814,13 @@ const inspectAction = async (directory, flags) => {
 			})) {
 				printAgentInstallHint();
 				recordCount(METRIC.agentInstallHintShown, 1);
+				disableSetupPrompt(setupProjectRoot);
 			}
 		}
 	} catch (error) {
 		const isUserError = isExpectedUserError(error);
 		const sentryEventId = isUserError ? void 0 : await reportErrorToSentry(error);
+		if (isDebugFlagEnabled()) await flushSentry();
 		if (isJsonMode) {
 			writeJsonErrorReport(error, sentryEventId);
 			process.exitCode = 1;
@@ -94237,6 +98543,33 @@ const normalizeHelpInvocation = (argv, knownCommands) => {
 	return [...nodeArguments, "--help"];
 };
 //#endregion
+//#region src/cli/utils/print-debug-trace.ts
+/**
+* The `--debug` end-of-run line, pure so it's testable without the Sentry SDK.
+* Mirrors the crash-reference phrasing in `handle-error.ts` ("mention this when
+* reporting") so users learn one habit for both paths. A `null` trace says why,
+* so `--debug` never silently does nothing.
+*/
+const buildDebugTraceMessage = (traceId) => traceId === null ? "Sentry trace unavailable for this run (no trace was recorded)." : `Sentry trace (mention this when reporting): ${traceId}`;
+/**
+* Prints the run's Sentry trace id to stderr at the end of a `--debug` run, so
+* maintainers can pull the full trace from a pasted id. Runs from the process
+* `exit` handler, so it's the last line on both the success path and the error
+* funnels (which `process.exit()` before the promise chain could resume).
+*
+* Writes straight to `process.stderr` (not `Console`) for three reasons: the
+* exit handler is synchronous, JSON mode patches the global console to no-ops —
+* a diagnostic the user explicitly asked for must survive that — and stderr
+* keeps `--json` / `--score` stdout machine-clean. The write is wrapped because
+* a diagnostic must never throw out of an exit handler.
+*/
+const printDebugTrace = () => {
+	if (!Sentry.isInitialized()) return;
+	try {
+		process.stderr.write(`${highlighter.dim(buildDebugTraceMessage(getLastRunTraceId()))}\n`);
+	} catch {}
+};
+//#endregion
 //#region src/cli/utils/removed-cli-flags.ts
 const REMOVED_FLAGS = new Map([
 	["--full", "use `--diff false` to force a full scan"],
@@ -94263,6 +98596,7 @@ const ROOT_FLAG_SPEC = {
 	longOptionsWithoutValues: new Set([
 		"--color",
 		"--dead-code",
+		"--debug",
 		"--help",
 		"--json",
 		"--json-compact",
@@ -94276,7 +98610,6 @@ const ROOT_FLAG_SPEC = {
 		"--no-telemetry",
 		"--no-warnings",
 		"--score",
-		"--sfw",
 		"--staged",
 		"--verbose",
 		"--version",
@@ -94288,6 +98621,7 @@ const ROOT_FLAG_SPEC = {
 		"--category",
 		"--changed-files-from",
 		"--blocking",
+		"--output-dir",
 		"--fail-on",
 		"--project",
 		"--scope"
@@ -94430,6 +98764,9 @@ const stripUnknownCliFlags = (argv) => {
 initializeSentry();
 process.on("SIGINT", exitGracefully);
 process.on("SIGTERM", exitGracefully);
+process.on("exit", () => {
+	if (isDebugFlagEnabled()) printDebugTrace();
+});
 unrefStdin();
 guardStdin();
 const formatExampleLines = (examples) => {
@@ -94441,8 +98778,9 @@ ${highlighter.dim("Examples:")}
 ${formatExampleLines([
 	["react-doctor", "scan the current project"],
 	["react-doctor ./apps/web", "scan a specific directory"],
-	["react-doctor --diff main", "scan only files changed vs. main"],
-	["react-doctor --diff parent", "scan changes vs. the branch you forked from"],
+	["react-doctor --scope changed --base main", "scan only new issues vs. main"],
+	["react-doctor --scope changed --base parent", "scan changes vs. the branch you forked from"],
+	["react-doctor --project modules/a,modules/b", "score each module separately (names or paths)"],
 	["react-doctor --staged", "scan staged files (pre-commit hook)"],
 	["react-doctor --category Security", "show only one diagnostic category"],
 	["react-doctor --blocking warning", "fail CI on warnings too (default: error)"],
@@ -94474,9 +98812,9 @@ ${highlighter.dim("Learn more:")}
   ${highlighter.info(CANONICAL_GITHUB_URL)}
 `;
 const collectCategoryOption = (value, previousValues) => [...previousValues ?? [], value];
-const program = new Command().name("react-doctor").description("Diagnose React codebase health").version(VERSION, "-v, --version", "display the version number").argument("[directory]", "project directory to scan", ".").option("--lint", "enable linting").option("--no-lint", "skip linting").option("--dead-code", "enable dead-code analysis (default)").option("--no-dead-code", "skip dead-code analysis (unused files / exports / dependencies, circular imports)").option("--verbose", "show every rule and per-file details (default shows top 3 rules)").option("--score", "output only the score").option("--json", "output a single structured JSON report (suppresses other output)").option("--json-compact", "with --json, emit compact JSON (no indentation)").option("-y, --yes", "skip prompts, scan all workspace projects").option("--no-parallel", "lint serially with one worker (default: parallel across CPU cores; set the worker count with REACT_DOCTOR_PARALLEL)").option("--project <name>", "select workspace project (comma-separated for multiple)").option("--scope <value>", "how much to scan/report: full (default), files, changed (only new issues vs base), or lines (only changed lines)").option("--base <ref>", "base git ref for files/changed/lines scope (auto-detected when omitted; use `parent` to auto-detect the branch you forked from)").addOption(new Option("--diff [base]", "[deprecated] alias for --scope changed (pass `false` to force a full scan)").hideHelp()).addOption(new Option("--changed-files-from <file>", "scan source files listed in a newline-delimited changed-files file").hideHelp()).option("--no-score", "skip the score API, the share URL, and crash reporting").addOption(new Option("--category <category>", "only show diagnostics in a category (repeatable; e.g. Security)").argParser(collectCategoryOption)).option("--no-telemetry", "alias for --no-score (skip the score API, share URL, and crash reporting)").option("--staged", "scan only staged (git index) files for pre-commit hooks").option("--blocking <level>", "severity that fails CI: error (default), warning, or none (advisory)").addOption(new Option("--fail-on <level>", "[deprecated] alias for --blocking <level>").hideHelp()).option("--no-respect-inline-disables", "audit mode: neutralize inline lint suppressions before scanning").option("--warnings", "show warning-severity diagnostics (default)").option("--no-warnings", "hide warning-severity diagnostics (errors only)").option("--sfw", "demo: print the Socket.dev supply-chain score of every direct dependency, then exit").option("--color", "force colored output").option("--no-color", "disable colored output (also honors NO_COLOR)").addHelpText("after", renderRootHelpEpilog);
+const program = new Command().name("react-doctor").description("Diagnose React codebase health").version(VERSION, "-v, --version", "display the version number").argument("[directory]", "project directory to scan", ".").option("--lint", "enable linting").option("--no-lint", "skip linting").option("--dead-code", "enable dead-code analysis (default)").option("--no-dead-code", "skip dead-code analysis (unused files / exports / dependencies, circular imports)").option("--verbose", "show every rule and per-file details (default shows top 3 rules)").option("--debug", "force a Sentry trace and print its id at the end (paste it into a bug report)").option("--output-dir <dir>", "directory for the full diagnostics dump (default: a temp folder)").option("--score", "output only the score").option("--json", "output a single structured JSON report (suppresses other output)").option("--json-compact", "with --json, emit compact JSON (no indentation)").option("-y, --yes", "skip prompts, scan all workspace projects").option("--no-parallel", "lint serially with one worker (default: parallel across CPU cores; set the worker count with REACT_DOCTOR_PARALLEL)").option("--project <name>", "select projects: workspace names or directory paths (comma-separated for multiple); overrides the `projects` config field").option("--scope <value>", "how much to scan/report: full (default), files, changed (only new issues vs base), or lines (only changed lines)").option("--base <ref>", "base git ref for files/changed/lines scope (auto-detected when omitted; use `parent` to auto-detect the branch you forked from)").addOption(new Option("--diff [base]", "[deprecated] alias for --scope changed (pass `false` to force a full scan)").hideHelp()).addOption(new Option("--changed-files-from <file>", "scan source files listed in a newline-delimited changed-files file").hideHelp()).option("--no-score", "skip the score API, the share URL, and crash reporting").addOption(new Option("--category <category>", "only show diagnostics in a category (repeatable; e.g. Security)").argParser(collectCategoryOption)).option("--no-telemetry", "alias for --no-score (skip the score API, share URL, and crash reporting)").option("--staged", "scan only staged (git index) files for pre-commit hooks").option("--blocking <level>", "severity that fails CI: error (default), warning, or none (advisory)").addOption(new Option("--fail-on <level>", "[deprecated] alias for --blocking <level>").hideHelp()).option("--no-respect-inline-disables", "audit mode: neutralize inline lint suppressions before scanning").option("--warnings", "show warning-severity diagnostics (default)").option("--no-warnings", "hide warning-severity diagnostics (errors only)").option("--color", "force colored output").option("--no-color", "disable colored output (also honors NO_COLOR)").addHelpText("after", renderRootHelpEpilog);
 program.action(inspectAction);
-program.command("why <location>").description("Explain why a rule fired (or why a suppression didn't apply) at a file:line").option("--project <name>", "select workspace project (comma-separated for multiple)").option("-c, --cwd <cwd>", "working directory", process.cwd()).option("--color", "force colored output").option("--no-color", "disable colored output (also honors NO_COLOR)").action((location, options) => whyAction(location, options));
+program.command("why <location>").description("Explain why a rule fired (or why a suppression didn't apply) at a file:line").option("--project <name>", "select projects: workspace names or directory paths (comma-separated for multiple)").option("-c, --cwd <cwd>", "working directory", process.cwd()).option("--color", "force colored output").option("--no-color", "disable colored output (also honors NO_COLOR)").action((location, options) => whyAction(location, options));
 program.command("install").alias("setup").description("Install the react-doctor skill into your coding agents and optional git hook").option("-y, --yes", "skip prompts, install for all detected agents").option("--dry-run", "show what would be installed without writing files").option("--agent-hooks", "install native non-blocking agent hooks for Claude Code and Cursor").option("-c, --cwd <cwd>", "working directory", process.cwd()).option("--color", "force colored output").option("--no-color", "disable colored output (also honors NO_COLOR)").addHelpText("after", renderInstallHelpEpilog).action(installAction);
 program.command("version").description("show the version with Node and platform info").option("--color", "force colored output").option("--no-color", "disable colored output (also honors NO_COLOR)").action(versionAction);
 const rules = program.command("rules").description("List, explain, and configure which React Doctor rules run");
