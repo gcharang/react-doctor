@@ -4,7 +4,7 @@ You are a coding agent (Cursor, Claude Code, Codex, etc.) running on a developer
 
 Before the loop runs, work through the two setup prompts below - "Pick a scan scope" (only when the working tree is dirty) and "Pick an output mode". Then run the five steps:
 
-1. **Scan** - `react-doctor --json <scope-flag>` → `/tmp/diagnostics.json`.
+1. **Scan** - `react-doctor --json <scope-flag> <category-flags>` → `/tmp/diagnostics.json`.
 2. **Filter** - drop matches against `.react-doctor/false-positives.md` and each rule's validation prompt.
 3. **Triage** - partition by severity (errors before warnings) and flag anything needing human judgment as deferred.
 4. **Fix** - apply errors serially with per-fix typecheck (revert if broken), then apply warnings in a batch with one validation at the end. Either in place (working-tree mode) or one branch + PR per bucket (PR mode).
@@ -65,18 +65,21 @@ Each `(severity, category)` slice becomes its own branch + commit + PR via `gh p
 
 - `gh` CLI installed and authenticated (`gh auth status` should succeed).
 - A clean working tree before starting (`git status` empty) so each PR contains only React Doctor's changes.
+- A current local default branch: run `git fetch origin && git merge --ff-only origin/<default-branch>` from the default branch so every bucket branch is cut from the up-to-date base. If the fast-forward fails (local default has diverged), fall back to `working-tree` mode.
 
-If either prerequisite is missing, fall back to `working-tree` and tell the user why.
+If any prerequisite is missing, fall back to `working-tree` and tell the user why.
 
 ---
 
 ## 1. Scan
 
 ```bash
-npx -y github:gcharang/react-doctor#pinned --json <scope-flag> --yes > /tmp/diagnostics.json
+npx -y github:gcharang/react-doctor#pinned --json <scope-flag> <category-flags> --yes > /tmp/diagnostics.json
 ```
 
 - `<scope-flag>` is whichever the user picked in "Pick a scan scope" (`--diff HEAD`, `--diff`, or omit). When the scope question was skipped (clean working tree), default to `--diff` - or omit entirely when `git branch --show-current` matches the default branch (the diff would be empty anyway).
+- `<category-flags>` is empty unless the user asks for specific diagnostic categories. Use `--category <category>` for each requested category, such as `--category performance` or `--category accessibility`.
+- Category flags narrow the displayed report and JSON diagnostics. They do not change which files React Doctor scans. Unknown categories fail before report output.
 - Run from the package being scanned. If the project has multiple apps, default to the primary app the user is currently editing.
 - All `diagnostics[]` empty → emit a one-line "clean - no findings" summary and stop.
 - Non-zero exit or unparseable JSON → surface stderr verbatim to the user and stop.
@@ -147,7 +150,7 @@ When a group mixes easy and hard cases, peel off the easy cases first. Single-si
 
 **Parallelism (optional, encouraged)** - if your runtime exposes a subagent / task tool (Cursor's `Task` with `subagent_type: "generalPurpose"`, Claude Code's equivalent, Codex's `task`), use it. Fan-out points:
 
-- **Working-tree mode**: partition the work by `filePath` and dispatch one subagent per file so concurrent writes don't collide. Each subagent gets its file's diagnostic list + the relevant `/tmp/rule/<plugin>/<rule>.md` fix prompts + the project's coding conventions, applies every fix in that file (errors first with per-fix typecheck, then warnings batched at the end of its file), and reports back what changed so the parent can build the summary. The parent runs the final repo-level validation.
+- **Working-tree mode**: partition the work by `filePath` and dispatch one subagent per file so concurrent writes don't collide. Each subagent gets its file's diagnostic list + the relevant `/tmp/rule/<plugin>/<rule>.md` fix prompts + the project's coding conventions, applies every fix in that file (errors first, then warnings), and reports back what changed so the parent can build the summary. Subagents skip the per-fix typecheck - a project-wide typecheck would see other subagents' in-progress edits and revert valid fixes. The parent runs one repo-level typecheck after the fan-out completes (still inside this step); if it fails, the parent reverts the fan-out's edits to the failing files, then re-applies those fixes serially with per-fix typecheck to isolate the offenders - the same salvage loop as the warning batch. Step 5's validation then runs on the salvaged tree.
 - **PR mode**: dispatch one subagent per bucket. Each subagent owns its branch end-to-end (`git checkout -b …` → apply that bucket's fixes → validate → commit → push → `gh pr create`) and returns the PR URL. Buckets are file-disjoint by design, so concurrent branches are safe; just have each subagent start from a fresh checkout of the default branch.
 
 Never mix error-pass and warning-pass subagents in the same wave - complete the error pass before fanning out warnings.
@@ -156,7 +159,7 @@ How the fixes actually land then depends on the mode the user picked at the star
 
 ### Working-tree mode
 
-Run the **error pass** first (serial + per-fix typecheck + revert-on-fail, per the execution strategy above), then the **warning pass** (batch + final validate; fall back to serial on batch failure). Fan out across files via subagents when possible.
+Run the **error pass** first (serial + per-fix typecheck + revert-on-fail, per the execution strategy above), then the **warning pass** (batch + final validate; fall back to serial on batch failure). Fan out across files via subagents when possible - in that case per-fix typecheck is deferred to the parent's post-fan-out validation, per the parallelism section above.
 
 Do **not** commit. Do **not** stage. Leave changes in the working tree so the user can review with `git diff` before committing.
 
@@ -165,14 +168,14 @@ Do **not** commit. Do **not** stage. Leave changes in the working tree so the us
 Bucket the non-deferred diagnostics by `(severity, category)`. One PR per bucket - e.g. `[React Doctor] State & Effects errors`, `[React Doctor] Performance warnings`. Single-occurrence buckets are fine; don't artificially merge unrelated categories.
 
 - Per bucket: ≤30 files / ≤600 LoC. Split by top-level subfolder if exceeded (e.g. `State & Effects (web)` vs `State & Effects (worker)`).
-- Drop any bucket that would need >10 file edits to land cleanly - record under "Buckets dropped" in the summary.
+- Drop any bucket that would need >10 collateral file edits to land cleanly - files _outside_ the bucket's own diagnostics that must change for validation to pass (the bucket's diagnostic files count toward the split threshold above, not this drop rule). Record drops under "Buckets dropped" in the summary.
 - Deferred diagnostics: don't open and don't list. Surface in the chat summary.
 
 Order the bucket queue: every error-severity bucket first, every warning-severity bucket second. Don't start a warning bucket until every error bucket has been attempted (opened as a PR or dropped).
 
 For each bucket, off a fresh checkout of the default branch (in parallel via subagents if available - one subagent per bucket, since branches are isolated):
 
-1. `git checkout -b react-doctor/$(date -u +%Y-%m-%d)/<slug>` (short kebab: `state-effects-errors`, `perf-warnings`, etc.).
+1. `git checkout -b react-doctor/$(date -u +%Y-%m-%d)-$(git rev-parse --short HEAD)/<slug>` (short kebab: `state-effects-errors`, `perf-warnings`, etc.) - the short SHA disambiguates same-day re-runs after the base has moved. If the branch already exists (a re-run at the same HEAD), an earlier run already produced this bucket - skip it, record it under "Buckets carried forward" in the summary with the existing PR, and continue with the next bucket.
 2. Apply the bucket's fixes per the execution strategy (errors serial + per-fix typecheck, warnings batched).
 3. Validate: the project's typecheck + lint + format from the repo root. One retry on failure; still failing → reset the branch and move on silently (record under "Buckets dropped" in the summary).
 4. Commit with a conventional prefix (`chore:` / `perf:` / `fix:` / `refactor:`), terse subject - the value-rich phrasing lives in the PR title.
@@ -203,7 +206,7 @@ pnpm typecheck && pnpm lint && pnpm format
 
 Substitute the project's actual runner (`npm run`, `yarn`, `bun`, `turbo`, …) and skip whatever it doesn't define.
 
-If any step fails, surface the error verbatim and stop. Do not attempt blind retries - the user is sitting at the keyboard and can decide.
+If any step fails, surface the error verbatim and stop. Do not attempt blind retries (Step 4's salvage loops have already run by this point) - the user is sitting at the keyboard and can decide.
 
 Then emit:
 
@@ -241,6 +244,7 @@ Edits are unstaged. Review with `git diff`, then commit (or discard) what you wa
 <summary>Scan details</summary>
 
 - Scope: `--diff` against `<base>` _(or "full scan")_
+- Category filter: `<category-flags>` _(or "all categories")_
 - Diagnostics: N scanned, F suppressed (A static, B validation prompt)
 
 </details>
@@ -331,6 +335,7 @@ Print a short summary in chat. Don't duplicate the tracking issue body - surface
 <summary>Scan details</summary>
 
 - Scope: `--diff` against `<base>` _(or "full scan")_
+- Category filter: `<category-flags>` _(or "all categories")_
 - Diagnostics: N scanned, F suppressed (A static, B validation prompt)
 
 </details>
