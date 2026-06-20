@@ -127,6 +127,19 @@ jobs:
             echo
             echo "Conflicts on the harden commit's files are expected and shown in the PR UI; resolve them in the merge."
             echo
+            echo "## After merging: refresh the vendored prompts"
+            echo
+            echo "The agent playbook and per-rule fix recipes are vendored into \`prompts/\` on"
+            echo "\`${PINNED_BRANCH}\` by a manual scrape of the live upstream site (\`scripts/vendor-prompts.mjs\`)."
+            echo "Upstream prompt/recipe changes — and any rules this sync adds or removes — are **not**"
+            echo "carried by this PR, so after merging, on \`${PINNED_BRANCH}\` run:"
+            echo
+            echo '    pnpm build'
+            echo '    node scripts/vendor-prompts.mjs'
+            echo
+            echo "then review the \`prompts/\` diff and commit it. Skipping this lets \`prompts/\` drift from"
+            echo "what upstream now serves and can leave advertised fix-recipe links pointing at missing files."
+            echo
             echo "_Opened by the \`sync-upstream\` workflow. Do not auto-merge._"
           } > pr_body.md
 
@@ -166,3 +179,22 @@ jobs:
               --title "${title}" \
               --body-file pr_body.md
           fi
+
+      - name: Remind to refresh vendored prompts
+        if: steps.pr.outputs.needed == 'true'
+        run: |
+          set -euo pipefail
+          echo "::notice title=Refresh vendored prompts::After merging the ${FORK_BRANCH} -> ${PINNED_BRANCH} PR, run 'pnpm build && node scripts/vendor-prompts.mjs' on ${PINNED_BRANCH} and commit the refreshed prompts/ — upstream prompt changes are not auto-vendored and will drift otherwise."
+          {
+            echo "### Refresh vendored prompts after merging"
+            echo
+            echo "Upstream prompt/recipe changes are **not** carried by the ${FORK_BRANCH} -> ${PINNED_BRANCH} sync."
+            echo "After merging, on \`${PINNED_BRANCH}\` run:"
+            echo
+            echo '```bash'
+            echo "pnpm build"
+            echo "node scripts/vendor-prompts.mjs"
+            echo '```'
+            echo
+            echo "then review and commit the \`prompts/\` diff."
+          } >> "$GITHUB_STEP_SUMMARY"
