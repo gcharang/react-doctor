@@ -13,7 +13,7 @@
 // Requires the engine to be built first (`pnpm build`) so the rule list can be
 // read from its dist, and outbound network access to www.react.doctor.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -132,8 +132,21 @@ const main = async () => {
     }
   }
 
+  // Prune recipes for rules upstream removed/renamed. The dir is strictly
+  // one-recipe-per-engine-rule; a leftover .md with no matching rule would serve a
+  // dead recipe and silently re-accumulate on every scrape (this script only ever
+  // wrote files before). Without this, `prompts/` drifts even with a fresh scrape.
+  const liveRecipeIds = new Set(ruleIds);
+  let pruned = 0;
+  for (const file of readdirSync(RULES_DIR)) {
+    if (!file.endsWith(".md") || liveRecipeIds.has(file.slice(0, -3))) continue;
+    rmSync(resolve(RULES_DIR, file));
+    pruned += 1;
+  }
+
   process.stdout.write(
-    `\nVendored: 1 playbook + ${fetched} fetched recipes + ${synthesized} synthesized (no upstream recipe).\n`,
+    `\nVendored: 1 playbook + ${fetched} fetched recipes + ${synthesized} synthesized (no upstream recipe)` +
+      `${pruned > 0 ? ` + ${pruned} pruned (rule removed upstream)` : ""}.\n`,
   );
   if (failed.length > 0) {
     process.stdout.write(`\n${failed.length} recipe fetches errored (not 404):\n`);
