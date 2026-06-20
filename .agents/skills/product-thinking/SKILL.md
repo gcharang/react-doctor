@@ -86,7 +86,7 @@ The default is a product decision, not an implementation detail — most users n
 A surface nobody can discover is wasted, and a stale doc is a trust bug. Documentation is part of "done," not a follow-up:
 
 - The `--help` / usage text next to the new flag or command, so it's discoverable from the CLI itself.
-- The website page and the canonical prompt under `react.doctor/prompts/...`, which is what agents fetch at runtime.
+- The canonical prompt vendored under `prompts/...` and served from raw GitHub (`raw.githubusercontent.com/gcharang/react-doctor/pinned/prompts/...`), which is what agents fetch at runtime.
 - The distributed skills (`skills/react-doctor`, `skills/doctor-explain`) when the change alters the user-facing workflow.
 
 ### 6. Record the kill metric

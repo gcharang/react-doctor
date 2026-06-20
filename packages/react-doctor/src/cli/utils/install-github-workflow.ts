@@ -77,46 +77,6 @@ export const getReactDoctorWorkflowPath = (projectRoot: string): string =>
 export const isReactDoctorWorkflowInstalled = (projectRoot: string): boolean =>
   fs.existsSync(getReactDoctorWorkflowPath(projectRoot));
 
-// Matches ONLY the floating-major action ref this template installs
-// (`millionco/react-doctor@v1`). The negative lookahead excludes exact tags
-// (`@v1.2.3`) and SHA pins (`@<sha> # v1.1.1`) — those are deliberate version
-// locks we must not silently move across a major boundary, so the upgrade
-// offer is scoped to the floating ref we ship by default.
-const V1_FLOATING_ACTION_REF = String.raw`millionco/react-doctor@v1(?![\w.])`;
-const V2_FLOATING_ACTION_REF = "millionco/react-doctor@v2";
-
-export interface InstalledReactDoctorWorkflow {
-  readonly workflowPath: string;
-  readonly content: string;
-}
-
-// Reads the canonical `.github/workflows/react-doctor.yml` if present. Returns
-// null when it's absent or unreadable (the upgrade offer simply doesn't fire).
-export const readReactDoctorWorkflow = (
-  projectRoot: string,
-): InstalledReactDoctorWorkflow | null => {
-  const workflowPath = getReactDoctorWorkflowPath(projectRoot);
-  try {
-    return { workflowPath, content: fs.readFileSync(workflowPath, "utf8") };
-  } catch {
-    return null;
-  }
-};
-
-// True when the workflow still pins the action's previous floating major.
-export const workflowUsesV1Action = (content: string): boolean =>
-  new RegExp(V1_FLOATING_ACTION_REF).test(content);
-
-// Rewrites the floating `@v1` ref(s) to `@v2`, leaving everything else
-// (formatting, comments, inputs, any exact/SHA pins) untouched. `changed` is
-// false when there was nothing to bump.
-export const upgradeWorkflowActionToV2 = (
-  content: string,
-): { readonly content: string; readonly changed: boolean } => {
-  const upgraded = content.replace(new RegExp(V1_FLOATING_ACTION_REF, "g"), V2_FLOATING_ACTION_REF);
-  return { content: upgraded, changed: upgraded !== content };
-};
-
 // Writes `.github/workflows/react-doctor.yml`, creating the workflows
 // directory if needed. Returns "exists" without overwriting a workflow that's
 // already there, and "failed" (rather than throwing) so callers can degrade to
@@ -136,40 +96,5 @@ export const installReactDoctorWorkflow = (
     return { status: "created", workflowPath };
   } catch {
     return { status: "failed", workflowPath };
-  }
-};
-
-export interface UpgradeGitHubWorkflowResult {
-  // "upgraded": the floating `@v1` ref was rewritten to `@v2` in place.
-  // "not-needed": no workflow on disk, or it doesn't pin the floating `@v1`.
-  // "failed": the rewrite couldn't be persisted (read-only / permission FS).
-  readonly status: "upgraded" | "not-needed" | "failed";
-  readonly workflowPath: string;
-}
-
-// Rewrites an existing `.github/workflows/react-doctor.yml` from the action's
-// previous floating major (`@v1`) to `@v2` in place, leaving everything else
-// untouched. Mirrors `installReactDoctorWorkflow`'s "write to the working tree,
-// user reviews + commits" contract for the `install` flow — the PR-opening
-// upgrade variant lives in the post-scan handoff. Returns "failed" (rather than
-// throwing) so callers can degrade gracefully.
-export const upgradeReactDoctorWorkflowInPlace = (
-  projectRoot: string,
-): UpgradeGitHubWorkflowResult => {
-  const workflow = readReactDoctorWorkflow(projectRoot);
-  if (!workflow)
-    return {
-      status: "not-needed",
-      workflowPath: getReactDoctorWorkflowPath(projectRoot),
-    };
-
-  const { content, changed } = upgradeWorkflowActionToV2(workflow.content);
-  if (!changed) return { status: "not-needed", workflowPath: workflow.workflowPath };
-
-  try {
-    fs.writeFileSync(workflow.workflowPath, content);
-    return { status: "upgraded", workflowPath: workflow.workflowPath };
-  } catch {
-    return { status: "failed", workflowPath: workflow.workflowPath };
   }
 };

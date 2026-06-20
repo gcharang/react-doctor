@@ -10,7 +10,6 @@ import {
 } from "../src/cli/utils/cli-state-store.js";
 import { hasCompletedOnboarding } from "../src/cli/utils/onboarding-state.js";
 import { hasHandledCiPrompt } from "../src/cli/utils/ci-prompt-decision.js";
-import { hasHandledActionUpgrade } from "../src/cli/utils/action-upgrade-prompt.js";
 import { hasDisabledSetupPrompt } from "../src/cli/utils/prompt-install-setup.js";
 import { hashProjectRoot } from "../src/cli/utils/hash-project-root.js";
 
@@ -27,13 +26,6 @@ describe("cli-state-store schema migration", () => {
             at: "2026-01-02T00:00:00.000Z",
           },
         },
-        actionUpgrades: {
-          [repoHash]: {
-            rootDirectory: "/repo/a",
-            outcome: "accepted",
-            at: "2026-01-03T00:00:00.000Z",
-          },
-        },
         projects: { [repoHash]: { rootDirectory: "/repo/a", setupPrompt: false } },
       });
 
@@ -45,11 +37,9 @@ describe("cli-state-store schema migration", () => {
       const project = migrated.projects?.[repoHash];
       expect(project?.rootDirectory).toBe("/repo/a");
       expect(project?.events?.["ci-pitch"]?.outcome).toBe("declined");
-      expect(project?.events?.["action-upgrade-v2"]?.outcome).toBe("accepted");
       expect(project?.events?.["setup-hint"]?.outcome).toBe("declined");
       // Legacy keys are dropped.
       expect(migrated.ciPrompts).toBeUndefined();
-      expect(migrated.actionUpgrades).toBeUndefined();
       expect(project?.setupPrompt).toBeUndefined();
     });
 
@@ -79,9 +69,6 @@ describe("cli-state-store schema migration", () => {
         JSON.stringify({
           onboardedAt: "2026-01-01T00:00:00.000Z",
           ciPrompts: { [repoHash]: { rootDirectory: "/repo/a", outcome: "declined", at: "x" } },
-          actionUpgrades: {
-            [repoHash]: { rootDirectory: "/repo/a", outcome: "accepted", at: "y" },
-          },
           projects: { [repoHash]: { rootDirectory: "/repo/a", setupPrompt: false } },
         }),
       );
@@ -89,7 +76,6 @@ describe("cli-state-store schema migration", () => {
       // Reading through the public API must see the preserved answers (no re-nag).
       expect(hasCompletedOnboarding({ cwd: configRoot })).toBe(true);
       expect(hasHandledCiPrompt("/repo/a", { cwd: configRoot })).toBe(true);
-      expect(hasHandledActionUpgrade("/repo/a", { cwd: configRoot })).toBe(true);
       expect(hasDisabledSetupPrompt("/repo/a", { cwd: configRoot })).toBe(true);
 
       // And the file on disk is upgraded in place.

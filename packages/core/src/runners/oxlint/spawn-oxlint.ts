@@ -130,7 +130,7 @@ export const spawnOxlint = (
           new ReactDoctorError({
             reason: new OxlintBatchExceeded({
               kind: "output-too-large",
-              detail: `exceeded ${outputMaxBytes} bytes — scan a smaller subset with --diff or --staged`,
+              detail: `exceeded ${outputMaxBytes} bytes — scan a smaller subset with --scope changed or --staged`,
             }),
           }),
         );
@@ -140,7 +140,7 @@ export const spawnOxlint = (
         const stderrOutput = Buffer.concat(stderrBuffers).toString("utf-8").trim();
         const isOom = signal === "SIGABRT";
         const detailParts: string[] = [`killed by ${signal}`];
-        if (isOom) detailParts.push("try scanning fewer files with --diff");
+        if (isOom) detailParts.push("try scanning fewer files with --scope changed or --staged");
         if (stderrOutput) detailParts.push(stderrOutput);
         reject(
           new ReactDoctorError({

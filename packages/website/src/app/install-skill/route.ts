@@ -1,7 +1,7 @@
 // HACK: this route serves the `curl | bash` installer that's linked
 // from the website's "install" CTA. Rather than reimplement agent
 // detection + skill copying in shell, we just delegate to the JS CLI:
-// `npx react-doctor install --yes`.
+// `npx github:gcharang/react-doctor#pinned install --yes`.
 //
 // The JS CLI delegates to the `agent-install` package for the full
 // agent registry (Claude Code, Codex, Cursor, Factory Droid, Gemini CLI,
@@ -9,7 +9,7 @@
 // Code) and where each agent's skill directory lives (.claude/skills,
 // .factory/skills, .agents/skills, etc., all PROJECT-LOCAL). Keeping
 // this script tiny means web-installed users always get the same
-// behavior as `npx react-doctor install`.
+// behavior as `npx github:gcharang/react-doctor#pinned install`.
 const INSTALL_SCRIPT = `#!/bin/bash
 set -e
 
@@ -26,8 +26,8 @@ if ! command -v npx >/dev/null 2>&1; then
   exit 1
 fi
 
-printf "\${GREEN}→\${RESET} Installing react-doctor skill via npx react-doctor install...\\n"
-exec npx react-doctor@latest install --yes
+printf "\${GREEN}→\${RESET} Installing the react-doctor skill...\\n"
+exec npx github:gcharang/react-doctor#pinned install --yes
 `;
 
 export const GET = (): Response =>

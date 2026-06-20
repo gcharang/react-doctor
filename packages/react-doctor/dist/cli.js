@@ -86304,7 +86304,7 @@ const spawnOxlint = (args, rootDirectory, nodeBinaryPath, spawnTimeoutMs = OXLIN
 		if (didKillForSize) {
 			reject(new ReactDoctorError({ reason: new OxlintBatchExceeded({
 				kind: "output-too-large",
-				detail: `exceeded ${outputMaxBytes} bytes — scan a smaller subset with --diff or --staged`
+				detail: `exceeded ${outputMaxBytes} bytes — scan a smaller subset with --scope changed or --staged`
 			}) }));
 			return;
 		}
@@ -86312,7 +86312,7 @@ const spawnOxlint = (args, rootDirectory, nodeBinaryPath, spawnTimeoutMs = OXLIN
 			const stderrOutput = Buffer.concat(stderrBuffers).toString("utf-8").trim();
 			const isOom = signal === "SIGABRT";
 			const detailParts = [`killed by ${signal}`];
-			if (isOom) detailParts.push("try scanning fewer files with --diff");
+			if (isOom) detailParts.push("try scanning fewer files with --scope changed or --staged");
 			if (stderrOutput) detailParts.push(stderrOutput);
 			reject(new ReactDoctorError({ reason: new OxlintBatchExceeded({
 				kind: isOom ? "oom" : "killed",
@@ -93234,7 +93234,6 @@ const canAnimateOnboarding = (stream = process.stdout) => {
 const nowIso = () => (/* @__PURE__ */ new Date()).toISOString();
 const ONBOARDING_EVENT = "onboarding";
 const CI_PITCH_EVENT = "ci-pitch";
-const ACTION_UPGRADE_EVENT = "action-upgrade-v2";
 const SETUP_HINT_EVENT = "setup-hint";
 const foldLegacyDecisions = (projects, legacy, eventId) => {
 	for (const [hash, record] of Object.entries(legacy ?? {})) {
@@ -93274,7 +93273,6 @@ const migrateCliState = (state) => {
 		} : carried;
 	}
 	foldLegacyDecisions(projects, state.ciPrompts, CI_PITCH_EVENT);
-	foldLegacyDecisions(projects, state.actionUpgrades, ACTION_UPGRADE_EVENT);
 	return {
 		schemaVersion: 2,
 		global: typeof state.onboardedAt === "string" ? { events: { [ONBOARDING_EVENT]: {
@@ -95003,27 +95001,6 @@ jobs:
 `;
 const getReactDoctorWorkflowPath = (projectRoot) => path$1.join(projectRoot, ".github", "workflows", "react-doctor.yml");
 const isReactDoctorWorkflowInstalled = (projectRoot) => fs$1.existsSync(getReactDoctorWorkflowPath(projectRoot));
-const V1_FLOATING_ACTION_REF = String.raw`millionco/react-doctor@v1(?![\w.])`;
-const V2_FLOATING_ACTION_REF = "millionco/react-doctor@v2";
-const readReactDoctorWorkflow = (projectRoot) => {
-	const workflowPath = getReactDoctorWorkflowPath(projectRoot);
-	try {
-		return {
-			workflowPath,
-			content: fs$1.readFileSync(workflowPath, "utf8")
-		};
-	} catch {
-		return null;
-	}
-};
-const workflowUsesV1Action = (content) => new RegExp(V1_FLOATING_ACTION_REF).test(content);
-const upgradeWorkflowActionToV2 = (content) => {
-	const upgraded = content.replace(new RegExp(V1_FLOATING_ACTION_REF, "g"), V2_FLOATING_ACTION_REF);
-	return {
-		content: upgraded,
-		changed: upgraded !== content
-	};
-};
 const installReactDoctorWorkflow = (projectRoot, defaultBranch = "main") => {
 	const workflowPath = getReactDoctorWorkflowPath(projectRoot);
 	if (fs$1.existsSync(workflowPath)) return {
@@ -95044,41 +95021,6 @@ const installReactDoctorWorkflow = (projectRoot, defaultBranch = "main") => {
 		};
 	}
 };
-const upgradeReactDoctorWorkflowInPlace = (projectRoot) => {
-	const workflow = readReactDoctorWorkflow(projectRoot);
-	if (!workflow) return {
-		status: "not-needed",
-		workflowPath: getReactDoctorWorkflowPath(projectRoot)
-	};
-	const { content, changed } = upgradeWorkflowActionToV2(workflow.content);
-	if (!changed) return {
-		status: "not-needed",
-		workflowPath: workflow.workflowPath
-	};
-	try {
-		fs$1.writeFileSync(workflow.workflowPath, content);
-		return {
-			status: "upgraded",
-			workflowPath: workflow.workflowPath
-		};
-	} catch {
-		return {
-			status: "failed",
-			workflowPath: workflow.workflowPath
-		};
-	}
-};
-//#endregion
-//#region src/cli/utils/action-upgrade-prompt.ts
-const ACTION_UPGRADE_GATE = {
-	id: ACTION_UPGRADE_EVENT,
-	scope: "project"
-};
-const hasHandledActionUpgrade = (projectRoot, options = {}) => !isGatePending(ACTION_UPGRADE_GATE, { projectRoot }, options);
-const recordActionUpgradeDecision = (projectRoot, outcome, options = {}) => recordGate(ACTION_UPGRADE_GATE, {
-	projectRoot,
-	outcome
-}, options);
 //#endregion
 //#region src/cli/utils/ci-prompt-decision.ts
 const CI_PITCH_GATE = {
@@ -95169,30 +95111,6 @@ const askAddToGitHubActions = async (prompt = prompts) => {
 		cliLogger.log(opened ? `Opened ${highlighter.info(GITHUB_ACTIONS_SETUP_URL)} in your browser.` : `Visit ${highlighter.info(GITHUB_ACTIONS_SETUP_URL)} to learn more.`);
 		cliLogger.break();
 	}
-};
-//#endregion
-//#region src/cli/utils/ask-upgrade-action-version.ts
-const UPGRADE_YES_CHOICE = "upgrade-yes";
-const UPGRADE_NO_CHOICE = "upgrade-no";
-const askUpgradeActionVersion = async (prompt = prompts) => {
-	const { upgradeChoice } = await prompt({
-		type: "select",
-		name: "upgradeChoice",
-		message: "A new major of the React Doctor Action (v2) is out. Upgrade this repo's workflow?",
-		hint: " ",
-		choices: [{
-			title: "Yes (recommended)",
-			description: "Bump the workflow to millionco/react-doctor@v2",
-			value: UPGRADE_YES_CHOICE
-		}, {
-			title: "No, thanks",
-			description: "Keep @v1 — won't ask again for this repo",
-			value: UPGRADE_NO_CHOICE
-		}],
-		initial: 0
-	}, { onCancel: () => true });
-	if (upgradeChoice === void 0) return "cancel";
-	return upgradeChoice === UPGRADE_YES_CHOICE ? "yes" : "no";
 };
 //#endregion
 //#region src/cli/utils/run-command.ts
@@ -96309,21 +96227,6 @@ const installReactDoctorAgentHooksStep = (projectRoot, selectedAgents) => {
 const installReactDoctorWorkflowStep = async (projectRoot) => {
 	return reportWorkflowResult(spinner("Adding GitHub Actions workflow...").start(), installReactDoctorWorkflow(projectRoot, await detectDefaultBranch(projectRoot) ?? void 0), projectRoot);
 };
-const upgradeReactDoctorWorkflowStep = (projectRoot) => {
-	const workflowSpinner = spinner("Upgrading GitHub Actions workflow to v2...").start();
-	const upgradeResult = upgradeReactDoctorWorkflowInPlace(projectRoot);
-	if (upgradeResult.status === "failed") {
-		workflowSpinner.fail("Couldn't update the GitHub Actions workflow.");
-		return false;
-	}
-	if (upgradeResult.status === "not-needed") {
-		workflowSpinner.succeed("GitHub Actions workflow already up to date.");
-		return false;
-	}
-	workflowSpinner.succeed(`Upgraded the GitHub Actions workflow to v2 at ${path$1.relative(projectRoot, upgradeResult.workflowPath)}.`);
-	recordCount(METRIC.installWorkflow, 1, { kind: "upgrade" });
-	return true;
-};
 const runInstallReactDoctor = async (options = {}) => {
 	const requestedProjectRoot = options.projectRoot ?? process.cwd();
 	const projectRoot = findNearestPackageDirectory(requestedProjectRoot) ?? requestedProjectRoot;
@@ -96347,14 +96250,9 @@ const runInstallReactDoctor = async (options = {}) => {
 	const promptOptions = options.onPromptCancel === void 0 ? {} : { onCancel: options.onPromptCancel };
 	const prompt = options.prompt ?? prompts;
 	const workflowTargetPath = getReactDoctorWorkflowPath(projectRoot);
-	const existingWorkflow = readReactDoctorWorkflow(projectRoot);
 	const canInstallWorkflow = !fs$1.existsSync(workflowTargetPath);
-	const canUpgradeWorkflow = existingWorkflow !== null && workflowUsesV1Action(existingWorkflow.content) && !hasHandledActionUpgrade(projectRoot);
 	const ciPromptOutcome = canInstallWorkflow && !options.yes && !skipPrompts && !hasHandledCiPrompt(projectRoot) ? await askAddToGitHubActions(prompt) : null;
 	const shouldInstallWorkflow = canInstallWorkflow && (Boolean(options.yes) || ciPromptOutcome === "yes");
-	const upgradePromptOutcome = canUpgradeWorkflow && !options.yes && !skipPrompts ? await askUpgradeActionVersion(prompt) : null;
-	const shouldUpgradeWorkflow = canUpgradeWorkflow && (Boolean(options.yes) || upgradePromptOutcome === "yes");
-	if (upgradePromptOutcome === "no" && !options.dryRun) recordActionUpgradeDecision(projectRoot, "declined");
 	if ((ciPromptOutcome === "yes" || ciPromptOutcome === "no") && !options.dryRun) recordCiPromptDecision(projectRoot, ciPromptOutcome === "yes" ? "accepted" : "declined");
 	const selectedAgents = skipPrompts ? detectedAgents : (await prompt({
 		type: "multiselect",
@@ -96375,10 +96273,9 @@ const runInstallReactDoctor = async (options = {}) => {
 		dependencyResult = await installReactDoctorPackageSetup(projectRoot, options.installDependencyRunner);
 	}
 	let didInstallWorkflow = false;
-	if (!options.dryRun && (shouldInstallWorkflow || shouldUpgradeWorkflow)) {
+	if (!options.dryRun && shouldInstallWorkflow) {
 		cliLogger.break();
-		if (shouldInstallWorkflow) didInstallWorkflow = await installReactDoctorWorkflowStep(projectRoot);
-		else if (upgradeReactDoctorWorkflowStep(projectRoot)) recordActionUpgradeDecision(projectRoot, "accepted");
+		didInstallWorkflow = await installReactDoctorWorkflowStep(projectRoot);
 	}
 	const setupActionChoices = [...gitHookPath === null || gitHookPath === void 0 ? [] : [{
 		title: "Pre-commit hook",
@@ -96422,7 +96319,6 @@ const runInstallReactDoctor = async (options = {}) => {
 		if (shouldInstallGitHook) cliLogger.dim(`  Git hook: ${gitHookPath}`);
 		if (shouldInstallAgentHooks) cliLogger.dim("  Agent hooks: Claude Code / Cursor when selected");
 		if (shouldInstallWorkflow) cliLogger.dim(`  GitHub Actions workflow: ${path$1.relative(projectRoot, workflowTargetPath)}`);
-		if (shouldUpgradeWorkflow) cliLogger.dim(`  Upgrade GitHub Actions workflow to v2: ${path$1.relative(projectRoot, workflowTargetPath)}`);
 		return;
 	}
 	recordCount(METRIC.installCompleted, 1, {
@@ -96545,60 +96441,6 @@ const printPayload = (payload) => {
 	cliLogger.log(payload);
 	cliLogger.log(highlighter.dim("──────────────────────"));
 };
-const UPGRADE_COMMIT_MESSAGE = "ci: upgrade React Doctor GitHub Action to v2";
-const UPGRADE_PR_TITLE = "Upgrade React Doctor Action to v2";
-const UPGRADE_PR_BODY = `Bumps the React Doctor GitHub Actions workflow to the action's latest major, \`millionco/react-doctor@v2\`.
-
-Docs: https://www.react.doctor/ci`;
-const upgradeGitHubActionsWorkflow = async (workflow) => {
-	const { content, changed } = upgradeWorkflowActionToV2(workflow.content);
-	if (!changed) return false;
-	const upgradeSpinner = spinner("Opening a pull request to upgrade React Doctor to v2...").start();
-	try {
-		fs$1.writeFileSync(workflow.workflowPath, content);
-	} catch {
-		upgradeSpinner.fail("Couldn't update the workflow file.");
-		return false;
-	}
-	const pullRequestResult = await openWorkflowPullRequest({
-		workflowPath: workflow.workflowPath,
-		commitMessage: UPGRADE_COMMIT_MESSAGE,
-		prTitle: UPGRADE_PR_TITLE,
-		prBody: UPGRADE_PR_BODY
-	});
-	if (pullRequestResult.status === "pr-opened") upgradeSpinner.succeed(`Opened pull request for review: ${highlighter.info(pullRequestResult.url)}`);
-	else if (pullRequestResult.status === "pr-exists") {
-		try {
-			fs$1.writeFileSync(workflow.workflowPath, workflow.content);
-		} catch {}
-		upgradeSpinner.succeed(`A React Doctor pull request is already open: ${highlighter.info(pullRequestResult.url)}`);
-	} else if (pullRequestResult.status === "branch-pushed") upgradeSpinner.warn(`Pushed branch ${highlighter.bold(pullRequestResult.branch)} but couldn't open a PR. Open one with: gh pr create --head ${pullRequestResult.branch}`);
-	else {
-		upgradeSpinner.stop();
-		try {
-			fs$1.writeFileSync(workflow.workflowPath, content);
-		} catch {
-			cliLogger.log("  Couldn't finish the upgrade. Re-run React Doctor to try again.");
-			return false;
-		}
-		const didStage = await stageWorkflowFile({ workflowPath: workflow.workflowPath });
-		cliLogger.log(didStage ? "  Updated the workflow to @v2 and staged it. Commit it to finish the upgrade." : "  Updated the workflow to @v2. Commit the change to finish the upgrade.");
-	}
-	return true;
-};
-const maybeOfferActionUpgrade = async (projectRoot) => {
-	const workflow = readReactDoctorWorkflow(projectRoot);
-	if (!workflow || !workflowUsesV1Action(workflow.content)) return;
-	if (hasHandledActionUpgrade(projectRoot)) return;
-	const outcome = await askUpgradeActionVersion();
-	if (outcome === "cancel") return;
-	recordCount(METRIC.agentHandoff, 1, { outcome: outcome === "yes" ? "upgrade-accepted" : "upgrade-declined" });
-	if (outcome === "no") {
-		recordActionUpgradeDecision(projectRoot, "declined");
-		return;
-	}
-	if (await upgradeGitHubActionsWorkflow(workflow)) recordActionUpgradeDecision(projectRoot, "accepted");
-};
 const detectLaunchableAgents = async () => {
 	const detected = new Set(await detectAvailableAgents());
 	return Object.keys(CLI_AGENT_BINARIES).filter((agentId) => detected.has(agentId) && isCommandAvailable(CLI_AGENT_BINARIES[agentId]));
@@ -96620,8 +96462,7 @@ const handoffToAgent = async (input) => {
 			await setUpGitHubActions({ rootDirectory: input.rootDirectory });
 			cliLogger.break();
 		}
-	} else if (isGitHubActionsConfigured) await maybeOfferActionUpgrade(projectRootForCi);
-	else recordCount(METRIC.agentHandoff, 1, {
+	} else if (!isGitHubActionsConfigured) recordCount(METRIC.agentHandoff, 1, {
 		outcome: "ci-suppressed",
 		diagnosticsCount: input.diagnostics.length
 	});

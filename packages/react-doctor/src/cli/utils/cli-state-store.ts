@@ -17,7 +17,7 @@ export const CONFIG_DIR_ENV_VAR = "REACT_DOCTOR_CONFIG_DIR";
 
 // Bumped whenever the on-disk shape changes; `migrateCliState` upgrades older
 // files to this version in place. v1 was the original flat layout
-// (`onboardedAt` + `ciPrompts` / `actionUpgrades` / `projects.setupPrompt`);
+// (`onboardedAt` + `ciPrompts` / `projects.setupPrompt`);
 // v2 is the unified scope/event model below.
 export const CLI_STATE_SCHEMA_VERSION = 2;
 
@@ -38,12 +38,10 @@ export const INITIAL_LIFECYCLE_VERSION = 1;
 //   ────────────────────  ─────────  ───────  ──────────────────  ────────────────────────
 //   first-run onboarding  gate       global   onboarding          onboarding-state.ts
 //   "add to CI?" pitch    gate       project  ci-pitch            ci-prompt-decision.ts
-//   @v1 → @v2 offer       gate       project  action-upgrade-v2   action-upgrade-prompt.ts
 //   agent install hint    gate       project  setup-hint          prompt-install-setup.ts
 //   config json → ts      migration  project  config-json-to-ts   cli-migrations.ts
 export const ONBOARDING_EVENT = "onboarding";
 export const CI_PITCH_EVENT = "ci-pitch";
-export const ACTION_UPGRADE_EVENT = "action-upgrade-v2";
 export const SETUP_HINT_EVENT = "setup-hint";
 
 export type EventOutcome = "seen" | "accepted" | "declined";
@@ -83,7 +81,6 @@ export interface CliState {
   // Legacy pre-v2 top-level keys, read once by `migrateCliState` then dropped.
   readonly onboardedAt?: string;
   readonly ciPrompts?: Record<string, LegacyDecisionRecord>;
-  readonly actionUpgrades?: Record<string, LegacyDecisionRecord>;
 }
 
 interface LegacyDecisionRecord {
@@ -98,9 +95,9 @@ export interface CliStateOptions {
   readonly cwd?: string;
 }
 
-// Folds one legacy per-project decision map (`ciPrompts` / `actionUpgrades`)
-// into the unified per-project event records, preserving the recorded outcome
-// and timestamp so no repo gets re-prompted after the upgrade.
+// Folds one legacy per-project decision map (`ciPrompts`) into the unified
+// per-project event records, preserving the recorded outcome and timestamp so
+// no repo gets re-prompted after the upgrade.
 const foldLegacyDecisions = (
   projects: Record<string, ProjectScopeState>,
   legacy: Record<string, LegacyDecisionRecord> | undefined,
@@ -154,7 +151,6 @@ export const migrateCliState = (state: CliState): CliState => {
   }
 
   foldLegacyDecisions(projects, state.ciPrompts, CI_PITCH_EVENT);
-  foldLegacyDecisions(projects, state.actionUpgrades, ACTION_UPGRADE_EVENT);
 
   const global: ScopeState =
     typeof state.onboardedAt === "string"
